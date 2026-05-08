@@ -18,10 +18,14 @@ import {
   type InventoryRow,
   type PurchaseLotRow,
 } from '../api'
+import {
+  isCapitalAssetBehavior,
+  resolveLotLineInventoryBehavior,
+} from '../inventorySemantics'
 
 type PurchaseLotInvoiceItem = NonNullable<PurchaseLotRow['items']>[number]
 
-const LIMIT = 18
+const LIMIT = 100
 
 function getPurchaseLotIdFromHash(): string | null {
   const raw = (window.location.hash ?? '').replace(/^#/, '')
@@ -65,16 +69,6 @@ function formatCOP(value: string | number | null | undefined): string {
   }).format(n)
 }
 
-function lotItemsTotal(rows: InventoryRow[]): number {
-  let sum = 0
-  for (const r of rows) {
-    const q = num(r.quantity)
-    const c = num(r.unitCost)
-    if (Number.isFinite(q) && Number.isFinite(c)) sum += q * c
-  }
-  return sum
-}
-
 function qty(v: string | number | null | undefined): number {
   const n = num(v)
   return Number.isFinite(n) ? n : 0
@@ -104,49 +98,185 @@ function inventoryMatchByProductName(
   return lotInv.find((r) => r.name.trim().toLowerCase() === n)
 }
 
-/** Costo de la línea en la compra (histórico). No baja al descontar stock: con comprobante usa cantidad × costo del ítem. */
-function linePurchaseCostCOP(
+/** Cruza ítem del comprobante con inventario por `id` (preferido) o por nombre. */
+function inventoryMatchForLotItem(
+  lotInv: InventoryRow[],
+  item: PurchaseLotInvoiceItem,
+): InventoryRow | undefined {
+  const id = item.id?.trim()
+  if (id) {
+    const byId = lotInv.find((r) => r.id === id)
+    if (byId) return byId
+  }
+  return inventoryMatchByProductName(lotInv, item.name)
+}
+
+/** Fallback solo para APIs antiguas sin `items[].purchase` ni `purchaseLines`. */
+function legacyLinePurchaseCostFallback(
   inv: InventoryRow,
   invoiceLine: PurchaseLotInvoiceItem | undefined,
 ): number {
+  const cStock = num(inv.unitCost)
+  const qStock = qty(inv.quantity)
+
   if (invoiceLine) {
-    const q = qty(invoiceLine.quantity)
-    const c = num(invoiceLine.unitCost)
-    if (Number.isFinite(q) && Number.isFinite(c)) return q * c
+    const qDoc = qty(invoiceLine.quantity)
+    const cDoc = num(invoiceLine.unitCost)
+    if (Number.isFinite(qDoc) && Number.isFinite(cDoc)) return qDoc * cDoc
+    if (Number.isFinite(qDoc) && Number.isFinite(cStock)) return qDoc * cStock
   }
-  const q = qty(inv.quantity)
-  const c = num(inv.unitCost)
-  if (Number.isFinite(q) && Number.isFinite(c)) return q * c
+
+  if (Number.isFinite(qStock) && Number.isFinite(cStock) && qStock > 0) {
+    return qStock * cStock
+  }
+
+  const receivedRaw = inv.stats?.movements?.received
+  const received =
+    typeof receivedRaw === 'number' && Number.isFinite(receivedRaw)
+      ? receivedRaw
+      : NaN
+  if (Number.isFinite(received) && received > 0 && Number.isFinite(cStock)) {
+    return received * cStock
+  }
+
   return NaN
 }
 
 /**
- * Costo total de la compra del lote: suma del comprobante (`items`) cuando existe
- * (no cambia al descontar stock) + líneas de inventario que no están en el comprobante.
+ * Costo histórico de la línea (comprobante). Prioriza `items[].purchase` y `purchaseLines`;
+ * no usar solo existencias × unitCost del inventario.
  */
-function lotPurchaseTotalCOP(
+function linePurchaseCostCOP(
+  inv: InventoryRow,
+  invoiceLine: PurchaseLotInvoiceItem | undefined,
   lotRow: PurchaseLotRow | null,
-  invRows: InventoryRow[],
 ): number {
-  if (lotRow?.items?.length) {
-    let sum = 0
+  if (invoiceLine?.purchase != null) {
+    const n = num(invoiceLine.purchase.linePurchaseTotalCOP)
+    if (Number.isFinite(n)) return n
+  }
+  if (lotRow?.purchaseLines?.length && inv.id) {
+    const pl = lotRow.purchaseLines.find(
+      (x) =>
+        x.inventoryItemId != null &&
+        String(x.inventoryItemId) === String(inv.id),
+    )
+    if (pl != null) {
+      const n = num(pl.linePurchaseTotalCOP)
+      if (Number.isFinite(n)) return n
+    }
+  }
+  return legacyLinePurchaseCostFallback(inv, invoiceLine)
+}
+
+/**
+ * Total del lote / pie de factura: `purchaseTotals.linesPurchaseTotalCOP` o
+ * `inventoryMetrics.purchasedValueCOP` con comprobante; no el valor remanente en stock.
+ */
+function lotPurchaseTotalCOP(lotRow: PurchaseLotRow | null): number {
+  if (!lotRow) return NaN
+
+  const fromTotals = num(lotRow.purchaseTotals?.linesPurchaseTotalCOP)
+  if (Number.isFinite(fromTotals)) return fromTotals
+
+  const hasComprobante =
+    Boolean(lotRow.items?.length) || Boolean(lotRow.purchaseLines?.length)
+  if (hasComprobante) {
+    const fromMetrics = num(lotRow.inventoryMetrics?.purchasedValueCOP)
+    if (Number.isFinite(fromMetrics)) return fromMetrics
+  }
+
+  let sumFromItems = 0
+  let anyPurchaseOnItems = false
+  if (lotRow.items?.length) {
     for (const it of lotRow.items) {
+      if (it.purchase != null) {
+        const n = num(it.purchase.linePurchaseTotalCOP)
+        if (Number.isFinite(n)) {
+          sumFromItems += n
+          anyPurchaseOnItems = true
+        }
+      }
+    }
+  }
+  if (anyPurchaseOnItems) return sumFromItems
+
+  if (lotRow.purchaseLines?.length) {
+    let s = 0
+    let any = false
+    for (const pl of lotRow.purchaseLines) {
+      const n = num(pl.linePurchaseTotalCOP)
+      if (Number.isFinite(n)) {
+        s += n
+        any = true
+      }
+    }
+    if (any) return s
+  }
+
+  if (lotRow.totalValue != null && String(lotRow.totalValue).trim() !== '') {
+    const tv = num(lotRow.totalValue)
+    if (Number.isFinite(tv)) return tv
+  }
+
+  if (lotRow.items?.length) {
+    let sum = 0
+    let legacyOk = false
+    for (const it of lotRow.items) {
+      const q = qty(it.quantity)
+      const c = num(it.unitCost)
+      if (Number.isFinite(q) && Number.isFinite(c)) {
+        sum += q * c
+        legacyOk = true
+      }
+    }
+    if (legacyOk) return sum
+  }
+
+  return NaN
+}
+
+/** Total COP en listado (misma jerarquía que el detalle cuando el API lo envía). */
+function purchaseLotRowTotalCOP(row: PurchaseLotRow): number {
+  const fromTotals = num(row.purchaseTotals?.linesPurchaseTotalCOP)
+  if (Number.isFinite(fromTotals)) return fromTotals
+
+  const hasLines = Boolean(row.items?.length || row.purchaseLines?.length)
+  if (hasLines) {
+    const pv = num(row.inventoryMetrics?.purchasedValueCOP)
+    if (Number.isFinite(pv)) return pv
+  }
+
+  if (row.totalValue != null && String(row.totalValue).trim() !== '') {
+    const tv = num(row.totalValue)
+    if (Number.isFinite(tv)) return tv
+  }
+
+  let s = 0
+  let any = false
+  if (row.items?.length) {
+    for (const it of row.items) {
+      if (it.purchase != null) {
+        const n = num(it.purchase.linePurchaseTotalCOP)
+        if (Number.isFinite(n)) {
+          s += n
+          any = true
+        }
+      }
+    }
+  }
+  if (any) return s
+
+  if (row.items?.length) {
+    let sum = 0
+    for (const it of row.items) {
       const q = qty(it.quantity)
       const c = num(it.unitCost)
       if (Number.isFinite(q) && Number.isFinite(c)) sum += q * c
     }
-    const namesFromComprobante = new Set(
-      lotRow.items.map((i) => i.name.trim().toLowerCase()),
-    )
-    for (const inv of invRows) {
-      if (namesFromComprobante.has(inv.name.trim().toLowerCase())) continue
-      const q = qty(inv.quantity)
-      const c = num(inv.unitCost)
-      if (Number.isFinite(q) && Number.isFinite(c)) sum += q * c
-    }
     return sum
   }
-  return lotItemsTotal(invRows)
+  return NaN
 }
 
 function purchaseLotInitialDepleted(row: PurchaseLotRow): boolean {
@@ -390,9 +520,9 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     setLotInventoryError(null)
     fetchInventoryItems(baseUrl, {
       page: 1,
-      limit: 40,
+      limit: 100,
       lot: code,
-      includeStats: false,
+      includeStats: true,
       signal: controller.signal,
     })
       .then((res) => {
@@ -413,13 +543,13 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   }, [baseUrl, selectedId, selectedLotRow?.code])
 
   useEffect(() => {
-    const t = String(lotPurchaseTotalCOP(selectedLotRow, lotInventory))
+    const t = String(lotPurchaseTotalCOP(selectedLotRow))
     setDraft((prev) => {
       if (!prev) return prev
       if (prev.totalValue === t) return prev
       return { ...prev, totalValue: t }
     })
-  }, [lotInventory, selectedLotRow])
+  }, [selectedLotRow])
 
   const updateLotItemField = useCallback(
     async (
@@ -475,6 +605,28 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       }
     },
     [baseUrl],
+  )
+
+  const adjustLotItemExistenciaStep = useCallback(
+    async (
+      inv: InventoryRow,
+      invoiceLine: PurchaseLotInvoiceItem | undefined,
+      direction: -1 | 1,
+    ) => {
+      const row = lotInventory.find((x) => x.id === inv.id) ?? inv
+      const current = qty(row.quantity)
+      const step = 1
+      let next = Math.round((current + direction * step) * 100) / 100
+      if (invoiceLine) {
+        const cap = qty(invoiceLine.quantity)
+        next = Math.max(0, Math.min(cap, next))
+      } else {
+        next = Math.max(0, next)
+      }
+      if (next === current) return
+      await updateLotItemField(inv, { quantity: String(next) })
+    },
+    [lotInventory, updateLotItemField],
   )
 
   const applyDeductQuantity = useCallback(
@@ -570,7 +722,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       }
     }
 
-    const totalValue = lotPurchaseTotalCOP(selectedLotRow, lotInventory)
+    const totalValue = lotPurchaseTotalCOP(selectedLotRow)
 
     setSaving(true)
     setSaveError(null)
@@ -580,7 +732,6 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         supplier: draft.supplier.trim() || undefined,
         notes: draft.notes.trim() || undefined,
         totalValue,
-        isDepleted: draft.isDepleted,
       }
       if (draft.isDepleted) patchPayload.consumptionStatus = 'DEPLETED'
       await patchPurchaseLot(baseUrl, selectedId, patchPayload)
@@ -625,10 +776,20 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
           return String(b.purchaseDate).localeCompare(String(a.purchaseDate))
         case 'name_asc':
           return purchaseLotDisplayName(a).localeCompare(purchaseLotDisplayName(b), 'es')
-        case 'total_asc':
-          return qty(a.totalValue) - qty(b.totalValue)
-        case 'total_desc':
-          return qty(b.totalValue) - qty(a.totalValue)
+        case 'total_asc': {
+          const ta = purchaseLotRowTotalCOP(a)
+          const tb = purchaseLotRowTotalCOP(b)
+          return (
+            (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0)
+          )
+        }
+        case 'total_desc': {
+          const ta = purchaseLotRowTotalCOP(a)
+          const tb = purchaseLotRowTotalCOP(b)
+          return (
+            (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0)
+          )
+        }
         case 'available_asc':
           return qty(a.inventoryMetrics?.availableItemsCount) -
             qty(b.inventoryMetrics?.availableItemsCount)
@@ -650,21 +811,21 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     for (const r of lotInventory) {
       const q = qty(r.quantity)
       const c = qty(r.unitCost)
+      const behavior = resolveLotLineInventoryBehavior(r, selectedLotRow)
+      const isAsset = behavior === 'CAPITAL_ASSET'
       if (q > 0) {
         available++
         remainingUnits += q
         remainingValue += q * c
-      } else {
+      } else if (!isAsset) {
         consumed++
       }
     }
 
-    const computedFromInventory =
-      lotInventory.length > 0 && available === 0
+    /** No forzar DEPLETED solo porque todas las existencias en cliente son 0 (el backend ya excluye activos). */
     const computedDepleted =
       metrics?.isDepleted === true ||
-      metrics?.consumptionStatus === 'DEPLETED' ||
-      computedFromInventory
+      metrics?.consumptionStatus === 'DEPLETED'
 
     const fullyConsumed =
       draft != null ? draft.isDepleted : Boolean(computedDepleted)
@@ -684,9 +845,11 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       fullyConsumed,
       consumptionStatus,
     }
-  }, [lotInventory, selectedLotRow?.inventoryMetrics, draft?.isDepleted])
+  }, [lotInventory, selectedLotRow, draft?.isDepleted])
   const visibleLotItems = useMemo(() => {
     const filtered = lotInventory.filter((r) => {
+      const behavior = resolveLotLineInventoryBehavior(r, selectedLotRow)
+      if (behavior === 'CAPITAL_ASSET') return lotItemFilter === 'all'
       const q = qty(r.quantity)
       if (lotItemFilter === 'available') return q > 0
       if (lotItemFilter === 'consumed') return q <= 0
@@ -706,7 +869,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       return qb * cb - qa * ca
     })
     return filtered
-  }, [lotInventory, lotItemFilter, lotItemSort])
+  }, [lotInventory, lotItemFilter, lotItemSort, selectedLotRow])
 
   const orphanLotInventory = useMemo(() => {
     const names = new Set(
@@ -719,6 +882,8 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
 
   const visibleOrphanItems = useMemo(() => {
     const filtered = orphanLotInventory.filter((r) => {
+      const behavior = resolveLotLineInventoryBehavior(r, selectedLotRow)
+      if (behavior === 'CAPITAL_ASSET') return lotItemFilter === 'all'
       const q = qty(r.quantity)
       if (lotItemFilter === 'available') return q > 0
       if (lotItemFilter === 'consumed') return q <= 0
@@ -738,7 +903,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       return qb * cb - qa * ca
     })
     return filtered
-  }, [orphanLotInventory, lotItemFilter, lotItemSort])
+  }, [orphanLotInventory, lotItemFilter, lotItemSort, selectedLotRow])
 
   const hasApiLotItems = Boolean(
     selectedLotRow?.items?.length && selectedLotRow.items.length > 0,
@@ -754,8 +919,12 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       lotInventory.find((x) => x.id === inv.id)?.unit ?? inv.unit
     const qNow = qty(inv.quantity)
     const qComprado = invoiceLine ? qty(invoiceLine.quantity) : null
+    const resolvedBehavior =
+      invoiceLine?.inventoryBehavior ??
+      resolveLotLineInventoryBehavior(inv, selectedLotRow)
+    const isAsset = isCapitalAssetBehavior(resolvedBehavior)
     const qConsumido =
-      invoiceLine && qComprado != null
+      invoiceLine && qComprado != null && !isAsset
         ? Math.max(0, qComprado - qNow)
         : null
     return (
@@ -763,12 +932,16 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         <td
           className="num mono"
           title={
-            invoiceLine
-              ? 'Cantidad ya usada del total comprado (comprado − existencias).'
-              : undefined
+            isAsset
+              ? 'Bien de uso: no aplica consumido como insumo.'
+              : invoiceLine
+                ? 'Cantidad ya usada del total comprado (comprado − existencias).'
+                : undefined
           }
         >
-          {qConsumido != null ? (
+          {isAsset ? (
+            <span className="muted">—</span>
+          ) : qConsumido != null ? (
             <>
               {qConsumido.toFixed(2)}{' '}
               <span className="muted small">{invoiceLine?.unit || ''}</span>
@@ -785,17 +958,30 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             </span>
             <span
               className={
-                qNow > 0
-                  ? 'purchases-stock-badge purchases-stock-badge--ok'
-                  : 'purchases-stock-badge purchases-stock-badge--out'
+                isAsset
+                  ? qNow > 0
+                    ? 'purchases-stock-badge purchases-stock-badge--asset'
+                    : 'purchases-stock-badge purchases-stock-badge--asset-muted'
+                  : qNow > 0
+                    ? 'purchases-stock-badge purchases-stock-badge--ok'
+                    : 'purchases-stock-badge purchases-stock-badge--out'
               }
             >
-              {qNow > 0 ? 'Por consumir' : 'Agotado'}
+              {isAsset
+                ? qNow > 0
+                  ? 'En operación'
+                  : 'Adquirido'
+                : qNow > 0
+                  ? 'Por consumir'
+                  : 'Agotado'}
             </span>
           </div>
         </td>
-        <td className="num mono" title="Lo que pagaste por esta línea en la compra; no cambia al ajustar existencias.">
-          {formatCOP(linePurchaseCostCOP(inv, invoiceLine))}
+        <td
+          className="num mono"
+          title="Costo histórico de la línea; no debe perderse al agotar existencias."
+        >
+          {formatCOP(linePurchaseCostCOP(inv, invoiceLine, selectedLotRow))}
         </td>
         <td className="purchase-lot-td-actions">
           <button
@@ -823,14 +1009,28 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       lotInventory.find((x) => x.id === inv.id)?.unit ?? inv.unit
     const qNow = qty(inv.quantity)
     const qComprado = invoiceLine ? qty(invoiceLine.quantity) : null
+    const resolvedBehavior =
+      invoiceLine?.inventoryBehavior ??
+      resolveLotLineInventoryBehavior(inv, selectedLotRow)
+    const isAsset = isCapitalAssetBehavior(resolvedBehavior)
     const qConsumido =
-      qComprado != null ? Math.max(0, qComprado - qNow) : null
+      qComprado != null && !isAsset ? Math.max(0, qComprado - qNow) : null
     const displayUnit = invoiceLine?.unit || rowUnit || 'un'
     return (
       <div className="purchase-lot-item-edit-form">
         <p className="muted small purchase-lot-item-edit-form__intro">
-          Solo editás <strong>existencias</strong> (cuánto queda y cuánto se consumió). El{' '}
-          <strong>costo de compra</strong> es lo que ya pagaste: no debe bajar al descontar.
+          {isAsset ? (
+            <>
+              <strong>Bien de uso (activo):</strong> no sigue el flujo consumido/agotado de
+              insumos. Editás solo <strong>existencias</strong> si necesitás corregir el
+              registro. El <strong>costo de compra</strong> sigue siendo el del comprobante.
+            </>
+          ) : (
+            <>
+              Solo editás <strong>existencias</strong> (cuánto queda y cuánto se consumió). El{' '}
+              <strong>costo de compra</strong> es lo que ya pagaste: no debe bajar al descontar.
+            </>
+          )}
         </p>
         {invoiceLine ? (
           <p className="muted small purchase-lot-item-edit-form__comprobante">
@@ -851,7 +1051,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             <div className="purchase-lot-item-edit-form__metric-card">
               <span className="purchase-lot-item-edit-form__metric-label">Consumido</span>
               <span className="mono purchase-lot-item-edit-form__metric-value">
-                {(qConsumido ?? 0).toFixed(2)} {displayUnit}
+                {isAsset ? '—' : `${(qConsumido ?? 0).toFixed(2)} ${displayUnit}`}
               </span>
             </div>
             <div className="purchase-lot-item-edit-form__metric-card">
@@ -862,7 +1062,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             </div>
           </div>
         ) : null}
-        {invoiceLine ? (
+        {invoiceLine && !isAsset ? (
           <label className="field">
             <span>Unidades consumidas (editar)</span>
             <input
@@ -961,61 +1161,112 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                 />
               </div>
             </label>
-            <div className="field">
-              <span>Descontar (uso, merma, venta desde stock)</span>
-              <div className="purchases-deduct-stack purchase-lot-item-edit-form__deduct">
-                <div className="purchases-deduct-stack__row">
-                  <input
-                    className="input-cell input-cell--deduct"
-                    inputMode="decimal"
-                    placeholder="Ej. 1"
-                    title={`Restar en ${rowUnit || 'la unidad del ítem'}`}
-                    aria-label={`Descontar cantidad de ${inv.name}`}
-                    value={deductDraft[inv.id] ?? ''}
-                    onChange={(e) =>
-                      setDeductDraft((d) => ({
-                        ...d,
-                        [inv.id]: e.target.value,
-                      }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        void applyDeductQuantity(inv)
+            {!isAsset ? (
+              <div className="field">
+                <span>Descontar (uso, merma, venta desde stock)</span>
+                <div className="purchases-deduct-stack purchase-lot-item-edit-form__deduct">
+                  <div className="purchases-deduct-stack__row">
+                    <input
+                      className="input-cell input-cell--deduct"
+                      inputMode="decimal"
+                      placeholder="Ej. 1"
+                      title={`Restar en ${rowUnit || 'la unidad del ítem'}`}
+                      aria-label={`Descontar cantidad de ${inv.name}`}
+                      value={deductDraft[inv.id] ?? ''}
+                      onChange={(e) =>
+                        setDeductDraft((d) => ({
+                          ...d,
+                          [inv.id]: e.target.value,
+                        }))
                       }
-                    }}
-                    disabled={lotItemSavingId === inv.id}
-                  />
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void applyDeductQuantity(inv)
+                        }
+                      }}
+                      disabled={lotItemSavingId === inv.id}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={() => void applyDeductQuantity(inv)}
+                      disabled={lotItemSavingId === inv.id}
+                    >
+                      Restar
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    className="btn-secondary btn-compact"
-                    onClick={() => void applyDeductQuantity(inv)}
-                    disabled={lotItemSavingId === inv.id}
+                    className="purchases-deduct-agotar"
+                    onClick={() => void agotarLotItemQuantity(inv)}
+                    disabled={
+                      lotItemSavingId === inv.id || qty(inv.quantity) <= 0
+                    }
                   >
-                    Restar
+                    Agotar (0)
                   </button>
                 </div>
-                <button
-                  type="button"
-                  className="purchases-deduct-agotar"
-                  onClick={() => void agotarLotItemQuantity(inv)}
-                  disabled={
-                    lotItemSavingId === inv.id || qty(inv.quantity) <= 0
-                  }
-                >
-                  Agotar (0)
-                </button>
               </div>
-            </div>
+            ) : null}
           </>
         ) : null}
+        <div className="purchase-lot-item-edit-form__stepper-field">
+          <span className="purchase-lot-item-edit-form__stepper-label">
+            Ajustar cantidad en existencia
+          </span>
+          <div
+            className="purchase-lot-item-edit-form__stepper"
+            role="group"
+            aria-label="Aumentar o reducir cantidad"
+          >
+            <button
+              type="button"
+              className="btn-secondary btn-compact purchase-lot-qty-step"
+              aria-label="Reducir cantidad"
+              disabled={lotItemSavingId === inv.id || qNow <= 0}
+              onClick={() => void adjustLotItemExistenciaStep(inv, invoiceLine, -1)}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className="btn-secondary btn-compact purchase-lot-qty-step"
+              aria-label="Aumentar cantidad"
+              disabled={
+                lotItemSavingId === inv.id ||
+                (invoiceLine != null &&
+                  qNow >= qty(invoiceLine.quantity) - 1e-6)
+              }
+              onClick={() => void adjustLotItemExistenciaStep(inv, invoiceLine, 1)}
+            >
+              +
+            </button>
+          </div>
+          <p className="muted small purchase-lot-item-edit-form__stepper-hint">
+            Cada clic suma o resta 1 {displayUnit.trim() || 'unidad'} y se guarda en el servidor.
+            {invoiceLine ? (
+              <>
+                {' '}
+                No puede superar lo comprado ({qty(invoiceLine.quantity).toFixed(2)}{' '}
+                {displayUnit}).
+              </>
+            ) : null}
+          </p>
+        </div>
         <div className="field">
           <span>Precio de compra por unidad (solo lectura)</span>
           <p
             className="mono purchase-lot-item-edit-form__readonly-cop"
             title="El costo de compra es histórico y no se modifica al ajustar consumo o existencias."
           >
-            {formatCOP(num(invoiceLine?.unitCost ?? inv.unitCost))}
+            {formatCOP(
+              num(
+                invoiceLine?.purchase?.purchaseUnitCostCOP ??
+                  invoiceLine?.unitCost ??
+                  inv.unitCost,
+              ),
+            )}
           </p>
         </div>
         <p className="muted small purchase-lot-item-edit-form__subtotal">
@@ -1023,14 +1274,14 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             <>
               Costo total de esta línea en la compra (lo pagado, no cambia con el stock):{' '}
               <strong className="mono">
-                {formatCOP(linePurchaseCostCOP(inv, invoiceLine))}
+                {formatCOP(linePurchaseCostCOP(inv, invoiceLine, selectedLotRow))}
               </strong>
             </>
           ) : (
             <>
-              Valor del saldo a precio actual (cantidad × costo u.):{' '}
+              Costo de esta línea (se conserva aunque las existencias lleguen a 0):{' '}
               <strong className="mono">
-                {formatCOP(num(inv.quantity) * num(inv.unitCost))}
+                {formatCOP(linePurchaseCostCOP(inv, invoiceLine, selectedLotRow))}
               </strong>
             </>
           )}
@@ -1094,6 +1345,22 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
           <div className="modal-body">
             <div className="purchase-lot-aside-card purchase-lot-meta-edit-card">
               <label className="field purchase-lot-aside-field">
+                <span>Nombre del lote</span>
+                <input
+                  className="mono"
+                  value={purchaseLotDisplayName(selectedLotRow)}
+                  readOnly
+                />
+              </label>
+              <label className="field purchase-lot-aside-field">
+                <span>Fecha de compra registrada</span>
+                <input
+                  className="mono"
+                  value={formatPurchaseLotDate(selectedLotRow.purchaseDate, 'long')}
+                  readOnly
+                />
+              </label>
+              <label className="field purchase-lot-aside-field">
                 <span>¿El lote sigue con saldo?</span>
                 <select
                   className="inventory-filter__input"
@@ -1143,7 +1410,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                 <input
                   className="purchase-lot-aside-readonly-total mono"
                   value={formatCOP(
-                    lotPurchaseTotalCOP(selectedLotRow, lotInventory),
+                    lotPurchaseTotalCOP(selectedLotRow),
                   )}
                   readOnly
                   title="Suma del comprobante; no baja al descontar stock. Incluye líneas extra de inventario fuera del comprobante."
@@ -1233,10 +1500,23 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
           <header className="purchase-lot-hero">
             <div className="purchase-lot-hero__main">
               <p className="purchase-lot-hero__crumb muted small">
-                Inicio / Compras /{' '}
+                <a href="#/" className="purchase-lot-hero__crumb-link">
+                  Inicio
+                </a>{' '}
+                /{' '}
+                <a href="#/purchases" className="purchase-lot-hero__crumb-link">
+                  Compras
+                </a>{' '}
+                /{' '}
                 <span className="purchase-lot-hero__crumb-strong">
                   {selectedLotRow ? purchaseLotDisplayName(selectedLotRow) : selectedId}
                 </span>
+                {selectedLotRow ? (
+                  <span className="purchase-lot-hero__crumb-date mono">
+                    {' '}
+                    · Fecha: {formatPurchaseLotDate(selectedLotRow.purchaseDate, 'long')}
+                  </span>
+                ) : null}
               </p>
               <h1 className="purchase-lot-hero__title">
                 {selectedLotRow ? purchaseLotDisplayName(selectedLotRow) : 'Lote de compra'}
@@ -1244,13 +1524,26 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
               {panelLotSecondary ? (
                 <p className="purchase-lot-hero__meta mono">{panelLotSecondary}</p>
               ) : null}
+              {selectedLotRow ? (
+                <p className="purchase-lot-hero__purchase-total muted small">
+                  Total de la compra:{' '}
+                  <strong className="mono">
+                    {formatCOP(
+                      lotPurchaseTotalCOP(selectedLotRow),
+                    )}
+                  </strong>
+                </p>
+              ) : null}
               <div className="purchase-lot-hero__hash">
                 <span className="purchase-lot-hero__hash-label muted small">Ruta en la app</span>
                 <input
                   className="purchase-lot-hero__hash-input mono"
                   readOnly
                   aria-label="Ruta en la app"
-                  value={window.location.hash || `#/purchases/${selectedId}`}
+                  value={
+                    window.location.hash ||
+                    `#/purchases/${selectedLotRow?.code?.trim() || selectedId}`
+                  }
                 />
               </div>
             </div>
@@ -1350,7 +1643,8 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                     </div>
                   </div>
                 {hasApiLotItems ? (
-                  <div className="data-table-wrap data-table-compact purchase-lot-table-wrap">
+                  <>
+                    <div className="data-table-wrap data-table-compact purchase-lot-table-wrap">
                     <table className="data-table data-table-striped purchase-lot-line-items-table">
                       <thead>
                         <tr>
@@ -1375,9 +1669,9 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                       </thead>
                       <tbody>
                         {selectedLotRow.items!.map((item, idx) => {
-                          const inv = inventoryMatchByProductName(
+                          const inv = inventoryMatchForLotItem(
                             lotInventory,
-                            item.name,
+                            item,
                           )
                           const rowKey = `${item.name}-${idx}`
                           if (lotInventoryLoading) {
@@ -1432,7 +1726,17 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                         })}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                    <div
+                      className="purchase-lot-comprobante-footer"
+                      aria-label="Total del comprobante"
+                    >
+                      <span className="purchase-lot-comprobante-footer__label">Total compra</span>
+                      <span className="mono purchase-lot-comprobante-footer__value">
+                        {formatCOP(lotPurchaseTotalCOP(selectedLotRow))}
+                      </span>
+                    </div>
+                  </>
                 ) : null}
                 </div>
 
@@ -1558,7 +1862,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                             </th>
                             <th
                               className="num"
-                              title="Costo de compra cuando hay comprobante; si no, saldo × costo"
+                              title="Costo histórico de la línea; se conserva aunque las existencias estén en 0"
                             >
                               Costo compra
                             </th>
@@ -1703,8 +2007,11 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                     Consumidos
                   </th>
                   <th>Estado</th>
-                  <th className="num" title="Valor total registrado para la compra del lote">
-                    Valor total
+                  <th
+                    className="num"
+                    title="Total de la compra (API o suma del comprobante si no hay total guardado)"
+                  >
+                    Total compra
                   </th>
                 </tr>
               </thead>
@@ -1721,7 +2028,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                         type="button"
                         className="table-link purchases-lot-cell"
                         title={row.code ? `Código: ${row.code}` : undefined}
-                        onClick={() => void openLot(row.id, row, true)}
+                        onClick={() => void openLot(row.code?.trim() || row.id, row, true)}
                       >
                         <span className="purchases-lot-cell__name">
                           {purchaseLotDisplayName(row)}
@@ -1763,7 +2070,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                       )}
                     </td>
                     <td className="num mono">
-                      {formatCOP(row.totalValue)}
+                      {formatCOP(purchaseLotRowTotalCOP(row))}
                     </td>
                     </tr>
                   )

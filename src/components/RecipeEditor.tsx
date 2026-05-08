@@ -10,6 +10,10 @@ import {
   updateRecipeAdminRate,
   upsertProductRecipe,
 } from '../api'
+import {
+  recipeIngredientIsCapitalAsset,
+  recipeIngredientStockOkForProduction,
+} from '../inventorySemantics'
 
 function newRowKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -20,6 +24,9 @@ type EditableLine = {
   inventoryItemId: string
   quantity: string
   unit: string
+  stockStatus?: string
+  inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
+  categoryName?: string | null
 }
 
 function linesFromRecipe(lines: ProductRecipeIngredientLine[]): EditableLine[] {
@@ -28,6 +35,9 @@ function linesFromRecipe(lines: ProductRecipeIngredientLine[]): EditableLine[] {
     inventoryItemId: l.inventoryItemId,
     quantity: l.quantity,
     unit: l.unit,
+    stockStatus: l.stockStatus ?? undefined,
+    inventoryBehavior: l.inventoryBehavior,
+    categoryName: l.categoryName,
   }))
 }
 
@@ -457,6 +467,20 @@ export function RecipeEditor({
               const opts = filteredOptions(row.key)
               const showSelected =
                 inv && !opts.some((o) => o.id === row.inventoryItemId)
+              const onHand = inv ? n(inv.quantity) : NaN
+              const mergedForStock = {
+                inventoryBehavior: row.inventoryBehavior ?? inv?.inventoryBehavior,
+                categoryName: row.categoryName ?? inv?.categoryName,
+                stockStatus: row.stockStatus,
+              }
+              const stockOk = recipeIngredientStockOkForProduction(
+                mergedForStock,
+                Number.isFinite(onHand) ? onHand : 0,
+              )
+              const showStockWarn =
+                Boolean(inv) &&
+                !recipeIngredientIsCapitalAsset(mergedForStock) &&
+                !stockOk
 
               return (
                 <tr key={row.key}>
@@ -493,6 +517,11 @@ export function RecipeEditor({
                         </option>
                       ))}
                     </select>
+                    {showStockWarn ? (
+                      <span className="recipe-ingredient-stock-hint recipe-stock-warn">
+                        Stock insuficiente en inventario para este insumo.
+                      </span>
+                    ) : null}
                   </td>
                   <td className="col-qty">
                     <input

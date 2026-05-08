@@ -380,6 +380,11 @@ export type ProductRecipeIngredientLine = {
   quantity: string
   unit: string
   sortOrder?: number
+  /** Categoría del insumo (p. ej. activos); sin prefijo INVENTORY:: */
+  categoryName?: string | null
+  inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
+  /** Puede ser AVAILABLE aunque quantity sea 0 en categorías activo. */
+  stockStatus?: string | null
 }
 
 export type ProductRecipeDetail = {
@@ -539,18 +544,54 @@ export type PurchaseLotRow = {
     /** Backend puede enviar Decimal/numeric como string. */
     remainingUnits?: number | string
     remainingValue?: string | number | null
+    /** Total histórico de compra del lote (alternativa a purchaseTotals cuando hay comprobante). */
+    purchasedValueCOP?: string | number | null
     consumptionStatus?: 'EMPTY' | 'FRESH' | 'PARTIAL' | 'DEPLETED'
     isDepleted?: boolean
     lotAgeDays?: number
   } | null
+  /** Totales del comprobante / pie de factura (GET detalle). */
+  purchaseTotals?: {
+    /** Total líneas de compra en COP (string numérico sin formato). */
+    linesPurchaseTotalCOP?: string | number | null
+  } | null
+  /** Líneas de compra enlazadas a ítems de inventario (alternativa a items[].purchase). */
+  purchaseLines?: Array<{
+    inventoryItemId?: string | null
+    linePurchaseTotalCOP?: string | number | null
+    purchaseUnitCostCOP?: string | number | null
+    inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
+  }> | null
+  /**
+   * Ítems de inventario del lote sin línea de comprobante (p. ej. añadidos después).
+   */
+  inventoryWithoutPurchaseLine?: Array<{
+    id?: string
+    name?: string | null
+    inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
+  }> | null
   /** Detalle compacto de productos del lote (GET /purchase-lots/:id). */
   items?: Array<{
+    /** Id del ítem de inventario en backend (para cruzar con purchaseLines / inventario). */
+    id?: string
     name: string
     category?: string | null
+    /** Nombre de categoría sin prefijo INVENTORY:: (cuando el API lo envía). */
+    categoryName?: string | null
     quantity: string | number
     unit: string
+    /** Costo unitario contable en inventario (no es el histórico del comprobante). */
     unitCost: string | number
     available?: string | number | boolean | null
+    /** CONSUMABLE = insumo agotable; CAPITAL_ASSET = bien de uso (no flujo consumido/agotado). */
+    inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
+    /** Cantidad consumida del total comprado (p. ej. 0 en líneas de activo). */
+    quantityConsumed?: string | number | null
+    /** Histórico del comprobante; si es null, no hay línea de compra enlazada. */
+    purchase?: {
+      linePurchaseTotalCOP?: string | number | null
+      purchaseUnitCostCOP?: string | number | null
+    } | null
   }> | null
   totalValue?: string | number | null
   createdAt?: string
@@ -580,6 +621,8 @@ export type InventoryOption = {
   quantity: string
   /** Nombre/código de lote para UI (desde `purchaseLot` o `lot`). */
   lotLabel?: string | null
+  categoryName?: string | null
+  inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
 }
 
 // ——— Inventory API ———
