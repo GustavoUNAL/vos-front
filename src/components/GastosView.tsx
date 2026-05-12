@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchGastos,
   type GastosByTypeGroup,
   type GastosResponse,
   type RecipeCostKind,
 } from '../api'
-import { CollapsibleFiltersToolbar } from './CollapsibleFiltersToolbar'
-import { SectionSummaryBar } from './SectionSummaryBar'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import {
+  FloatingGearFab,
+  FloatingGearFabDockRefresh,
+} from './FloatingGearFab'
+import { SectionSummaryDeck } from './SectionSummaryDeck'
 
 function num(v: string | number | null | undefined): number {
   const n = parseFloat(String(v ?? '').replace(',', '.'))
@@ -21,17 +29,6 @@ function formatCOP(value: string | number | null | undefined): string {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(n)
-}
-
-function paginationDots(current: number, total: number): number[] {
-  if (total <= 1) return []
-  const out: number[] = []
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, current + 2)
-  for (let p = start; p <= end; p++) out.push(p)
-  if (!out.includes(1)) out.unshift(1)
-  if (!out.includes(total)) out.push(total)
-  return out
 }
 
 type GastoRow = {
@@ -175,15 +172,14 @@ function ByTypeSection({
 }
 
 export function GastosView({ baseUrl }: { baseUrl: string }) {
-  const PAGE_SIZE = 20
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
+  const gastosSearchInputRef = useRef<HTMLInputElement>(null)
   const [data, setData] = useState<GastosResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [filterKind, setFilterKind] = useState<'all' | 'FIJO' | 'VARIABLE'>('all')
-  const [fixedPage, setFixedPage] = useState(1)
-  const [variablePage, setVariablePage] = useState(1)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -208,11 +204,6 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
     return () => window.clearTimeout(t)
   }, [search])
 
-  useEffect(() => {
-    setFixedPage(1)
-    setVariablePage(1)
-  }, [searchDebounced, filterKind])
-
   const { fixed: fixedAll, variable: variableAll } = useMemo(
     () => (data ? rowsFromResponse(data) : { fixed: [] as GastoRow[], variable: [] as GastoRow[] }),
     [data],
@@ -232,20 +223,6 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
 
   const fixedRows = useMemo(() => filterRows(fixedAll), [filterRows, fixedAll])
   const variableRows = useMemo(() => filterRows(variableAll), [filterRows, variableAll])
-  const fixedTotalPages = Math.max(1, Math.ceil(fixedRows.length / PAGE_SIZE))
-  const variableTotalPages = Math.max(1, Math.ceil(variableRows.length / PAGE_SIZE))
-  const fixedPageSafe = Math.min(fixedPage, fixedTotalPages)
-  const variablePageSafe = Math.min(variablePage, variableTotalPages)
-  const fixedPageDots = paginationDots(fixedPageSafe, fixedTotalPages)
-  const variablePageDots = paginationDots(variablePageSafe, variableTotalPages)
-  const fixedPageRows = fixedRows.slice(
-    (fixedPageSafe - 1) * PAGE_SIZE,
-    fixedPageSafe * PAGE_SIZE,
-  )
-  const variablePageRows = variableRows.slice(
-    (variablePageSafe - 1) * PAGE_SIZE,
-    variablePageSafe * PAGE_SIZE,
-  )
 
   const sums = useMemo(() => {
     let fixed = 0
@@ -292,27 +269,67 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
     [data, fixedRows.length, sums, variableRows.length],
   )
 
+  const gastosFiltersActive = useMemo(
+    () => filterKind !== 'all' || search.trim() !== '',
+    [filterKind, search],
+  )
+
   return (
     <div className="products-layout">
-      <div className="products-list-pane">
+      <div className="products-list-pane page-pane--floating-gear-dock">
         <div className="page-intro page-intro--tight">
           <h2 className="page-title">Gastos</h2>
-          <p className="muted">
-            <code className="mono">GET /gastos</code> · Fijos y variables del negocio.
-            Costos por receta en <strong>Costos</strong>.
+          <p className="muted page-subtitle">
+            <span className="mono">GET /gastos</span> · Gastos generales FIJO y VARIABLE
+            del negocio (distintos del costo por receta en Costos). Listado completo;
+            usá buscar para acotar.
           </p>
         </div>
 
-        <CollapsibleFiltersToolbar
-          search={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Buscar por tipo o concepto…"
-          searchAriaLabel="Buscar gastos"
-          onRefresh={load}
-          refreshDisabled={loading}
-          hasActiveFilters={filterKind !== 'all' || search.trim() !== ''}
-          filterDrawer={
-            <div className="inventory-filter-bar__controls">
+        <MobileAwareFilterBar
+          hasActiveFilters={gastosFiltersActive}
+          composeMobileToolbar={
+            isMobileFilters
+              ? ({ filterToggle }) => (
+                  <FloatingGearFab
+                    navAriaLabel="Gastos"
+                    menuToggleTitleClosed="Configuración del listado"
+                    menuToggleTitleOpen="Cerrar menú"
+                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y actualizar"
+                    ariaLabelMenuOpen="Cerrar menú de gastos"
+                    filterToggle={filterToggle}
+                  >
+                    <FloatingGearFabDockRefresh
+                      title="Actualizar"
+                      ariaLabel="Actualizar gastos"
+                      onClick={() => void load()}
+                      disabled={loading}
+                    />
+                    <SectionSummaryDeck
+                      section="gastos"
+                      items={summaryItems}
+                      loading={loading}
+                      suspendDetailWhileLoading
+                    />
+                  </FloatingGearFab>
+                )
+              : undefined
+          }
+        >
+          <div className="inventory-filter-bar app-toolbar-zone">
+            <div className="inventory-filter-bar__controls" role="search">
+              <label className="inventory-filter">
+                <span className="inventory-filter__label">Buscar</span>
+                <input
+                  ref={gastosSearchInputRef}
+                  className="inventory-filter__input"
+                  type="search"
+                  placeholder="Tipo o concepto…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Buscar gastos"
+                />
+              </label>
               <label className="inventory-filter">
                 <span className="inventory-filter__label">Mostrar</span>
                 <select
@@ -327,24 +344,62 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
                   <option value="VARIABLE">Solo VARIABLE</option>
                 </select>
               </label>
-              <div className="inventory-filter-bar__actions inventory-filter-bar__actions--inline">
-                <button
-                  type="button"
-                  className="btn-secondary btn-compact"
-                  onClick={() => {
-                    setSearch('')
-                    setFilterKind('all')
-                  }}
-                >
-                  Limpiar
-                </button>
-              </div>
             </div>
-          }
-        />
+            <div className="inventory-filter-bar__actions">
+              <button
+                type="button"
+                className="btn-secondary btn-compact"
+                onClick={() => {
+                  setSearch('')
+                  setFilterKind('all')
+                }}
+              >
+                Limpiar
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-compact"
+                onClick={() => void load()}
+                disabled={loading}
+              >
+                Actualizar
+              </button>
+            </div>
+          </div>
+        </MobileAwareFilterBar>
 
-        {!loading && data && (
-          <SectionSummaryBar section="gastos" items={summaryItems} />
+        {!isMobileFilters && (
+          <FloatingGearFab
+            navAriaLabel="Gastos"
+            menuToggleTitleClosed="Configuración del listado"
+            menuToggleTitleOpen="Cerrar menú"
+            ariaLabelMenuClosed="Abrir menú: buscar y ver resumen"
+            ariaLabelMenuOpen="Cerrar menú de gastos"
+            filterToggle={
+              <button
+                type="button"
+                className="btn-catalog-dock-tool btn-catalog-dock-tool--search"
+                onClick={() => gastosSearchInputRef.current?.focus()}
+                aria-label="Buscar gastos"
+                title="Buscar gastos"
+              >
+                <span className="icon-mobile-search" aria-hidden />
+              </button>
+            }
+          >
+            <FloatingGearFabDockRefresh
+              title="Actualizar"
+              ariaLabel="Actualizar gastos"
+              onClick={() => void load()}
+              disabled={loading}
+            />
+            <SectionSummaryDeck
+              section="gastos"
+              items={summaryItems}
+              loading={loading}
+              suspendDetailWhileLoading
+            />
+          </FloatingGearFab>
         )}
 
         {error && (
@@ -369,43 +424,7 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
                   <h3 className="cost-section-title">FIJO</h3>
                   <strong className="mono">{formatCOP(sums.fixed)}</strong>
                 </div>
-                <GastosTable rows={fixedPageRows} emptyLabel="Sin gastos fijos." />
-                {fixedRows.length > PAGE_SIZE && (
-                  <div className="pagination-bar">
-                    <span className="muted">
-                      Página {fixedPageSafe} de {fixedTotalPages} · {fixedRows.length}{' '}
-                      registro{fixedRows.length !== 1 ? 's' : ''}
-                    </span>
-                    {fixedPageDots.length > 1 && (
-                      <div className="pager-dots" aria-hidden>
-                        {fixedPageDots.map((p) => (
-                          <span
-                            key={p}
-                            className={`pager-dot${p === fixedPageSafe ? ' is-active' : ''}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <div className="pager">
-                      <button
-                        type="button"
-                        disabled={fixedPageSafe <= 1}
-                        onClick={() => setFixedPage((p) => Math.max(1, p - 1))}
-                      >
-                        Anterior
-                      </button>
-                      <button
-                        type="button"
-                        disabled={fixedPageSafe >= fixedTotalPages}
-                        onClick={() =>
-                          setFixedPage((p) => Math.min(fixedTotalPages, p + 1))
-                        }
-                      >
-                        Siguiente
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <GastosTable rows={fixedRows} emptyLabel="Sin gastos fijos." />
               </section>
             )}
 
@@ -415,43 +434,7 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
                   <h3 className="cost-section-title cost-section-title--var">VARIABLE</h3>
                   <strong className="mono">{formatCOP(sums.variable)}</strong>
                 </div>
-                <GastosTable rows={variablePageRows} emptyLabel="Sin gastos variables." />
-                {variableRows.length > PAGE_SIZE && (
-                  <div className="pagination-bar">
-                    <span className="muted">
-                      Página {variablePageSafe} de {variableTotalPages} ·{' '}
-                      {variableRows.length} registro{variableRows.length !== 1 ? 's' : ''}
-                    </span>
-                    {variablePageDots.length > 1 && (
-                      <div className="pager-dots" aria-hidden>
-                        {variablePageDots.map((p) => (
-                          <span
-                            key={p}
-                            className={`pager-dot${p === variablePageSafe ? ' is-active' : ''}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <div className="pager">
-                      <button
-                        type="button"
-                        disabled={variablePageSafe <= 1}
-                        onClick={() => setVariablePage((p) => Math.max(1, p - 1))}
-                      >
-                        Anterior
-                      </button>
-                      <button
-                        type="button"
-                        disabled={variablePageSafe >= variableTotalPages}
-                        onClick={() =>
-                          setVariablePage((p) => Math.min(variableTotalPages, p + 1))
-                        }
-                      >
-                        Siguiente
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <GastosTable rows={variableRows} emptyLabel="Sin gastos variables." />
               </section>
             )}
 

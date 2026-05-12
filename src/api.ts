@@ -12,6 +12,14 @@ export function getApiBase(): string {
       return stored.replace(/\/$/, '')
     }
   }
+  /**
+   * En desarrollo sin VITE_API_URL: peticiones vía proxy de Vite (`/dev-api` → API en :3000).
+   * Así funciona al abrir el front por IP de red (p. ej. 192.168.40.10:5173) sin CORS.
+   * Si necesitás URL directa al Nest, definí VITE_API_URL y en el API CORS_ORIGIN con ese origen.
+   */
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    return `${window.location.origin}/dev-api`
+  }
   return 'http://localhost:3000'
 }
 
@@ -69,10 +77,13 @@ export type TableRowsResponse = {
 export async function fetchTables(base: string): Promise<TableInfo[]> {
   const res = await apiFetch(`${base}/explorer/tables`)
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`)
+    throw new Error(await parseJsonError(res))
   }
   return res.json() as Promise<TableInfo[]>
 }
+
+/** La API documenta `limit` máx. 100; valores mayores suelen responder 400. */
+const EXPLORER_MAX_LIMIT = 100
 
 export async function fetchTableRows(
   base: string,
@@ -80,15 +91,124 @@ export async function fetchTableRows(
   limit: number,
   offset: number,
 ): Promise<TableRowsResponse> {
+  const capped = Math.min(Math.max(1, limit), EXPLORER_MAX_LIMIT)
   const q = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset),
+    limit: String(capped),
+    offset: String(Math.max(0, offset)),
   })
-  const res = await apiFetch(`${base}/explorer/tables/${slug}?${q}`)
+  const res = await apiFetch(
+    `${base}/explorer/tables/${encodeURIComponent(slug)}?${q}`,
+  )
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`)
+    throw new Error(await parseJsonError(res))
   }
   return res.json() as Promise<TableRowsResponse>
+}
+
+/** Recorre filas del explorador respetando el tope de página del backend. */
+async function fetchAllExplorerTableRows(
+  base: string,
+  slug: string,
+  opts?: { maxRows?: number },
+): Promise<Record<string, unknown>[]> {
+  const maxRows = opts?.maxRows ?? 20_000
+  const acc: Record<string, unknown>[] = []
+  let offset = 0
+  while (acc.length < maxRows) {
+    const batch = await fetchTableRows(base, slug, EXPLORER_MAX_LIMIT, offset)
+    acc.push(...batch.rows)
+    if (batch.rows.length === 0) break
+    if (batch.rows.length < EXPLORER_MAX_LIMIT) break
+    offset += batch.rows.length
+    if (typeof batch.total === 'number' && offset >= batch.total) break
+  }
+  return acc
+}
+
+function explorerRowToCategoryRef(r: Record<string, unknown>): CategoryRef {
+  const slugRaw = r.slug ?? r.code ?? r.key
+  const slugStr =
+    slugRaw != null && String(slugRaw).trim() !== ''
+      ? String(slugRaw).trim()
+      : undefined
+  return {
+    id: String(r.id ?? ''),
+    name: String(r.name ?? ''),
+    type: String(r.type ?? ''),
+    slug: slugStr,
+    parentId:
+      r.parentId != null
+        ? String(r.parentId)
+        : r.parent_id != null
+          ? String(r.parent_id)
+          : null,
+  }
+}
+
+/** Respuesta GET /categories (array, { data }, { items }, paginado). */
+function categoriesRestPayloadToRows(body: unknown): Record<string, unknown>[] {
+  if (Array.isArray(body)) return body as Record<string, unknown>[]
+  if (body && typeof body === 'object') {
+    const o = body as {
+      data?: unknown
+      items?: unknown
+    }
+    if (Array.isArray(o.data)) return o.data as Record<string, unknown>[]
+    if (Array.isArray(o.items)) return o.items as Record<string, unknown>[]
+  }
+  return []
+}
+
+function categoriesRestHasNextPage(body: unknown): boolean | undefined {
+  if (!body || typeof body !== 'object') return undefined
+  const m = (body as { meta?: { hasNextPage?: boolean } }).meta
+  if (m && typeof m.hasNextPage === 'boolean') return m.hasNextPage
+  return undefined
+}
+
+/**
+ * Intenta GET /categories?page=&limit= (convención Nest). Devuelve null si la ruta no existe (404/405).
+ */
+async function tryFetchCategoriesRest(
+  base: string,
+  typeFilter: 'PRODUCT' | 'INVENTORY',
+): Promise<CategoryRef[] | null> {
+  const out: CategoryRef[] = []
+  for (let page = 1; page <= 500; page++) {
+    /** Sin `type` en query: algunos backends Nest rejectean valores no listados y devuelven 400. */
+    const q = new URLSearchParams({
+      page: String(page),
+      limit: String(EXPLORER_MAX_LIMIT),
+    })
+    const res = await apiFetch(`${base}/categories?${q}`)
+    if (res.status === 404 || res.status === 405) return null
+    if (!res.ok) throw new Error(await parseJsonError(res))
+    const body = await res.json()
+    const chunk = categoriesRestPayloadToRows(body)
+    if (chunk.length === 0) break
+    for (const r of chunk) {
+      const ref = explorerRowToCategoryRef(r)
+      if (ref.type === typeFilter) out.push(ref)
+    }
+    if (chunk.length < EXPLORER_MAX_LIMIT) break
+    const hasNext = categoriesRestHasNextPage(body)
+    if (hasNext === false) break
+  }
+  return out
+}
+
+async function fetchCategoriesViaExplorer(
+  base: string,
+  typeFilter: 'PRODUCT' | 'INVENTORY',
+): Promise<CategoryRef[]> {
+  /**
+   * Slug del explorador debe coincidir con lo que registra arandano-api (p. ej. `categories`).
+   * No usar `category` en singular: suele responder "Unknown table: category".
+   */
+  const rows = await fetchAllExplorerTableRows(base, 'categories')
+  return rows
+    .filter((r) => String(r.type) === typeFilter)
+    .map(explorerRowToCategoryRef)
 }
 
 // ——— Products API ———
@@ -97,6 +217,8 @@ export type CategoryRef = {
   id: string
   name: string
   type: string
+  /** Slug canónico si el API lo envía (p. ej. alinear con `product.type`). */
+  slug?: string
   parentId?: string | null
 }
 
@@ -112,6 +234,8 @@ export type ProductRow = {
   active: boolean
   createdAt?: string
   updatedAt?: string
+  /** Revisión / trazabilidad (manual). Distinto de `updatedAt`. */
+  traceModifiedAt?: string | null
   category: CategoryRef
 }
 
@@ -131,17 +255,46 @@ export type CreateProductPayload = {
   active?: boolean
 }
 
-export type UpdateProductPayload = Partial<CreateProductPayload>
+export type UpdateProductPayload = Partial<CreateProductPayload> & {
+  traceModifiedAt?: string | null
+}
+
+/** Cuerpo típico de error Nest / arandano-api (`message`, `hint`, `path`, `statusCode`). */
+export type ApiErrorBody = {
+  statusCode?: number
+  message?: string | string[]
+  hint?: string
+  path?: string
+}
+
+/**
+ * Texto legible para mostrar al usuario (incluye `hint` cuando el backend lo envía).
+ * Ver README del API: errores JSON con pasos concretos en `hint`.
+ */
+export function formatApiErrorFromBody(
+  body: unknown,
+  fallback: string,
+): string {
+  if (!body || typeof body !== 'object') return fallback
+  const b = body as ApiErrorBody
+  let msg = ''
+  if (Array.isArray(b.message)) msg = b.message.join(', ')
+  else if (typeof b.message === 'string') msg = b.message.trim()
+  if (typeof b.hint === 'string' && b.hint.trim()) {
+    msg = msg ? `${msg}\n\n${b.hint.trim()}` : b.hint.trim()
+  }
+  if (!msg) return fallback
+  return msg
+}
 
 async function parseJsonError(res: Response): Promise<string> {
+  const fallback = `${res.status} ${res.statusText}`
   try {
-    const body = (await res.json()) as { message?: string | string[] }
-    if (Array.isArray(body.message)) return body.message.join(', ')
-    if (typeof body.message === 'string') return body.message
+    const body = await res.json().catch(() => ({}))
+    return formatApiErrorFromBody(body, fallback)
   } catch {
-    /* ignore */
+    return fallback
   }
-  return `${res.status} ${res.statusText}`
 }
 
 async function apiFetch(
@@ -217,6 +370,95 @@ export async function fetchProduct(
   const res = await apiFetch(`${base}/products/${id}`)
   if (!res.ok) throw new Error(await parseJsonError(res))
   return res.json() as Promise<ProductRow & { recipe?: unknown }>
+}
+
+/** Lote de compra asociado al producto (p. ej. vía receta → inventario → compra). */
+export type ProductHistoryLotLine = {
+  /** Id del lote (`purchase_lots.id`) para enlazar a `#/purchases/:id`. */
+  id?: string
+  /** Código único del lote (`purchase_lots.code`). */
+  code: string
+  purchaseDate?: string | null
+  supplier?: string | null
+  lineTotalCOP?: string | number | null
+  notes?: string | null
+}
+
+export type ProductHistoryPricePoint = {
+  effectiveAt: string
+  price: string | number
+  kind?: string
+  note?: string | null
+}
+
+export type ProductHistoryEvent = {
+  at: string
+  label: string
+  detail?: string | null
+}
+
+/** Respuesta esperada de GET /products/:id/history */
+export type ProductHistoryResponse = {
+  productId: string
+  productName?: string
+  lots: ProductHistoryLotLine[]
+  lotsCount?: number
+  salePriceHistory?: ProductHistoryPricePoint[]
+  events?: ProductHistoryEvent[]
+  summary?: string | null
+}
+
+/**
+ * Historial del producto: lotes de compra vinculados, precios, etc.
+ * Devuelve `null` si el servidor responde 404 (endpoint aún no implementado).
+ */
+export async function fetchProductHistory(
+  base: string,
+  productId: string,
+  opts?: { signal?: AbortSignal },
+): Promise<ProductHistoryResponse | null> {
+  const res = await apiFetch(
+    `${base}/products/${encodeURIComponent(productId)}/history`,
+    { signal: opts?.signal },
+  )
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const raw = (await res.json()) as unknown
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Historial de producto: respuesta inválida')
+  }
+  const o = raw as Record<string, unknown>
+  const lotsRaw = o.lots
+  const lots = Array.isArray(lotsRaw)
+    ? (lotsRaw as ProductHistoryLotLine[]).filter(
+        (row) => row && typeof row === 'object' && typeof row.code === 'string',
+      )
+    : []
+  const lotsCount =
+    typeof o.lotsCount === 'number' && Number.isFinite(o.lotsCount)
+      ? o.lotsCount
+      : lots.length
+  const salePriceHistory = Array.isArray(o.salePriceHistory)
+    ? (o.salePriceHistory as ProductHistoryPricePoint[])
+    : undefined
+  const events = Array.isArray(o.events)
+    ? (o.events as ProductHistoryEvent[])
+    : undefined
+  const productIdOut =
+    typeof o.productId === 'string' ? o.productId : productId
+  const productName =
+    typeof o.productName === 'string' ? o.productName : undefined
+  const summary =
+    typeof o.summary === 'string' && o.summary.trim() ? o.summary : null
+  return {
+    productId: productIdOut,
+    ...(productName !== undefined ? { productName } : {}),
+    lots,
+    lotsCount,
+    ...(salePriceHistory?.length ? { salePriceHistory } : {}),
+    ...(events?.length ? { events } : {}),
+    ...(summary ? { summary } : {}),
+  }
 }
 
 export async function createProduct(
@@ -522,6 +764,11 @@ export type PurchaseLotRow = {
   code: string
   /** Nombre legible del lote (si el API lo envía); si no, usar `code` en UI. */
   name?: string | null
+  /**
+   * Etiqueta corta resuelta por el backend para listas/cabeceras: prioriza `name`,
+   * cae al `code` legible. Para pantallas de edición seguí usando `name` directo.
+   */
+  displayName?: string | null
   purchaseDate: string
   supplier?: string | null
   /**
@@ -596,6 +843,8 @@ export type PurchaseLotRow = {
   totalValue?: string | number | null
   createdAt?: string
   updatedAt?: string
+  /** Revisión / trazabilidad (manual). Distinto de `updatedAt`. */
+  traceModifiedAt?: string | null
 }
 
 export type PurchaseLotsListResponse = {
@@ -604,6 +853,8 @@ export type PurchaseLotsListResponse = {
 }
 
 export type PatchPurchaseLotPayload = {
+  /** Título legible del lote (opcional; vacío → `null` en el API). */
+  name?: string | null
   purchaseDate?: string
   supplier?: string
   notes?: string
@@ -611,6 +862,8 @@ export type PatchPurchaseLotPayload = {
   /** Si el backend lo expone en PATCH: lote agotado vs aún con saldo. */
   isDepleted?: boolean
   consumptionStatus?: 'EMPTY' | 'FRESH' | 'PARTIAL' | 'DEPLETED'
+  /** ISO UTC; usar `null` explícito para borrar la marca (no omitir el campo). */
+  traceModifiedAt?: string | null
 }
 
 export type InventoryOption = {
@@ -663,6 +916,10 @@ export type InventoryRow = {
   purchaseLot?: PurchaseLotRow | null
   /** Presente cuando la petición lleva `includeStats=true`. */
   stats?: InventoryItemStats
+  createdAt?: string | null
+  updatedAt?: string | null
+  /** Revisión / trazabilidad (manual). Distinto de `updatedAt`. */
+  traceModifiedAt?: string | null
 }
 
 export type InventoryListResponse = {
@@ -681,7 +938,10 @@ export type CreateInventoryPayload = {
   minStock?: number
 }
 
-export type UpdateInventoryPayload = Partial<CreateInventoryPayload>
+export type UpdateInventoryPayload = Partial<CreateInventoryPayload> & {
+  /** ISO UTC; `null` explícito borra la marca en PATCH. */
+  traceModifiedAt?: string | null
+}
 
 export async function fetchInventoryItems(
   base: string,
@@ -1302,6 +1562,44 @@ export function purchaseLotDateToInputValue(value: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/**
+ * ISO 8601 (UTC u offset) → valor para `<input type="datetime-local">` en hora local del navegador.
+ */
+export function isoInstantToDatetimeLocalValue(
+  iso: string | null | undefined,
+): string {
+  if (!iso?.trim()) return ''
+  const d = new Date(iso.trim())
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/**
+ * Valor de `<input type="datetime-local">` (interpretado como hora local) → ISO UTC (`…Z`) para JSON PATCH.
+ * Cadena vacía → `null` (limpiar marca de revisión).
+ */
+export function datetimeLocalValueToIsoUtcOrNull(local: string): string | null {
+  const v = local.trim()
+  if (!v) return null
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
+/** `updatedAt` u otras marcas de sistema: solo lectura en UI. */
+export function formatSystemDateTime(
+  iso: string | null | undefined,
+): string {
+  if (!iso?.trim()) return '—'
+  const d = new Date(iso.trim())
+  if (Number.isNaN(d.getTime())) return String(iso).trim()
+  return new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(d)
+}
+
 /** Texto de proveedor para UI: resuelto (lote + fallback inventario) o `supplier` del lote. */
 export function displayPurchaseLotSupplier(row: {
   supplier?: string | null
@@ -1312,10 +1610,16 @@ export function displayPurchaseLotSupplier(row: {
   return row.supplier?.trim() || ''
 }
 
-/** Etiqueta de lote para filas de inventario (prioriza `purchaseLot` del API). */
+/**
+ * Etiqueta de lote para filas de inventario (movimientos/recetas): prioriza el
+ * objeto anidado `purchaseLot` del API (su `displayName` o `name` ya viene corto)
+ * y cae a `row.lot` si el inventario no resolvió el lote.
+ */
 export function inventoryLotDisplayLabel(row: InventoryRow): string | null {
   const pl = row.purchaseLot
   if (pl) {
+    const d = pl.displayName?.trim()
+    if (d) return d
     const n = pl.name?.trim()
     if (n) return n
     const c = pl.code?.trim()
@@ -1402,44 +1706,30 @@ export async function patchPurchaseLot(
   return res.json() as Promise<PurchaseLotRow>
 }
 
-/** Categorías aptas para productos (`type === PRODUCT`) vía explorador. */
+/** Categorías para productos (`type === PRODUCT`): explorador paginado (limit≤100); respaldo GET /categories. */
 export async function fetchProductCategories(
   base: string,
 ): Promise<CategoryRef[]> {
-  const { rows } = await fetchTableRows(base, 'categories', 500, 0)
-  return rows
-    .filter((r) => String(r.type) === 'PRODUCT')
-    .map((r) => ({
-      id: String(r.id),
-      name: String(r.name ?? ''),
-      type: String(r.type ?? ''),
-      parentId:
-        r.parentId != null
-          ? String(r.parentId)
-          : r.parent_id != null
-            ? String(r.parent_id)
-            : null,
-    }))
+  try {
+    return await fetchCategoriesViaExplorer(base, 'PRODUCT')
+  } catch (first) {
+    const viaRest = await tryFetchCategoriesRest(base, 'PRODUCT')
+    if (viaRest !== null) return viaRest
+    throw first instanceof Error ? first : new Error(String(first))
+  }
 }
 
 /** Categorías de inventario (`type === INVENTORY`). */
 export async function fetchInventoryCategories(
   base: string,
 ): Promise<CategoryRef[]> {
-  const { rows } = await fetchTableRows(base, 'categories', 500, 0)
-  return rows
-    .filter((r) => String(r.type) === 'INVENTORY')
-    .map((r) => ({
-      id: String(r.id),
-      name: String(r.name ?? ''),
-      type: String(r.type ?? ''),
-      parentId:
-        r.parentId != null
-          ? String(r.parentId)
-          : r.parent_id != null
-            ? String(r.parent_id)
-            : null,
-    }))
+  try {
+    return await fetchCategoriesViaExplorer(base, 'INVENTORY')
+  } catch (first) {
+    const viaRest = await tryFetchCategoriesRest(base, 'INVENTORY')
+    if (viaRest !== null) return viaRest
+    throw first instanceof Error ? first : new Error(String(first))
+  }
 }
 
 export async function fetchActiveProductsCount(base: string): Promise<number> {

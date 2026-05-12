@@ -161,12 +161,12 @@ export function NavigationHub({
   const sections: HubSection[] = [
     {
       id: 'catalog',
-      title: 'Catálogo',
+      title: 'Productos a la venta',
       hint: 'Carta, recetas y fichas',
       items: [
         {
           view: 'products',
-          label: 'Productos',
+          label: 'Productos a la venta',
           hint: 'Carta y precios',
         },
         {
@@ -179,24 +179,19 @@ export function NavigationHub({
     {
       id: 'stock',
       title: 'Inventario',
-      hint: inventoryHint,
+      hint:
+        [inventoryHint, purchasesHint].filter(Boolean).join(' · ') ||
+        'Insumos en existencia y compras por lote',
       items: [
         {
           view: 'inventory',
-          label: 'Inventario',
-          hint: 'Existencias y movimientos',
+          label: 'Productos',
+          hint: 'Insumos y existencias por ítem',
         },
-      ],
-    },
-    {
-      id: 'purchases',
-      title: 'Compras',
-      hint: purchasesHint,
-      items: [
         {
           view: 'purchases',
           label: 'Compras',
-          hint: 'Lotes y proveedores',
+          hint: 'Lotes de compra y proveedores',
         },
       ],
     },
@@ -245,25 +240,7 @@ export function NavigationHub({
 
   return (
     <div className="nav-hub nav-hub--dashboard">
-      <header className="nav-hub__hero">
-        <div className="nav-hub__hero-inner">
-          <img
-            className="nav-hub__logo"
-            src="/logo.png"
-            width={56}
-            height={56}
-            alt=""
-            decoding="async"
-          />
-          <div className="nav-hub__hero-text">
-            <h1 className="nav-hub__title">Arándano Café</h1>
-            <p className="nav-hub__subtitle">Panel principal</p>
-            <p className="nav-hub__tagline muted">
-              Elegí un área para continuar
-            </p>
-          </div>
-        </div>
-      </header>
+      <h1 className="sr-only">Arándano Café — inicio</h1>
 
       <div className="nav-hub__sections">
         {sections.map((section) => (

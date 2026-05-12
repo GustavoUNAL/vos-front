@@ -1,3 +1,5 @@
+import { useEffect, useId, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CategoryRef, ProductsCatalogSummary } from '../api'
 
 function formatCOP(n: number): string {
@@ -6,6 +8,11 @@ function formatCOP(n: number): string {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(n)
+}
+
+function categoryLabel(categoryId: string, categories: CategoryRef[]): string {
+  const hit = categories.find((c) => c.id === categoryId)
+  return hit?.name ?? categoryId
 }
 
 type ProductSummaryCardProps = {
@@ -19,47 +26,118 @@ export function ProductSummaryCard({
   categories,
   loading,
 }: ProductSummaryCardProps) {
+  const [detailOpen, setDetailOpen] = useState(false)
+  const detailTitleId = useId()
+  const detailDialogId = useId()
+
+  useEffect(() => {
+    if (!detailOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDetailOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [detailOpen])
+
   return (
-    <section
-      className="product-summary-card"
-      aria-label="Resumen del catálogo de productos"
-    >
-      <h3 className="sr-only">Resumen del catálogo</h3>
+    <div className="product-summary-deck" aria-label="Resumen de productos a la venta">
+      <h3 className="sr-only">Resumen de productos a la venta</h3>
 
       {loading && !summary && (
-        <p className="product-summary-card__loading muted">Calculando resumen…</p>
+        <p className="product-summary-deck__status muted">Calculando resumen…</p>
       )}
 
       {!loading && !summary && (
-        <p className="product-summary-card__loading muted">
-          No se pudo cargar el resumen del catálogo.
+        <p className="product-summary-deck__status muted">
+          No se pudo cargar el resumen.
         </p>
       )}
 
       {summary && (
-        <div className="product-summary-card__kpis" role="group" aria-label="Indicadores">
-          <p className="product-summary-card__eyebrow" aria-hidden>
-            Catálogo
-          </p>
-          <div className="product-summary-kpi">
-            <span className="product-summary-kpi__label">Productos</span>
-            <strong className="product-summary-kpi__value">{summary.total}</strong>
-            <span className="product-summary-kpi__hint">en catálogo</span>
-          </div>
-          <div className="product-summary-kpi">
-            <span className="product-summary-kpi__label">Categorías</span>
-            <strong className="product-summary-kpi__value">{categories.length}</strong>
-            <span className="product-summary-kpi__hint">definidas</span>
-          </div>
-          <div className="product-summary-kpi">
-            <span className="product-summary-kpi__label">Precio prom.</span>
-            <strong className="product-summary-kpi__value">
-              {formatCOP(summary.averagePriceCOP)}
-            </strong>
-            <span className="product-summary-kpi__hint">todo el catálogo</span>
-          </div>
-        </div>
+        <button
+          type="button"
+          className="btn-summary-detail"
+          aria-expanded={detailOpen}
+          aria-controls={detailDialogId}
+          aria-label="Ver resumen de productos a la venta"
+          title="Ver resumen"
+          onClick={() => setDetailOpen(true)}
+        >
+          <span className="btn-summary-detail__icon" aria-hidden />
+        </button>
       )}
-    </section>
+
+      {summary &&
+        detailOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="modal-backdrop product-summary-detail-backdrop"
+            role="presentation"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setDetailOpen(false)
+            }}
+          >
+            <section
+              id={detailDialogId}
+              className="modal modal--popup product-summary-detail-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={detailTitleId}
+            >
+              <header className="modal-head">
+                <div className="modal-head-title">
+                  <h2 id={detailTitleId}>Productos a la venta</h2>
+                  <p className="muted small modal-subtitle">
+                    Vista global sin filtros de búsqueda.
+                  </p>
+                </div>
+                <div className="modal-head-actions">
+                  <button
+                    type="button"
+                    className="btn-ghost icon-close"
+                    onClick={() => setDetailOpen(false)}
+                    aria-label="Cerrar"
+                  />
+                </div>
+              </header>
+              <div className="modal-body">
+                <dl className="product-summary-detail-stats">
+                  <div>
+                    <dt>Productos a la venta</dt>
+                    <dd>{summary.total}</dd>
+                  </div>
+                  <div>
+                    <dt>Categorías definidas</dt>
+                    <dd>{categories.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Precio medio</dt>
+                    <dd className="mono">{formatCOP(summary.averagePriceCOP)}</dd>
+                  </div>
+                </dl>
+                <h3 className="product-summary-detail-section-title">Por categoría</h3>
+                {summary.perCategory.length === 0 ? (
+                  <p className="muted small">No hay reparto por categoría.</p>
+                ) : (
+                  <ul className="product-summary-detail-categories">
+                    {summary.perCategory.map((row) => (
+                      <li key={row.categoryId}>
+                        <span className="product-summary-detail-categories__name">
+                          {categoryLabel(row.categoryId, categories)}
+                        </span>
+                        <span className="product-summary-detail-categories__count mono">
+                          {row.count}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+    </div>
   )
 }

@@ -17,14 +17,18 @@ export type SectionSummarySection =
   | 'explorer'
 
 const SECTION_HEADINGS: Record<SectionSummarySection, string> = {
-  products: 'Resumen · Productos',
+  products: 'Resumen · Productos a la venta',
   recipes: 'Resumen · Recetas',
-  inventory: 'Resumen · Inventario',
-  sales: 'Resumen',
+  inventory: 'Resumen · Productos',
+  sales: 'Resumen · Ventas',
   purchases: 'Resumen · Compras',
   costs: 'Resumen · Costos por producto',
   gastos: 'Resumen · Gastos',
   explorer: 'Resumen · DB',
+}
+
+export function sectionSummaryHeading(section: SectionSummarySection): string {
+  return SECTION_HEADINGS[section]
 }
 
 export function SectionSummaryBar({
@@ -37,7 +41,7 @@ export function SectionSummaryBar({
   ariaLabel?: string
 }) {
   if (items.length === 0) return null
-  const heading = SECTION_HEADINGS[section]
+  const heading = sectionSummaryHeading(section)
   return (
     <div
       className={`section-summary-bar section-summary-bar--${section}`}

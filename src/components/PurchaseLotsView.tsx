@@ -2,30 +2,76 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import {
   deleteInventoryItem,
+  datetimeLocalValueToIsoUtcOrNull,
   displayPurchaseLotSupplier,
+  fetchInventoryCategories,
   fetchInventoryItems,
   fetchPurchaseLot,
   fetchPurchaseLots,
   formatPurchaseLotDate,
+  formatSystemDateTime,
+  isoInstantToDatetimeLocalValue,
   patchPurchaseLot,
   purchaseLotDateToInputValue,
   updateInventoryItem,
+  type CategoryRef,
   type InventoryRow,
   type PurchaseLotRow,
+  type UpdateInventoryPayload,
 } from '../api'
 import {
   isCapitalAssetBehavior,
   resolveLotLineInventoryBehavior,
 } from '../inventorySemantics'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import { FloatingGearFab } from './FloatingGearFab'
 
 type PurchaseLotInvoiceItem = NonNullable<PurchaseLotRow['items']>[number]
 
 const LIMIT = 100
+
+const INVENTORY_CATEGORY_NAME_PREFIX = 'INVENTORY::'
+
+function inventoryCategoryOptionLabel(name: string | null | undefined): string {
+  if (name == null || name === '') return '—'
+  if (name.startsWith(INVENTORY_CATEGORY_NAME_PREFIX)) {
+    const rest = name.slice(INVENTORY_CATEGORY_NAME_PREFIX.length).trim()
+    return rest !== '' ? rest : name
+  }
+  return name
+}
+
+function traceTimestampsEqual(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const ta = a?.trim() ? new Date(a).getTime() : NaN
+  const tb = b?.trim() ? new Date(b).getTime() : NaN
+  if (!Number.isFinite(ta) && !Number.isFinite(tb)) return true
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb
+}
+
+/** Snapshot al abrir el modal de ítem; se compara al confirmar un solo PATCH. */
+type LotItemEditBaseline = {
+  id: string
+  name: string
+  categoryId: string
+  quantity: string
+  unit: string
+  unitCost: string
+  supplier: string
+  traceModifiedAt: string | null | undefined
+}
 
 function getPurchaseLotIdFromHash(): string | null {
   const raw = (window.location.hash ?? '').replace(/^#/, '')
@@ -297,14 +343,40 @@ function lotConsumptionStatusLabel(
   return '—'
 }
 
+type LotStatusKey = 'fresh' | 'partial' | 'depleted' | 'empty' | 'unknown'
+
+/** Clave normalizada para acentos de UI según consumo del lote. */
+function lotConsumptionStatusKey(
+  status: string | null | undefined,
+  isDepleted?: boolean,
+): LotStatusKey {
+  if (isDepleted) return 'depleted'
+  const s = String(status ?? '').toUpperCase()
+  if (s === 'DEPLETED') return 'depleted'
+  if (s === 'EMPTY') return 'empty'
+  if (s === 'FRESH') return 'fresh'
+  if (s === 'PARTIAL') return 'partial'
+  return 'unknown'
+}
+
 function looksLikeUuid(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     s.trim(),
   )
 }
 
-/** Nombre legible: `name` del API; si no, `code` salvo que parezca UUID (no usarlo como título). */
-function purchaseLotDisplayName(row: { code: string; name?: string | null }): string {
+/**
+ * Etiqueta corta para listas/cabeceras: prioriza `displayName` del backend; si
+ * no, cae al `name` manual y, en último caso, al `code` (omitiendo UUIDs).
+ * En pantallas de edición seguí mostrando `name` directo para respetar el título manual.
+ */
+function purchaseLotDisplayName(row: {
+  code: string
+  name?: string | null
+  displayName?: string | null
+}): string {
+  const d = row.displayName?.trim()
+  if (d) return d
   const n = row.name?.trim()
   if (n) return n
   const c = row.code?.trim()
@@ -317,16 +389,18 @@ function purchaseLotDisplayName(row: { code: string; name?: string | null }): st
 function purchaseLotSecondaryLine(row: {
   code: string
   name?: string | null
+  displayName?: string | null
 }): string | null {
-  const n = row.name?.trim()
+  const title = purchaseLotDisplayName(row)
   const c = row.code?.trim()
   if (!c) return null
-  if (n && n !== c) return c
-  if (!n && looksLikeUuid(c)) return `Código: ${c}`
+  if (title && title !== c) return c
+  if (looksLikeUuid(c)) return `Código: ${c}`
   return null
 }
 
 export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const [list, setList] = useState<PurchaseLotRow[]>([])
   const [meta, setMeta] = useState<{
     page: number
@@ -362,6 +436,12 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     null,
   )
   const [lotItemError, setLotItemError] = useState<string | null>(null)
+  const [lotItemSaveBanner, setLotItemSaveBanner] = useState<string | null>(
+    null,
+  )
+  const lotItemSaveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const [lotItemSavingId, setLotItemSavingId] = useState<string | null>(null)
   /** Cantidad a restar por fila (consumo / uso) antes de pulsar Restar. */
   const [deductDraft, setDeductDraft] = useState<Record<string, string>>({})
@@ -370,6 +450,17 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     invId: string
     invoiceLine?: PurchaseLotInvoiceItem
   } | null>(null)
+  /** Modal ítem: costo unitario solo lectura hasta que el usuario active la corrección. */
+  const [lotItemEditUnitCostUnlocked, setLotItemEditUnitCostUnlocked] =
+    useState(false)
+  /** Borrador del costo mientras la opción de edición está activa (evita tocar inventario al tipear). */
+  const [lotItemUnitCostDraft, setLotItemUnitCostDraft] = useState('')
+  /** Valor `<input type="datetime-local">` para revisión del ítem (modal). */
+  const [lotItemTraceDraft, setLotItemTraceDraft] = useState('')
+  /** Estado del inventario al abrir el modal de ítem (para un solo guardado confirmado). */
+  const lotItemEditBaselineRef = useRef<LotItemEditBaseline | null>(null)
+  /** Categorías de inventario (selector en modal ítem del lote). */
+  const [inventoryCategories, setInventoryCategories] = useState<CategoryRef[]>([])
   /** Popup con ficha del lote (fecha, proveedor, guardar). */
   const [lotMetaEditOpen, setLotMetaEditOpen] = useState(false)
   const [lotItemFilter, setLotItemFilter] = useState<'all' | 'available' | 'consumed'>(
@@ -378,13 +469,25 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   const [lotItemSort, setLotItemSort] = useState<
     'name_asc' | 'qty_desc' | 'qty_asc' | 'cost_desc' | 'subtotal_desc'
   >('name_asc')
+  /** Popup compacto con los filtros del inventario del lote. */
+  const [lotFiltersPopupOpen, setLotFiltersPopupOpen] = useState(false)
+  /** Despliega la grilla KPI (“Detalle del lote”). */
+  const [lotKpisOpen, setLotKpisOpen] = useState(false)
+  /** Conjunto de campos desbloqueados (editables) en el popup del ítem del lote. */
+  const [lotItemUnlocked, setLotItemUnlocked] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [draft, setDraft] = useState<{
+    /** Nombre mostrado del lote (campo `name` en el API). */
+    lotName: string
     purchaseDate: string
     supplier: string
     notes: string
     totalValue: string
     /** Declarado por el usuario: lote cerrado (agotado) o aún con saldo. */
     isDepleted: boolean
+    /** Revisión / trazabilidad (`traceModifiedAt`), input datetime-local. */
+    traceModifiedLocal: string
   } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -394,6 +497,21 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     const t = window.setTimeout(() => setSearchDebounced(search), 320)
     return () => window.clearTimeout(t)
   }, [search])
+
+  const purchaseListFiltersActive = useMemo(
+    () =>
+      search.trim() !== '' ||
+      filterDateFrom !== '' ||
+      filterDateTo !== '' ||
+      listSort !== 'date_desc',
+    [search, filterDateFrom, filterDateTo, listSort],
+  )
+
+  const lotDetailFiltersActive = useMemo(
+    () =>
+      lotItemFilter !== 'all' || lotItemSort !== 'name_asc',
+    [lotItemFilter, lotItemSort],
+  )
 
   useEffect(() => {
     setPage(1)
@@ -444,12 +562,14 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         const d = await fetchPurchaseLot(baseUrl, id)
         setSelectedLotRow(d)
         setDraft({
+          lotName: d.name?.trim() ?? '',
           purchaseDate: purchaseLotDateToInputValue(d.purchaseDate),
           supplier: d.supplier ?? '',
           notes: d.notes ?? '',
           totalValue:
             d.totalValue != null ? String(num(d.totalValue)) : '',
           isDepleted: purchaseLotInitialDepleted(d),
+          traceModifiedLocal: isoInstantToDatetimeLocalValue(d.traceModifiedAt),
         })
       } catch (e) {
         setSaveError((e as Error).message)
@@ -471,11 +591,16 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     setLotItemError(null)
     setLotItemSavingId(null)
     setDeductDraft({})
-      setLotItemEdit(null)
-      setLotMetaEditOpen(false)
-      setDraft(null)
-      setSaveError(null)
-    }, [])
+    setLotItemEdit(null)
+    setLotMetaEditOpen(false)
+    setDraft(null)
+    setSaveError(null)
+    if (lotItemSaveBannerTimerRef.current) {
+      clearTimeout(lotItemSaveBannerTimerRef.current)
+      lotItemSaveBannerTimerRef.current = null
+    }
+    setLotItemSaveBanner(null)
+  }, [])
 
   const closePanel = useCallback(() => {
     closePanelState()
@@ -483,15 +608,31 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   }, [closePanelState])
 
   useEffect(() => {
-    if (!lotItemEdit && !lotMetaEditOpen) return
+    if (!lotItemEdit && !lotMetaEditOpen && !lotFiltersPopupOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (lotItemEdit) setLotItemEdit(null)
+      else if (lotFiltersPopupOpen) setLotFiltersPopupOpen(false)
       else setLotMetaEditOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [lotItemEdit, lotMetaEditOpen])
+  }, [lotItemEdit, lotMetaEditOpen, lotFiltersPopupOpen])
+
+  useEffect(() => {
+    setLotItemEditUnitCostUnlocked(false)
+    setLotItemUnitCostDraft('')
+    setLotItemUnlocked(new Set())
+  }, [lotItemEdit?.invId])
+
+  const toggleLotItemFieldUnlock = useCallback((key: string) => {
+    setLotItemUnlocked((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     const hashId = getPurchaseLotIdFromHash()
@@ -543,6 +684,31 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   }, [baseUrl, selectedId, selectedLotRow?.code])
 
   useEffect(() => {
+    if (!selectedId) {
+      setInventoryCategories([])
+      return
+    }
+    const controller = new AbortController()
+    fetchInventoryCategories(baseUrl)
+      .then((cats) => {
+        if (!controller.signal.aborted) setInventoryCategories(cats)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setInventoryCategories([])
+      })
+    return () => {
+      controller.abort()
+    }
+  }, [baseUrl, selectedId])
+
+  useEffect(() => {
+    if (!lotItemEdit) {
+      setLotItemTraceDraft('')
+      lotItemEditBaselineRef.current = null
+    }
+  }, [lotItemEdit])
+
+  useEffect(() => {
     const t = String(lotPurchaseTotalCOP(selectedLotRow))
     setDraft((prev) => {
       if (!prev) return prev
@@ -551,128 +717,194 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     })
   }, [selectedLotRow])
 
-  const updateLotItemField = useCallback(
+  const commitLotItemModalChanges = useCallback(
     async (
       inv: InventoryRow,
-      patch: { quantity?: string; unitCost?: string; unit?: string },
-    ): Promise<boolean> => {
-      const payload: {
-        quantity?: number
-        unitCost?: number
-        unit?: string
-      } = {}
-      if (patch.quantity != null) {
-        const q = parseFloat(patch.quantity.replace(',', '.'))
-        if (!Number.isFinite(q) || q < 0) {
-          setLotItemError('Cantidad inválida.')
-          return false
-        }
-        payload.quantity = q
+      invoiceLine: PurchaseLotInvoiceItem | undefined,
+    ): Promise<void> => {
+      const base = lotItemEditBaselineRef.current
+      if (!base || base.id !== inv.id) {
+        setLotItemError('Cerrá y volvé a abrir «Gestionar» para guardar.')
+        return
       }
-      if (patch.unitCost != null) {
-        const c = parseFloat(patch.unitCost.replace(',', '.'))
-        if (!Number.isFinite(c) || c < 0) {
-          setLotItemError('Costo unitario inválido.')
-          return false
-        }
-        payload.unitCost = c
+      const row = lotInventory.find((x) => x.id === inv.id) ?? inv
+      const payload: UpdateInventoryPayload = {}
+
+      const nameTrim = row.name.trim()
+      if (!nameTrim) {
+        setLotItemError('El nombre del producto no puede quedar vacío.')
+        return
       }
-      if (patch.unit != null) {
-        const u = normalizeInventoryUnit(patch.unit)
-        if (!u) {
-          setLotItemError('La unidad no puede quedar vacía.')
-          return false
-        }
-        payload.unit = u
+      if (nameTrim !== base.name.trim()) payload.name = nameTrim
+
+      if (row.categoryId.trim() !== base.categoryId.trim()) {
+        payload.categoryId = row.categoryId.trim()
       }
+
+      const q = parseFloat(String(row.quantity).replace(',', '.'))
+      if (!Number.isFinite(q) || q < 0) {
+        setLotItemError('Cantidad inválida.')
+        return
+      }
+      if (invoiceLine != null) {
+        const cap = qty(invoiceLine.quantity)
+        if (q > cap + 1e-6) {
+          setLotItemError(
+            `La existencia no puede superar lo comprado (${cap.toFixed(2)} ${invoiceLine.unit || ''}).`,
+          )
+          return
+        }
+      }
+      const bq = parseFloat(String(base.quantity).replace(',', '.'))
+      if (!Number.isFinite(bq) || Math.abs(q - bq) > 1e-6) payload.quantity = q
+
+      const unitNorm = normalizeInventoryUnit(String(row.unit))
+      if (!unitNorm) {
+        setLotItemError('La unidad no puede quedar vacía.')
+        return
+      }
+      const baseUnit = normalizeInventoryUnit(base.unit)
+      if (unitNorm !== baseUnit) payload.unit = unitNorm
+
+      const costRaw = lotItemEditUnitCostUnlocked
+        ? lotItemUnitCostDraft.trim()
+        : String(row.unitCost).trim()
+      const uc = parseFloat(costRaw.replace(',', '.'))
+      if (!Number.isFinite(uc) || uc < 0) {
+        setLotItemError('Costo unitario inválido.')
+        return
+      }
+      const buc = parseFloat(String(base.unitCost).replace(',', '.'))
+      if (!Number.isFinite(buc) || Math.abs(uc - buc) > 1e-6) payload.unitCost = uc
+
+      const sup = row.supplier?.trim() ?? ''
+      if (sup !== (base.supplier?.trim() ?? '')) {
+        payload.supplier = sup || undefined
+      }
+
+      const nextTraceIso = datetimeLocalValueToIsoUtcOrNull(lotItemTraceDraft)
       if (
-        payload.quantity == null &&
-        payload.unitCost == null &&
-        payload.unit == null
-      )
-        return false
+        !traceTimestampsEqual(
+          nextTraceIso ?? undefined,
+          base.traceModifiedAt ?? undefined,
+        )
+      ) {
+        payload.traceModifiedAt = nextTraceIso
+      }
+
+      if (Object.keys(payload).length === 0) {
+        setLotItemError('No hay cambios para guardar.')
+        window.setTimeout(() => setLotItemError(null), 2800)
+        return
+      }
+
       setLotItemSavingId(inv.id)
       setLotItemError(null)
       try {
         const updated = await updateInventoryItem(baseUrl, inv.id, payload)
         setLotInventory((prev) => prev.map((x) => (x.id === inv.id ? updated : x)))
-        return true
+        if (lotItemSaveBannerTimerRef.current) {
+          clearTimeout(lotItemSaveBannerTimerRef.current)
+        }
+        setLotItemSaveBanner(
+          `Cambios guardados: “${updated.name.trim() || 'Producto'}” quedó actualizado en este lote.`,
+        )
+        lotItemSaveBannerTimerRef.current = window.setTimeout(() => {
+          setLotItemSaveBanner(null)
+          lotItemSaveBannerTimerRef.current = null
+        }, 8000)
+        lotItemEditBaselineRef.current = {
+          id: updated.id,
+          name: updated.name,
+          categoryId: updated.categoryId,
+          quantity: String(updated.quantity),
+          unit: updated.unit,
+          unitCost: String(updated.unitCost),
+          supplier: updated.supplier?.trim() ?? '',
+          traceModifiedAt: updated.traceModifiedAt ?? null,
+        }
+        setLotItemTraceDraft(isoInstantToDatetimeLocalValue(updated.traceModifiedAt))
+        setLotItemUnitCostDraft(String(updated.unitCost ?? ''))
+        setLotItemEditUnitCostUnlocked(false)
       } catch (e) {
         setLotItemError((e as Error).message)
-        return false
       } finally {
         setLotItemSavingId(null)
       }
     },
-    [baseUrl],
+    [
+      baseUrl,
+      lotInventory,
+      lotItemTraceDraft,
+      lotItemUnitCostDraft,
+      lotItemEditUnitCostUnlocked,
+    ],
   )
 
   const adjustLotItemExistenciaStep = useCallback(
-    async (
-      inv: InventoryRow,
-      invoiceLine: PurchaseLotInvoiceItem | undefined,
-      direction: -1 | 1,
-    ) => {
-      const row = lotInventory.find((x) => x.id === inv.id) ?? inv
-      const current = qty(row.quantity)
-      const step = 1
-      let next = Math.round((current + direction * step) * 100) / 100
-      if (invoiceLine) {
-        const cap = qty(invoiceLine.quantity)
-        next = Math.max(0, Math.min(cap, next))
-      } else {
-        next = Math.max(0, next)
-      }
-      if (next === current) return
-      await updateLotItemField(inv, { quantity: String(next) })
-    },
-    [lotInventory, updateLotItemField],
-  )
-
-  const applyDeductQuantity = useCallback(
-    async (inv: InventoryRow) => {
-      const raw = (deductDraft[inv.id] ?? '').trim()
-      const deduct = parseFloat(raw.replace(',', '.'))
-      if (!Number.isFinite(deduct) || deduct <= 0) {
-        setLotItemError('Indicá cuánto descontar (número mayor que 0).')
-        return
-      }
-      const row = lotInventory.find((x) => x.id === inv.id)
-      const cur = qty(row?.quantity ?? inv.quantity)
-      const next = Math.max(0, cur - deduct)
-      setLotItemError(null)
-      const ok = await updateLotItemField(inv, { quantity: String(next) })
-      if (ok) {
-        setDeductDraft((d) => {
-          const nextDraft = { ...d }
-          delete nextDraft[inv.id]
-          return nextDraft
-        })
-      }
-    },
-    [deductDraft, lotInventory, updateLotItemField],
-  )
-
-  const agotarLotItemQuantity = useCallback(
-    async (inv: InventoryRow) => {
-      if (
-        !window.confirm(
-          `¿Poner cantidad en 0 para "${inv.name}"? (queda agotado en este lote)`,
+    (inv: InventoryRow, invoiceLine: PurchaseLotInvoiceItem | undefined, direction: -1 | 1) => {
+      setLotInventory((prev) => {
+        const row = prev.find((x) => x.id === inv.id)
+        if (!row) return prev
+        const current = qty(row.quantity)
+        const step = 1
+        let next = Math.round((current + direction * step) * 100) / 100
+        if (invoiceLine) {
+          const cap = qty(invoiceLine.quantity)
+          next = Math.max(0, Math.min(cap, next))
+        } else {
+          next = Math.max(0, next)
+        }
+        if (next === current) return prev
+        return prev.map((x) =>
+          x.id === inv.id ? { ...x, quantity: String(next) } : x,
         )
-      )
-        return
-      setLotItemError(null)
-      const ok = await updateLotItemField(inv, { quantity: '0' })
-      if (ok) {
-        setDeductDraft((d) => {
-          const next = { ...d }
-          delete next[inv.id]
-          return next
-        })
-      }
+      })
     },
-    [updateLotItemField],
+    [],
   )
+
+  const applyDeductQuantity = useCallback((inv: InventoryRow) => {
+    const raw = (deductDraft[inv.id] ?? '').trim()
+    const deduct = parseFloat(raw.replace(',', '.'))
+    if (!Number.isFinite(deduct) || deduct <= 0) {
+      setLotItemError('Indicá cuánto descontar (número mayor que 0).')
+      return
+    }
+    setLotItemError(null)
+    setLotInventory((prev) => {
+      const row = prev.find((x) => x.id === inv.id)
+      if (!row) return prev
+      const cur = qty(row.quantity)
+      const next = Math.max(0, cur - deduct)
+      return prev.map((x) =>
+        x.id === inv.id ? { ...x, quantity: String(next) } : x,
+      )
+    })
+    setDeductDraft((d) => {
+      const nextDraft = { ...d }
+      delete nextDraft[inv.id]
+      return nextDraft
+    })
+  }, [deductDraft])
+
+  const agotarLotItemQuantity = useCallback((inv: InventoryRow) => {
+    if (
+      !window.confirm(
+        `¿Poner cantidad en 0 para "${inv.name}"? (local hasta que pulses Confirmar cambios.)`,
+      )
+    )
+      return
+    setLotItemError(null)
+    setLotInventory((prev) =>
+      prev.map((x) => (x.id === inv.id ? { ...x, quantity: '0' } : x)),
+    )
+    setDeductDraft((d) => {
+      const next = { ...d }
+      delete next[inv.id]
+      return next
+    })
+  }, [])
 
   const deleteLotItem = useCallback(
     async (inv: InventoryRow) => {
@@ -728,10 +960,12 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     setSaveError(null)
     try {
       const patchPayload: Parameters<typeof patchPurchaseLot>[2] = {
+        name: draft.lotName.trim() || null,
         purchaseDate: dateStr,
         supplier: draft.supplier.trim() || undefined,
         notes: draft.notes.trim() || undefined,
         totalValue,
+        traceModifiedAt: datetimeLocalValueToIsoUtcOrNull(draft.traceModifiedLocal),
       }
       if (draft.isDepleted) patchPayload.consumptionStatus = 'DEPLETED'
       await patchPurchaseLot(baseUrl, selectedId, patchPayload)
@@ -802,6 +1036,12 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     })
     return arr
   }, [list, listSort])
+  /** Índice global de fila en el listado paginado (para columna #). */
+  const purchaseLotsListRowOffset = useMemo(
+    () =>
+      Math.max(0, ((meta?.page ?? page) - 1) * (meta?.limit ?? LIMIT)),
+    [meta?.page, meta?.limit, page],
+  )
   const lotItemsStats = useMemo(() => {
     const metrics = selectedLotRow?.inventoryMetrics ?? null
     let available = 0
@@ -918,86 +1158,158 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     const rowUnit =
       lotInventory.find((x) => x.id === inv.id)?.unit ?? inv.unit
     const qNow = qty(inv.quantity)
-    const qComprado = invoiceLine ? qty(invoiceLine.quantity) : null
     const resolvedBehavior =
       invoiceLine?.inventoryBehavior ??
       resolveLotLineInventoryBehavior(inv, selectedLotRow)
     const isAsset = isCapitalAssetBehavior(resolvedBehavior)
-    const qConsumido =
-      invoiceLine && qComprado != null && !isAsset
-        ? Math.max(0, qComprado - qNow)
-        : null
+    const unitTxt = invoiceLine?.unit || rowUnit || ''
+    const totalComprado = invoiceLine ? qty(invoiceLine.quantity) : null
+    const lineCost = linePurchaseCostCOP(inv, invoiceLine, selectedLotRow)
+    const statusBadgeClass =
+      isAsset
+        ? qNow > 0
+          ? 'purchases-stock-badge purchases-stock-badge--asset'
+          : 'purchases-stock-badge purchases-stock-badge--asset-muted'
+        : qNow > 0
+          ? 'purchases-stock-badge purchases-stock-badge--ok'
+          : 'purchases-stock-badge purchases-stock-badge--out'
+    const statusLabel = isAsset
+      ? qNow > 0
+        ? 'En operación'
+        : 'Adquirido'
+      : qNow > 0
+        ? 'Por consumir'
+        : 'Agotado'
     return (
       <>
         <td
-          className="num mono"
-          title={
-            isAsset
-              ? 'Bien de uso: no aplica consumido como insumo.'
-              : invoiceLine
-                ? 'Cantidad ya usada del total comprado (comprado − existencias).'
-                : undefined
-          }
+          className="purchase-lot-summary-cell"
+          title="Estado del ítem y cantidades del lote"
         >
-          {isAsset ? (
-            <span className="muted">—</span>
-          ) : qConsumido != null ? (
-            <>
-              {qConsumido.toFixed(2)}{' '}
-              <span className="muted small">{invoiceLine?.unit || ''}</span>
-            </>
-          ) : (
-            <span className="muted">—</span>
-          )}
-        </td>
-        <td className="num">
-          <div className="purchases-stock-inline">
-            <span className="purchases-stock-inline__main mono">
-              {qNow.toFixed(2)}{' '}
-              <span className="muted small">{rowUnit || '—'}</span>
-            </span>
-            <span
-              className={
-                isAsset
-                  ? qNow > 0
-                    ? 'purchases-stock-badge purchases-stock-badge--asset'
-                    : 'purchases-stock-badge purchases-stock-badge--asset-muted'
-                  : qNow > 0
-                    ? 'purchases-stock-badge purchases-stock-badge--ok'
-                    : 'purchases-stock-badge purchases-stock-badge--out'
-              }
+          <div className="purchase-lot-summary-stack">
+            <span className={statusBadgeClass}>{statusLabel}</span>
+            <div
+              className="purchase-lot-qty-stack"
+              data-has-total={totalComprado != null ? 'true' : 'false'}
             >
-              {isAsset
-                ? qNow > 0
-                  ? 'En operación'
-                  : 'Adquirido'
-                : qNow > 0
-                  ? 'Por consumir'
-                  : 'Agotado'}
-            </span>
+              <span
+                className="purchase-lot-qty-stack__total mono"
+                title="Cantidad total comprada (comprobante)"
+              >
+                {totalComprado != null ? (
+                  <>
+                    {totalComprado.toFixed(2)}
+                    <span className="muted small">
+                      {' '}
+                      {unitTxt || rowUnit || ''}
+                    </span>
+                  </>
+                ) : (
+                  <span className="muted">—</span>
+                )}
+              </span>
+              <span
+                className="purchase-lot-qty-stack__remain mono"
+                title="Cantidad que aún queda (existencias)"
+              >
+                {qNow.toFixed(2)}
+                <span className="muted small"> {rowUnit || '—'}</span>
+              </span>
+            </div>
           </div>
         </td>
         <td
-          className="num mono"
-          title="Costo histórico de la línea; no debe perderse al agotar existencias."
+          className="num mono purchase-lot-cost-cell purchase-lot-cost-cell--line-only"
+          title="Costo total de compra de esta línea"
         >
-          {formatCOP(linePurchaseCostCOP(inv, invoiceLine, selectedLotRow))}
-        </td>
-        <td className="purchase-lot-td-actions">
-          <button
-            type="button"
-            className="btn-secondary btn-compact purchase-lot-edit-btn"
-            onClick={() =>
-              setLotItemEdit({
-                invId: inv.id,
-                invoiceLine,
-              })
-            }
-          >
-            Gestionar
-          </button>
+          {formatCOP(lineCost)}
         </td>
       </>
+    )
+  }
+
+  const openLotItemEdit = useCallback(
+    (inv: InventoryRow, invoiceLine?: PurchaseLotInvoiceItem) => {
+      setLotItemError(null)
+      const live = lotInventory.find((x) => x.id === inv.id) ?? inv
+      lotItemEditBaselineRef.current = {
+        id: live.id,
+        name: live.name,
+        categoryId: live.categoryId,
+        quantity: String(live.quantity),
+        unit: live.unit,
+        unitCost: String(live.unitCost),
+        supplier: live.supplier?.trim() ?? '',
+        traceModifiedAt: live.traceModifiedAt ?? null,
+      }
+      setLotItemTraceDraft(
+        isoInstantToDatetimeLocalValue(live.traceModifiedAt),
+      )
+      setLotItemUnitCostDraft(String(live.unitCost ?? ''))
+      setLotItemEditUnitCostUnlocked(false)
+      setLotItemEdit({ invId: inv.id, invoiceLine })
+    },
+    [lotInventory],
+  )
+
+  function renderLotItemEditableField(args: {
+    fieldKey: string
+    label: string
+    value: ReactNode
+    children: ReactNode
+    disabled?: boolean
+    onToggle?: () => void
+  }): ReactNode {
+    const { fieldKey, label, value, children, disabled, onToggle } = args
+    const unlocked = lotItemUnlocked.has(fieldKey)
+    const handleToggle =
+      onToggle ?? (() => toggleLotItemFieldUnlock(fieldKey))
+    return (
+      <div className="lot-edit-field" data-unlocked={unlocked ? 'true' : 'false'}>
+        <div className="lot-edit-field__head">
+          <span className="lot-edit-field__label">{label}</span>
+          <button
+            type="button"
+            className="lot-edit-field__toggle"
+            onClick={handleToggle}
+            disabled={disabled}
+            aria-label={unlocked ? `Cerrar ${label}` : `Editar ${label}`}
+            title={unlocked ? 'Listo' : `Editar ${label}`}
+          >
+            {unlocked ? (
+              <span aria-hidden style={{ fontSize: '1.05rem', lineHeight: 1 }}>
+                ×
+              </span>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14.2 3.3a1.8 1.8 0 0 1 2.5 2.5L7.5 15 4 16l1-3.5 9.2-9.2Z" />
+                <path d="M12.5 5l2.5 2.5" />
+              </svg>
+            )}
+          </button>
+        </div>
+        {unlocked ? (
+          <div className="lot-edit-field__input">{children}</div>
+        ) : (
+          <div className="lot-edit-field__value">
+            {value !== '' && value != null ? (
+              value
+            ) : (
+              <span className="muted">—</span>
+            )}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -1016,32 +1328,26 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     const qConsumido =
       qComprado != null && !isAsset ? Math.max(0, qComprado - qNow) : null
     const displayUnit = invoiceLine?.unit || rowUnit || 'un'
+    const liveRow = lotInventory.find((x) => x.id === inv.id) ?? inv
+    const isSaving = lotItemSavingId === inv.id
+    const traceLabel = lotItemTraceDraft
+      ? (() => {
+          const d = new Date(lotItemTraceDraft)
+          return Number.isFinite(d.getTime())
+            ? d.toLocaleString('es-CO', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })
+            : lotItemTraceDraft
+        })()
+      : ''
     return (
       <div className="purchase-lot-item-edit-form">
-        <p className="muted small purchase-lot-item-edit-form__intro">
-          {isAsset ? (
-            <>
-              <strong>Bien de uso (activo):</strong> no sigue el flujo consumido/agotado de
-              insumos. Editás solo <strong>existencias</strong> si necesitás corregir el
-              registro. El <strong>costo de compra</strong> sigue siendo el del comprobante.
-            </>
-          ) : (
-            <>
-              Solo editás <strong>existencias</strong> (cuánto queda y cuánto se consumió). El{' '}
-              <strong>costo de compra</strong> es lo que ya pagaste: no debe bajar al descontar.
-            </>
-          )}
-        </p>
         {invoiceLine ? (
-          <p className="muted small purchase-lot-item-edit-form__comprobante">
-            Comprobante — comprado:{' '}
-            <strong className="mono">
-              {qty(invoiceLine.quantity).toFixed(2)} {invoiceLine.unit || ''}
-            </strong>
-          </p>
-        ) : null}
-        {invoiceLine ? (
-          <div className="purchase-lot-item-edit-form__metrics" aria-label="Resumen de existencias">
+          <div
+            className="purchase-lot-item-edit-form__metrics"
+            aria-label="Resumen de existencias"
+          >
             <div className="purchase-lot-item-edit-form__metric-card">
               <span className="purchase-lot-item-edit-form__metric-label">Comprado</span>
               <span className="mono purchase-lot-item-edit-form__metric-value">
@@ -1062,159 +1368,195 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             </div>
           </div>
         ) : null}
-        {invoiceLine && !isAsset ? (
-          <label className="field">
-            <span>Unidades consumidas (editar)</span>
+
+        {renderLotItemEditableField({
+          fieldKey: 'name',
+          label: 'Nombre',
+          value: liveRow.name,
+          disabled: isSaving,
+          children: (
             <input
               className="input-cell"
-              inputMode="decimal"
-              title={`Consumido en ${displayUnit}`}
-              aria-label={`Cantidad consumida de ${inv.name}`}
-              value={String(
-                (() => {
-                  const comprado = qty(invoiceLine.quantity)
-                  const now = qty(
-                    lotInventory.find((x) => x.id === inv.id)?.quantity ?? inv.quantity,
-                  )
-                  return Math.max(0, comprado - now)
-                })(),
-              )}
-              onChange={(e) => {
-                const consumidoRaw = parseFloat(e.target.value.replace(',', '.'))
-                if (!Number.isFinite(consumidoRaw)) {
-                  setLotInventory((prev) =>
-                    prev.map((x) => (x.id === inv.id ? { ...x, quantity: e.target.value } : x)),
-                  )
-                  return
-                }
-                const comprado = qty(invoiceLine.quantity)
-                const consumido = Math.max(0, Math.min(consumidoRaw, comprado))
-                const nextQty = Math.max(0, comprado - consumido)
+              autoFocus
+              value={String(liveRow.name ?? '')}
+              onChange={(e) =>
                 setLotInventory((prev) =>
                   prev.map((x) =>
-                    x.id === inv.id ? { ...x, quantity: String(nextQty) } : x,
+                    x.id === inv.id ? { ...x, name: e.target.value } : x,
+                  ),
+                )
+              }
+              disabled={isSaving}
+            />
+          ),
+        })}
+
+        {renderLotItemEditableField({
+          fieldKey: 'supplier',
+          label: 'Proveedor',
+          value: liveRow.supplier?.trim() || '',
+          disabled: isSaving,
+          children: (
+            <input
+              className="input-cell"
+              autoFocus
+              placeholder="Opcional"
+              value={String(liveRow.supplier ?? '')}
+              onChange={(e) =>
+                setLotInventory((prev) =>
+                  prev.map((x) =>
+                    x.id === inv.id ? { ...x, supplier: e.target.value } : x,
+                  ),
+                )
+              }
+              disabled={isSaving}
+            />
+          ),
+        })}
+
+        {renderLotItemEditableField({
+          fieldKey: 'category',
+          label: 'Categoría',
+          value: inventoryCategoryOptionLabel(liveRow.category?.name),
+          disabled: isSaving || inventoryCategories.length === 0,
+          children: (
+            <select
+              className="inventory-filter__input"
+              autoFocus
+              value={String(liveRow.categoryId ?? inv.categoryId)}
+              onChange={(e) => {
+                const nextId = e.target.value
+                const cat = inventoryCategories.find((c) => c.id === nextId)
+                setLotInventory((prev) =>
+                  prev.map((x) =>
+                    x.id === inv.id
+                      ? {
+                          ...x,
+                          categoryId: nextId,
+                          category: {
+                            id: nextId,
+                            name: cat?.name ?? x.category.name,
+                            type: cat?.type ?? x.category.type,
+                          },
+                        }
+                      : x,
                   ),
                 )
               }}
-              onBlur={() => {
-                const currentQty = String(
-                  lotInventory.find((x) => x.id === inv.id)?.quantity ?? inv.quantity,
-                )
-                void updateLotItemField(inv, { quantity: currentQty })
-              }}
-              disabled={lotItemSavingId === inv.id}
-            />
-            <p className="muted small">
-              Se recalcula automáticamente la existencia: comprado - consumido.
-            </p>
-          </label>
-        ) : null}
-        {!invoiceLine ? (
-          <>
-            <label className="field">
-              <span>Unidades en existencia (editar)</span>
-              <div className="purchases-qty-unit-cell purchase-lot-item-edit-form__qty-row">
-                <input
-                  className="input-cell purchases-qty-unit-cell__qty"
-                  inputMode="decimal"
-                  title={`Cantidad en ${rowUnit || 'tu unidad'}`}
-                  aria-label={`Cantidad en stock de ${inv.name}`}
-                  value={String(inv.quantity)}
-                  onChange={(e) =>
-                    setLotInventory((prev) =>
-                      prev.map((x) =>
-                        x.id === inv.id ? { ...x, quantity: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  onBlur={() => {
-                    void updateLotItemField(inv, {
-                      quantity: String(
-                        lotInventory.find((x) => x.id === inv.id)?.quantity ??
-                          inv.quantity,
-                      ),
-                    })
-                  }}
-                  disabled={lotItemSavingId === inv.id}
-                />
-                <input
-                  className="input-cell purchases-qty-unit-cell__unit"
-                  list="purchase-lot-unit-list"
-                  title="Unidad (kg, porciones, un…)"
-                  aria-label={`Unidad de ${inv.name}`}
-                  value={String(inv.unit)}
-                  onChange={(e) =>
-                    setLotInventory((prev) =>
-                      prev.map((x) =>
-                        x.id === inv.id ? { ...x, unit: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  onBlur={() => {
-                    void updateLotItemField(inv, {
-                      unit: String(
-                        lotInventory.find((x) => x.id === inv.id)?.unit ?? inv.unit,
-                      ),
-                    })
-                  }}
-                  disabled={lotItemSavingId === inv.id}
-                />
-              </div>
-            </label>
-            {!isAsset ? (
-              <div className="field">
-                <span>Descontar (uso, merma, venta desde stock)</span>
-                <div className="purchases-deduct-stack purchase-lot-item-edit-form__deduct">
-                  <div className="purchases-deduct-stack__row">
-                    <input
-                      className="input-cell input-cell--deduct"
-                      inputMode="decimal"
-                      placeholder="Ej. 1"
-                      title={`Restar en ${rowUnit || 'la unidad del ítem'}`}
-                      aria-label={`Descontar cantidad de ${inv.name}`}
-                      value={deductDraft[inv.id] ?? ''}
-                      onChange={(e) =>
-                        setDeductDraft((d) => ({
-                          ...d,
-                          [inv.id]: e.target.value,
-                        }))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          void applyDeductQuantity(inv)
-                        }
-                      }}
-                      disabled={lotItemSavingId === inv.id}
-                    />
-                    <button
-                      type="button"
-                      className="btn-secondary btn-compact"
-                      onClick={() => void applyDeductQuantity(inv)}
-                      disabled={lotItemSavingId === inv.id}
-                    >
-                      Restar
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="purchases-deduct-agotar"
-                    onClick={() => void agotarLotItemQuantity(inv)}
-                    disabled={
-                      lotItemSavingId === inv.id || qty(inv.quantity) <= 0
+              disabled={isSaving || inventoryCategories.length === 0}
+            >
+              {inventoryCategories.length === 0 ? (
+                <option value={inv.categoryId}>
+                  {inventoryCategoryOptionLabel(inv.category?.name)}
+                </option>
+              ) : (
+                inventoryCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {inventoryCategoryOptionLabel(c.name)}
+                  </option>
+                ))
+              )}
+            </select>
+          ),
+        })}
+
+        {!invoiceLine
+          ? renderLotItemEditableField({
+              fieldKey: 'qty',
+              label: 'Cantidad / unidad',
+              value: `${qNow.toFixed(2)} ${liveRow.unit || 'un'}`,
+              disabled: isSaving,
+              children: (
+                <div className="purchases-qty-unit-cell purchase-lot-item-edit-form__qty-row">
+                  <input
+                    className="input-cell purchases-qty-unit-cell__qty"
+                    inputMode="decimal"
+                    autoFocus
+                    value={String(inv.quantity)}
+                    onChange={(e) =>
+                      setLotInventory((prev) =>
+                        prev.map((x) =>
+                          x.id === inv.id
+                            ? { ...x, quantity: e.target.value }
+                            : x,
+                        ),
+                      )
                     }
-                  >
-                    Agotar (0)
-                  </button>
+                    disabled={isSaving}
+                  />
+                  <input
+                    className="input-cell purchases-qty-unit-cell__unit"
+                    list="purchase-lot-unit-list"
+                    value={String(inv.unit)}
+                    onChange={(e) =>
+                      setLotInventory((prev) =>
+                        prev.map((x) =>
+                          x.id === inv.id
+                            ? { ...x, unit: e.target.value }
+                            : x,
+                        ),
+                      )
+                    }
+                    disabled={isSaving}
+                  />
                 </div>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-        <div className="purchase-lot-item-edit-form__stepper-field">
-          <span className="purchase-lot-item-edit-form__stepper-label">
-            Ajustar cantidad en existencia
-          </span>
+              ),
+            })
+          : null}
+
+        {invoiceLine && !isAsset
+          ? renderLotItemEditableField({
+              fieldKey: 'consumed',
+              label: 'Consumido',
+              value: `${(qConsumido ?? 0).toFixed(2)} ${displayUnit}`,
+              disabled: isSaving,
+              children: (
+                <input
+                  className="input-cell"
+                  inputMode="decimal"
+                  autoFocus
+                  value={String(qConsumido ?? 0)}
+                  onChange={(e) => {
+                    const consumidoRaw = parseFloat(
+                      e.target.value.replace(',', '.'),
+                    )
+                    if (!Number.isFinite(consumidoRaw)) {
+                      setLotInventory((prev) =>
+                        prev.map((x) =>
+                          x.id === inv.id
+                            ? { ...x, quantity: e.target.value }
+                            : x,
+                        ),
+                      )
+                      return
+                    }
+                    const comprado = qty(invoiceLine.quantity)
+                    const consumido = Math.max(
+                      0,
+                      Math.min(consumidoRaw, comprado),
+                    )
+                    const nextQty = Math.max(0, comprado - consumido)
+                    setLotInventory((prev) =>
+                      prev.map((x) =>
+                        x.id === inv.id
+                          ? { ...x, quantity: String(nextQty) }
+                          : x,
+                      ),
+                    )
+                  }}
+                  disabled={isSaving}
+                />
+              ),
+            })
+          : null}
+
+        <div className="lot-edit-field lot-edit-field--quick">
+          <div className="lot-edit-field__head">
+            <span className="lot-edit-field__label">Ajuste rápido</span>
+            <span className="mono lot-edit-field__quick-value">
+              {qNow.toFixed(2)} {displayUnit}
+            </span>
+          </div>
           <div
             className="purchase-lot-item-edit-form__stepper"
             role="group"
@@ -1223,82 +1565,169 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             <button
               type="button"
               className="btn-secondary btn-compact purchase-lot-qty-step"
-              aria-label="Reducir cantidad"
-              disabled={lotItemSavingId === inv.id || qNow <= 0}
-              onClick={() => void adjustLotItemExistenciaStep(inv, invoiceLine, -1)}
+              aria-label="Reducir"
+              disabled={isSaving || qNow <= 0}
+              onClick={() =>
+                void adjustLotItemExistenciaStep(inv, invoiceLine, -1)
+              }
             >
               −
             </button>
             <button
               type="button"
               className="btn-secondary btn-compact purchase-lot-qty-step"
-              aria-label="Aumentar cantidad"
+              aria-label="Aumentar"
               disabled={
-                lotItemSavingId === inv.id ||
+                isSaving ||
                 (invoiceLine != null &&
                   qNow >= qty(invoiceLine.quantity) - 1e-6)
               }
-              onClick={() => void adjustLotItemExistenciaStep(inv, invoiceLine, 1)}
+              onClick={() =>
+                void adjustLotItemExistenciaStep(inv, invoiceLine, 1)
+              }
             >
               +
             </button>
           </div>
-          <p className="muted small purchase-lot-item-edit-form__stepper-hint">
-            Cada clic suma o resta 1 {displayUnit.trim() || 'unidad'} y se guarda en el servidor.
-            {invoiceLine ? (
-              <>
-                {' '}
-                No puede superar lo comprado ({qty(invoiceLine.quantity).toFixed(2)}{' '}
-                {displayUnit}).
-              </>
-            ) : null}
-          </p>
         </div>
-        <div className="field">
-          <span>Precio de compra por unidad (solo lectura)</span>
-          <p
-            className="mono purchase-lot-item-edit-form__readonly-cop"
-            title="El costo de compra es histórico y no se modifica al ajustar consumo o existencias."
-          >
-            {formatCOP(
-              num(
-                invoiceLine?.purchase?.purchaseUnitCostCOP ??
-                  invoiceLine?.unitCost ??
-                  inv.unitCost,
-              ),
-            )}
-          </p>
-        </div>
-        <p className="muted small purchase-lot-item-edit-form__subtotal">
-          {invoiceLine ? (
-            <>
-              Costo total de esta línea en la compra (lo pagado, no cambia con el stock):{' '}
-              <strong className="mono">
-                {formatCOP(linePurchaseCostCOP(inv, invoiceLine, selectedLotRow))}
-              </strong>
-            </>
-          ) : (
-            <>
-              Costo de esta línea (se conserva aunque las existencias lleguen a 0):{' '}
-              <strong className="mono">
-                {formatCOP(linePurchaseCostCOP(inv, invoiceLine, selectedLotRow))}
-              </strong>
-            </>
-          )}
-        </p>
-        {lotItemSavingId === inv.id ? (
-          <p className="muted small">Guardando…</p>
+
+        {!invoiceLine && !isAsset ? (
+          <div className="lot-edit-field lot-edit-field--quick">
+            <div className="lot-edit-field__head">
+              <span className="lot-edit-field__label">Descontar uso</span>
+            </div>
+            <div className="purchases-deduct-stack purchase-lot-item-edit-form__deduct">
+              <div className="purchases-deduct-stack__row">
+                <input
+                  className="input-cell input-cell--deduct"
+                  inputMode="decimal"
+                  placeholder="Ej. 1"
+                  value={deductDraft[inv.id] ?? ''}
+                  onChange={(e) =>
+                    setDeductDraft((d) => ({
+                      ...d,
+                      [inv.id]: e.target.value,
+                    }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void applyDeductQuantity(inv)
+                    }
+                  }}
+                  disabled={isSaving}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  onClick={() => void applyDeductQuantity(inv)}
+                  disabled={isSaving}
+                >
+                  Restar
+                </button>
+              </div>
+              <button
+                type="button"
+                className="purchases-deduct-agotar"
+                onClick={() => void agotarLotItemQuantity(inv)}
+                disabled={isSaving || qty(inv.quantity) <= 0}
+              >
+                Agotar (0)
+              </button>
+            </div>
+          </div>
         ) : null}
-        <div className="purchase-lot-item-edit-form__danger">
-          <button
-            type="button"
-            className="btn-icon-remove"
-            onClick={() => void deleteLotItem(inv)}
-            disabled={lotItemSavingId === inv.id}
-          >
-            Eliminar esta línea del inventario
-          </button>
-        </div>
+
+        {renderLotItemEditableField({
+          fieldKey: 'unitCost',
+          label: 'Costo unitario (COP)',
+          value: (
+            <span className="mono">
+              {formatCOP(num(liveRow.unitCost ?? inv.unitCost))}
+            </span>
+          ),
+          disabled: isSaving,
+          onToggle: () => {
+            const wasUnlocked = lotItemUnlocked.has('unitCost')
+            toggleLotItemFieldUnlock('unitCost')
+            if (!wasUnlocked) {
+              setLotItemUnitCostDraft(String(liveRow.unitCost ?? ''))
+              setLotItemEditUnitCostUnlocked(true)
+            } else {
+              setLotItemUnitCostDraft('')
+              setLotItemEditUnitCostUnlocked(false)
+            }
+          },
+          children: (
+            <input
+              className="input-cell mono"
+              inputMode="decimal"
+              autoFocus
+              value={lotItemUnitCostDraft}
+              onChange={(e) => setLotItemUnitCostDraft(e.target.value)}
+              disabled={isSaving}
+            />
+          ),
+        })}
+
+        {renderLotItemEditableField({
+          fieldKey: 'trace',
+          label: 'Trazabilidad',
+          value: traceLabel,
+          disabled: isSaving,
+          children: (
+            <div className="purchase-lot-item-edit-form__trace-row">
+              <input
+                type="datetime-local"
+                className="input-cell"
+                autoFocus
+                value={lotItemTraceDraft}
+                onChange={(e) => setLotItemTraceDraft(e.target.value)}
+                disabled={isSaving}
+              />
+              {lotItemTraceDraft ? (
+                <button
+                  type="button"
+                  className="btn-ghost btn-compact"
+                  onClick={() => setLotItemTraceDraft('')}
+                  disabled={isSaving}
+                >
+                  Limpiar
+                </button>
+              ) : null}
+            </div>
+          ),
+        })}
+
+        {(() => {
+          const row = liveRow
+          const cInv = num(row.unitCost)
+          const qRow = qty(row.quantity)
+          const valStock =
+            Number.isFinite(cInv) && Number.isFinite(qRow) && qRow > 0
+              ? qRow * cInv
+              : NaN
+          const lineCost = linePurchaseCostCOP(inv, invoiceLine, selectedLotRow)
+          if (!Number.isFinite(valStock) && !Number.isFinite(lineCost)) {
+            return null
+          }
+          return (
+            <div className="purchase-lot-item-edit-form__summary">
+              {Number.isFinite(lineCost) ? (
+                <p className="muted small purchase-lot-item-edit-form__subtotal">
+                  Costo de la línea:{' '}
+                  <strong className="mono">{formatCOP(lineCost)}</strong>
+                </p>
+              ) : null}
+              {Number.isFinite(valStock) ? (
+                <p className="muted small purchase-lot-item-edit-form__subtotal">
+                  Valor en existencias:{' '}
+                  <strong className="mono">{formatCOP(valStock)}</strong>
+                </p>
+              ) : null}
+            </div>
+          )
+        })()}
       </div>
     )
   }
@@ -1347,10 +1776,16 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
               <label className="field purchase-lot-aside-field">
                 <span>Nombre del lote</span>
                 <input
-                  className="mono"
-                  value={purchaseLotDisplayName(selectedLotRow)}
-                  readOnly
+                  value={draft.lotName}
+                  onChange={(e) => setDraft({ ...draft, lotName: e.target.value })}
+                  placeholder={purchaseLotDisplayName(selectedLotRow)}
+                  title="Título en listados y cabecera. Si lo dejás vacío y guardás, el API puede dejar el nombre en blanco (se verá el código u otra etiqueta)."
+                  aria-label="Nombre del lote"
                 />
+                <p className="muted small purchase-lot-aside-hint">
+                  Código interno del lote:{' '}
+                  <span className="mono">{selectedLotRow.code}</span> (no cambia desde aquí).
+                </p>
               </label>
               <label className="field purchase-lot-aside-field">
                 <span>Fecha de compra registrada</span>
@@ -1405,6 +1840,60 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                   onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
                 />
               </label>
+              <div className="field purchase-lot-aside-field">
+                <span>Último cambio en sistema (solo lectura)</span>
+                <input
+                  className="mono"
+                  readOnly
+                  value={formatSystemDateTime(selectedLotRow.updatedAt)}
+                  title="Marcado automático por el servidor; no se edita desde este formulario."
+                />
+              </div>
+              <label className="field purchase-lot-aside-field">
+                <span>Revisión / trazabilidad</span>
+                <input
+                  type="datetime-local"
+                  value={draft.traceModifiedLocal}
+                  onChange={(e) =>
+                    setDraft({ ...draft, traceModifiedLocal: e.target.value })
+                  }
+                  title="Fecha y hora de revisión manual. Se guarda en UTC al pulsar Guardar cambios."
+                />
+                <p className="muted small purchase-lot-aside-hint">
+                  Vacío = sin marca. Se envía como <span className="mono">traceModifiedAt</span> en
+                  ISO (UTC) o <span className="mono">null</span> si lo dejás en blanco.
+                </p>
+              </label>
+              <div className="field">
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  disabled={saving}
+                  onClick={() => {
+                    void (async () => {
+                      if (!selectedId) return
+                      setSaving(true)
+                      setSaveError(null)
+                      try {
+                        await patchPurchaseLot(baseUrl, selectedId, {
+                          traceModifiedAt: null,
+                        })
+                        const d = await fetchPurchaseLot(baseUrl, selectedId)
+                        setSelectedLotRow(d)
+                        setDraft((prev) =>
+                          prev ? { ...prev, traceModifiedLocal: '' } : prev,
+                        )
+                      } catch (e) {
+                        setSaveError((e as Error).message)
+                      } finally {
+                        setSaving(false)
+                      }
+                    })()
+                  }}
+                >
+                  Quitar marca de revisión
+                </button>
+              </div>
               <label className="field purchase-lot-aside-field">
                 <span>Costo total de la compra (COP)</span>
                 <input
@@ -1461,17 +1950,10 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         >
           <header className="modal-head">
             <div className="modal-head-title">
-              <h2 id="purchase-lot-item-edit-title">Editar ítem del lote</h2>
+              <h2 id="purchase-lot-item-edit-title">Editar ítem</h2>
               <p className="muted small modal-subtitle">{inv.name}</p>
             </div>
             <div className="modal-head-actions">
-              <button
-                type="button"
-                className="btn-secondary btn-compact"
-                onClick={() => setLotItemEdit(null)}
-              >
-                Cerrar
-              </button>
               <button
                 type="button"
                 className="btn-ghost icon-close"
@@ -1480,8 +1962,146 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
               />
             </div>
           </header>
-          <div className="modal-body">
+          <div className="modal-body purchase-lot-item-edit-modal__body">
             {purchaseLotItemEditForm(inv, lotItemEdit.invoiceLine)}
+          </div>
+          <footer className="purchase-lot-item-edit-modal__footer">
+            <button
+              type="button"
+              className="btn-icon-remove purchase-lot-item-edit-footer__delete"
+              onClick={() => void deleteLotItem(inv)}
+              disabled={lotItemSavingId === inv.id}
+              aria-label="Eliminar ítem"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 6h12" />
+                <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6" />
+                <path d="M5.5 6 6 16a1.5 1.5 0 0 0 1.5 1.4h5A1.5 1.5 0 0 0 14 16l.5-10" />
+                <path d="M9 9v5" />
+                <path d="M11 9v5" />
+              </svg>
+              <span>Eliminar</span>
+            </button>
+            <button
+              type="button"
+              className="btn-primary purchase-lot-item-edit-footer__confirm"
+              disabled={lotItemSavingId === inv.id}
+              onClick={() =>
+                void commitLotItemModalChanges(inv, lotItemEdit.invoiceLine)
+              }
+            >
+              {lotItemSavingId === inv.id
+                ? 'Guardando…'
+                : 'Confirmar cambios'}
+            </button>
+          </footer>
+        </section>
+      </div>
+    )
+  }
+
+  function purchaseLotFiltersDialog(): ReactNode {
+    if (!lotFiltersPopupOpen) return null
+    return (
+      <div
+        className="modal-backdrop purchase-lot-filters-backdrop"
+        role="presentation"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) setLotFiltersPopupOpen(false)
+        }}
+      >
+        <section
+          className="modal purchase-lot-filters-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="purchase-lot-filters-title"
+        >
+          <header className="modal-head">
+            <div className="modal-head-title">
+              <h2 id="purchase-lot-filters-title">Filtros</h2>
+              <p className="muted small modal-subtitle">
+                Visibilidad y orden de los ítems del lote.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-ghost icon-close"
+              onClick={() => setLotFiltersPopupOpen(false)}
+              aria-label="Cerrar"
+            />
+          </header>
+          <div className="modal-body">
+            <div className="purchase-lot-filters-grid">
+              <label className="inventory-filter">
+                <span className="inventory-filter__label">Ver</span>
+                <select
+                  className="inventory-filter__input"
+                  value={lotItemFilter}
+                  onChange={(e) =>
+                    setLotItemFilter(
+                      e.target.value as 'all' | 'available' | 'consumed',
+                    )
+                  }
+                >
+                  <option value="all">Todos</option>
+                  <option value="available">Con saldo por consumir</option>
+                  <option value="consumed">Ya consumidos (agotados)</option>
+                </select>
+              </label>
+              <label className="inventory-filter">
+                <span className="inventory-filter__label">Orden ítems</span>
+                <select
+                  className="inventory-filter__input"
+                  value={lotItemSort}
+                  onChange={(e) =>
+                    setLotItemSort(
+                      e.target.value as
+                        | 'name_asc'
+                        | 'qty_desc'
+                        | 'qty_asc'
+                        | 'cost_desc'
+                        | 'subtotal_desc',
+                    )
+                  }
+                >
+                  <option value="name_asc">Nombre (A-Z)</option>
+                  <option value="qty_desc">Cantidad (alta-baja)</option>
+                  <option value="qty_asc">Cantidad (baja-alta)</option>
+                  <option value="cost_desc">Costo u. (alto-bajo)</option>
+                  <option value="subtotal_desc">Subtotal (alto-bajo)</option>
+                </select>
+              </label>
+            </div>
+            <div className="purchase-lot-filters-actions">
+              <button
+                type="button"
+                className="btn-ghost btn-compact"
+                onClick={() => {
+                  setLotItemFilter('all')
+                  setLotItemSort('name_asc')
+                }}
+                disabled={!lotDetailFiltersActive}
+              >
+                Restablecer
+              </button>
+              <button
+                type="button"
+                className="btn-primary btn-compact"
+                onClick={() => setLotFiltersPopupOpen(false)}
+              >
+                Aplicar
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -1498,7 +2118,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       <div className="products-layout">
         <div className="products-list-pane products-list-pane--purchases purchase-lot-detail-page">
           <header className="purchase-lot-hero">
-            <div className="purchase-lot-hero__main">
+            <div className="purchase-lot-hero__nav">
               <p className="purchase-lot-hero__crumb muted small">
                 <a href="#/" className="purchase-lot-hero__crumb-link">
                   Inicio
@@ -1511,63 +2131,140 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                 <span className="purchase-lot-hero__crumb-strong">
                   {selectedLotRow ? purchaseLotDisplayName(selectedLotRow) : selectedId}
                 </span>
-                {selectedLotRow ? (
-                  <span className="purchase-lot-hero__crumb-date mono">
-                    {' '}
-                    · Fecha: {formatPurchaseLotDate(selectedLotRow.purchaseDate, 'long')}
-                  </span>
-                ) : null}
               </p>
+              <div className="purchase-lot-hero__nav-actions">
+                {draft && selectedLotRow ? (
+                  <button
+                    type="button"
+                    className="btn-ghost purchase-lot-hero__edit"
+                    onClick={() => {
+                      setSaveError(null)
+                      setDraft((prev) => {
+                        if (!prev || !selectedLotRow) return prev
+                        return {
+                          ...prev,
+                          lotName: selectedLotRow.name?.trim() ?? '',
+                          purchaseDate: purchaseLotDateToInputValue(
+                            selectedLotRow.purchaseDate,
+                          ),
+                          supplier: selectedLotRow.supplier ?? '',
+                          notes: selectedLotRow.notes ?? '',
+                          totalValue:
+                            selectedLotRow.totalValue != null
+                              ? String(num(selectedLotRow.totalValue))
+                              : '',
+                          isDepleted: purchaseLotInitialDepleted(selectedLotRow),
+                          traceModifiedLocal: isoInstantToDatetimeLocalValue(
+                            selectedLotRow.traceModifiedAt,
+                          ),
+                        }
+                      })
+                      setLotMetaEditOpen(true)
+                    }}
+                    aria-label="Editar datos del lote"
+                    title="Editar datos del lote"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14.2 3.3a1.8 1.8 0 0 1 2.5 2.5L7.5 15 4 16l1-3.5 9.2-9.2Z" />
+                      <path d="M12.5 5l2.5 2.5" />
+                    </svg>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn-ghost purchase-lot-hero__close"
+                  onClick={closePanel}
+                  aria-label="Cerrar detalle del lote"
+                  title="Volver a compras"
+                >
+                  <span aria-hidden>×</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="purchase-lot-hero__heading">
               <h1 className="purchase-lot-hero__title">
                 {selectedLotRow ? purchaseLotDisplayName(selectedLotRow) : 'Lote de compra'}
               </h1>
-              {panelLotSecondary ? (
-                <p className="purchase-lot-hero__meta mono">{panelLotSecondary}</p>
-              ) : null}
               {selectedLotRow ? (
-                <p className="purchase-lot-hero__purchase-total muted small">
-                  Total de la compra:{' '}
-                  <strong className="mono">
-                    {formatCOP(
-                      lotPurchaseTotalCOP(selectedLotRow),
-                    )}
-                  </strong>
-                </p>
-              ) : null}
-              <div className="purchase-lot-hero__hash">
-                <span className="purchase-lot-hero__hash-label muted small">Ruta en la app</span>
-                <input
-                  className="purchase-lot-hero__hash-input mono"
-                  readOnly
-                  aria-label="Ruta en la app"
-                  value={
-                    window.location.hash ||
-                    `#/purchases/${selectedLotRow?.code?.trim() || selectedId}`
-                  }
-                />
-              </div>
-            </div>
-            <div className="purchase-lot-hero__actions">
-              {draft && selectedLotRow ? (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setSaveError(null)
-                    setLotMetaEditOpen(true)
-                  }}
+                <span
+                  className={`purchase-lot-status-pill purchase-lot-status-pill--${lotConsumptionStatusKey(
+                    lotItemsStats.consumptionStatus,
+                    lotItemsStats.fullyConsumed,
+                  )}`}
+                  aria-label="Estado del lote"
                 >
-                  Datos del lote
-                </button>
+                  <span className="purchase-lot-status-pill__dot" aria-hidden />
+                  {lotConsumptionStatusLabel(
+                    lotItemsStats.consumptionStatus,
+                    lotItemsStats.fullyConsumed,
+                  )}
+                </span>
               ) : null}
-              <button
-                type="button"
-                className="btn-secondary purchase-lot-hero__back"
-                onClick={closePanel}
-              >
-                ← Volver a compras
-              </button>
             </div>
+
+            {selectedLotRow ? (
+              <div
+                className="purchase-lot-meta-chips"
+                aria-label="Datos resumidos del lote"
+              >
+                {panelLotSecondary ? (
+                  <span className="purchase-lot-meta-chip">
+                    <span className="purchase-lot-meta-chip__label">Código</span>
+                    <span className="mono purchase-lot-meta-chip__value">
+                      {panelLotSecondary.replace(/^Código:\s*/i, '')}
+                    </span>
+                  </span>
+                ) : null}
+                <span className="purchase-lot-meta-chip">
+                  <span className="purchase-lot-meta-chip__label">Fecha</span>
+                  <span className="purchase-lot-meta-chip__value">
+                    {formatPurchaseLotDate(selectedLotRow.purchaseDate, 'long')}
+                  </span>
+                </span>
+                {(() => {
+                  const sup = displayPurchaseLotSupplier(selectedLotRow).trim()
+                  return sup ? (
+                    <span className="purchase-lot-meta-chip">
+                      <span className="purchase-lot-meta-chip__label">Proveedor</span>
+                      <span className="purchase-lot-meta-chip__value">{sup}</span>
+                    </span>
+                  ) : null
+                })()}
+                {selectedLotRow.notes?.trim() ? (
+                  <span
+                    className="purchase-lot-meta-chip purchase-lot-meta-chip--notes"
+                    title={selectedLotRow.notes ?? ''}
+                  >
+                    <span className="purchase-lot-meta-chip__label">Notas</span>
+                    <span className="purchase-lot-meta-chip__value">
+                      {selectedLotRow.notes!.trim()}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {selectedLotRow ? (
+              <div className="purchase-lot-hero__total" aria-label="Total de la compra">
+                <span className="purchase-lot-hero__total-label muted">
+                  Total de la compra
+                </span>
+                <span className="mono purchase-lot-hero__total-value">
+                  {formatCOP(lotPurchaseTotalCOP(selectedLotRow))}
+                </span>
+              </div>
+            ) : null}
           </header>
 
           {detailLoading && <p className="muted purchase-lot-loading">Cargando…</p>}
@@ -1578,6 +2275,15 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
           )}
           {!detailLoading && draft && selectedLotRow && (
             <div className="purchase-lot-detail-main">
+                {lotItemSaveBanner ? (
+                  <div
+                    className="purchase-lot-item-save-banner"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {lotItemSaveBanner}
+                  </div>
+                ) : null}
                 <datalist id="purchase-lot-unit-list">
                   <option value="un" />
                   <option value="unidad" />
@@ -1596,75 +2302,140 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
 
                 <div className="purchase-lot-panel">
                   <header className="purchase-lot-section-head">
-                    <h2 className="purchase-lot-section-head__title">Consumo del lote</h2>
+                    <h2 className="purchase-lot-section-head__title">Detalle de lote</h2>
                     <p className="purchase-lot-section-head__lead muted small">
-                      Por producto: <strong>existencias</strong>, <strong>consumo</strong> y{' '}
-                      <strong>costo ya pagado</strong>. Solo se ajustan cantidades en existencia, no
-                      el precio de compra.
+                      Existencias, consumo y costo pagado por producto. Solo se ajustan
+                      cantidades en existencia.
                     </p>
                   </header>
-                  <div className="purchase-lot-kpi-grid" aria-label="Resumen del lote">
-                    <div className="purchase-lot-kpi">
-                      <span className="purchase-lot-kpi__label">Estado</span>
-                      <span className="purchase-lot-kpi__value">
-                        {lotConsumptionStatusLabel(
+                  <div className="purchase-lot-panel-actions">
+                    <button
+                      type="button"
+                      className={`btn-secondary btn-compact purchase-lot-panel-actions__btn${
+                        lotKpisOpen
+                          ? ' purchase-lot-panel-actions__btn--open'
+                          : ''
+                      }`}
+                      onClick={() => setLotKpisOpen((v) => !v)}
+                      aria-expanded={lotKpisOpen}
+                      aria-controls="purchase-lot-kpi-grid"
+                    >
+                      <span>Dashboard</span>
+                      <span
+                        className="purchase-lot-panel-actions__chevron"
+                        aria-hidden
+                      >
+                        ▾
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-secondary btn-compact purchase-lot-panel-actions__btn${
+                        lotDetailFiltersActive
+                          ? ' purchase-lot-panel-actions__btn--active'
+                          : ''
+                      }`}
+                      onClick={() => setLotFiltersPopupOpen(true)}
+                      aria-haspopup="dialog"
+                      aria-expanded={lotFiltersPopupOpen}
+                    >
+                      <span aria-hidden>⚙</span>
+                      <span>Filtros</span>
+                      {lotDetailFiltersActive ? (
+                        <span
+                          className="purchase-lot-panel-actions__dot"
+                          aria-label="filtros activos"
+                        />
+                      ) : null}
+                    </button>
+                  </div>
+                  {lotKpisOpen ? (
+                    <div
+                      id="purchase-lot-kpi-grid"
+                      className="purchase-lot-kpi-grid"
+                      aria-label="Resumen del lote"
+                    >
+                      <div
+                        className={`purchase-lot-kpi purchase-lot-kpi--state purchase-lot-kpi--state-${lotConsumptionStatusKey(
                           lotItemsStats.consumptionStatus,
                           lotItemsStats.fullyConsumed,
-                        )}
-                      </span>
+                        )}`}
+                      >
+                        <span className="purchase-lot-kpi__label">Estado</span>
+                        <span className="purchase-lot-kpi__value">
+                          {lotConsumptionStatusLabel(
+                            lotItemsStats.consumptionStatus,
+                            lotItemsStats.fullyConsumed,
+                          )}
+                        </span>
+                      </div>
+                      <div className="purchase-lot-kpi">
+                        <span className="purchase-lot-kpi__label">Productos</span>
+                        <span className="purchase-lot-kpi__value">
+                          {lotItemsStats.totalItems}
+                        </span>
+                      </div>
+                      <div className="purchase-lot-kpi purchase-lot-kpi--accent-warn">
+                        <span className="purchase-lot-kpi__label">Por consumir</span>
+                        <span className="purchase-lot-kpi__value">
+                          {lotItemsStats.availableItems}
+                        </span>
+                      </div>
+                      <div className="purchase-lot-kpi purchase-lot-kpi--accent-muted">
+                        <span className="purchase-lot-kpi__label">Ya consumidos</span>
+                        <span className="purchase-lot-kpi__value">
+                          {lotItemsStats.consumedItems}
+                        </span>
+                      </div>
+                      <div className="purchase-lot-kpi">
+                        <span className="purchase-lot-kpi__label">
+                          Unid. por consumir
+                        </span>
+                        <span className="purchase-lot-kpi__value mono">
+                          {lotItemsStats.remainingUnits.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="purchase-lot-kpi">
+                        <span className="purchase-lot-kpi__label">
+                          Valor por consumir
+                        </span>
+                        <span className="purchase-lot-kpi__value mono">
+                          {formatCOP(lotItemsStats.remainingValue)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="purchase-lot-kpi">
-                      <span className="purchase-lot-kpi__label">Productos</span>
-                      <span className="purchase-lot-kpi__value">{lotItemsStats.totalItems}</span>
-                    </div>
-                    <div className="purchase-lot-kpi purchase-lot-kpi--accent-warn">
-                      <span className="purchase-lot-kpi__label">Por consumir</span>
-                      <span className="purchase-lot-kpi__value">
-                        {lotItemsStats.availableItems}
-                      </span>
-                    </div>
-                    <div className="purchase-lot-kpi purchase-lot-kpi--accent-muted">
-                      <span className="purchase-lot-kpi__label">Ya consumidos</span>
-                      <span className="purchase-lot-kpi__value">
-                        {lotItemsStats.consumedItems}
-                      </span>
-                    </div>
-                    <div className="purchase-lot-kpi">
-                      <span className="purchase-lot-kpi__label">Unid. por consumir</span>
-                      <span className="purchase-lot-kpi__value mono">
-                        {lotItemsStats.remainingUnits.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="purchase-lot-kpi">
-                      <span className="purchase-lot-kpi__label">Valor por consumir</span>
-                      <span className="purchase-lot-kpi__value mono">
-                        {formatCOP(lotItemsStats.remainingValue)}
-                      </span>
-                    </div>
-                  </div>
+                  ) : null}
                 {hasApiLotItems ? (
                   <>
-                    <div className="data-table-wrap data-table-compact purchase-lot-table-wrap">
-                    <table className="data-table data-table-striped purchase-lot-line-items-table">
+                    <div className="data-table-wrap data-table-compact purchase-lot-table-wrap purchase-lot-line-items-wrap">
+                    <table className="data-table data-table-striped purchase-lot-line-items-table purchase-lot-line-items-table--comprobante purchase-lot-line-items-table--cols3">
                       <thead>
                         <tr>
-                          <th>Producto</th>
-                          <th>Categoría</th>
-                          <th className="num">Cant. comprada</th>
-                          <th>Un. compra</th>
-                          <th className="num" title="Ya usado del total comprado">
-                            Consumido
-                          </th>
-                          <th className="num" title="Unidades que siguen en existencia (editables)">
-                            En existencia
+                          <th scope="col">
+                            <span className="purchase-lot-th__full">Producto</span>
+                            <span className="purchase-lot-th__mobile">
+                              Producto / categoría
+                            </span>
                           </th>
                           <th
-                            className="num"
-                            title="Lo que pagaste por esta línea; no cambia al ajustar existencias"
+                            scope="col"
+                            className="purchase-lot-th-summary"
+                            title="Estado del ítem y cantidades (total comprado y lo que queda)"
+                          >
+                            <span className="purchase-lot-th__full">
+                              Estado · cantidades
+                            </span>
+                            <span className="purchase-lot-th__mobile">
+                              Estado / cant.
+                            </span>
+                          </th>
+                          <th
+                            className="num purchase-lot-cost-th"
+                            scope="col"
+                            title="Costo total de compra de la línea"
                           >
                             Costo compra
                           </th>
-                          <th className="purchase-lot-th-actions" aria-label="Acciones" />
                         </tr>
                       </thead>
                       <tbody>
@@ -1677,15 +2448,18 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                           if (lotInventoryLoading) {
                             return (
                               <tr key={rowKey}>
-                                <td>{item.name}</td>
-                                <td className="muted small">
-                                  {item.category ?? '—'}
+                                <td className="purchase-lot-item-cell">
+                                  <span className="purchase-lot-item-cell__name">
+                                    {item.name}
+                                  </span>
+                                  <span className="purchase-lot-item-cell__sub muted small">
+                                    {item.category ?? '—'}
+                                  </span>
                                 </td>
-                                <td className="num mono">
-                                  {qty(item.quantity).toFixed(2)}
-                                </td>
-                                <td className="small">{item.unit || '—'}</td>
-                                <td colSpan={4} className="muted small">
+                                <td
+                                  colSpan={2}
+                                  className="muted small purchase-lot-loading-cell"
+                                >
                                   Cargando inventario…
                                 </td>
                               </tr>
@@ -1694,32 +2468,48 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                           if (!inv) {
                             return (
                               <tr key={rowKey}>
-                                <td>{item.name}</td>
-                                <td className="muted small">
-                                  {item.category ?? '—'}
+                                <td className="purchase-lot-item-cell">
+                                  <span className="purchase-lot-item-cell__name">
+                                    {item.name}
+                                  </span>
+                                  <span className="purchase-lot-item-cell__sub muted small">
+                                    {item.category ?? '—'}
+                                  </span>
                                 </td>
-                                <td className="num mono">
-                                  {qty(item.quantity).toFixed(2)}
-                                </td>
-                                <td className="small">{item.unit || '—'}</td>
-                                <td colSpan={4} className="muted small">
-                                  No hay fila de inventario con este nombre en el lote.
-                                  Cuando el ítem exista para este código de lote, podrás editar
-                                  las existencias con el botón Editar.
+                                <td
+                                  colSpan={2}
+                                  className="muted small purchase-lot-loading-cell"
+                                >
+                                  Sin línea de inventario con este nombre.
                                 </td>
                               </tr>
                             )
                           }
                           return (
-                            <tr key={`${inv.id}-${idx}`}>
-                              <td>{item.name}</td>
-                              <td className="muted small">
-                                {item.category ?? inv.category?.name ?? '—'}
+                            <tr
+                              key={`${inv.id}-${idx}`}
+                              className="purchase-lot-row purchase-lot-row--clickable"
+                              role="button"
+                              tabIndex={0}
+                              title="Tocá para editar"
+                              onClick={() => openLotItemEdit(inv, item)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  openLotItemEdit(inv, item)
+                                }
+                              }}
+                            >
+                              <td className="purchase-lot-item-cell">
+                                <span className="purchase-lot-item-cell__name">
+                                  {item.name}
+                                </span>
+                                <span className="purchase-lot-item-cell__sub muted small">
+                                  {item.category ??
+                                    inv.category?.name ??
+                                    '—'}
+                                </span>
                               </td>
-                              <td className="num mono">
-                                {qty(item.quantity).toFixed(2)}
-                              </td>
-                              <td className="small">{item.unit || '—'}</td>
                               {lotInventorySummaryTail(inv, item)}
                             </tr>
                           )
@@ -1738,73 +2528,6 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                     </div>
                   </>
                 ) : null}
-                </div>
-
-                <div className="purchase-lot-panel purchase-lot-panel--secondary">
-                  <header className="purchase-lot-section-head">
-                    <h2 className="purchase-lot-section-head__title">
-                      {hasApiLotItems
-                        ? 'Más existencias (inventario)'
-                        : 'Existencias del inventario'}
-                    </h2>
-                    <p className="purchase-lot-section-head__lead muted small">
-                      {hasApiLotItems ? (
-                        <>
-                          Líneas que <strong>no</strong> están en el comprobante. El costo de compra
-                          del cuadro superior no cambia; usá <strong>Gestionar</strong> para
-                          existencias y descuentos.
-                        </>
-                      ) : (
-                        <>
-                          Gestioná existencias por ítem. El precio de compra solo si necesitás
-                          corregir el registro.
-                        </>
-                      )}
-                    </p>
-                  </header>
-                <div className="purchase-lot-toolbar">
-                  <div className="purchase-lot-toolbar__inner">
-                    <label className="inventory-filter">
-                      <span className="inventory-filter__label">Ver</span>
-                      <select
-                        className="inventory-filter__input"
-                        value={lotItemFilter}
-                        onChange={(e) =>
-                          setLotItemFilter(
-                            e.target.value as 'all' | 'available' | 'consumed',
-                          )
-                        }
-                      >
-                        <option value="all">Todos</option>
-                        <option value="available">Con saldo por consumir</option>
-                        <option value="consumed">Ya consumidos (agotados)</option>
-                      </select>
-                    </label>
-                    <label className="inventory-filter">
-                      <span className="inventory-filter__label">Orden ítems</span>
-                      <select
-                        className="inventory-filter__input"
-                        value={lotItemSort}
-                        onChange={(e) =>
-                          setLotItemSort(
-                            e.target.value as
-                              | 'name_asc'
-                              | 'qty_desc'
-                              | 'qty_asc'
-                              | 'cost_desc'
-                              | 'subtotal_desc',
-                          )
-                        }
-                      >
-                        <option value="name_asc">Nombre (A-Z)</option>
-                        <option value="qty_desc">Cantidad (alta-baja)</option>
-                        <option value="qty_asc">Cantidad (baja-alta)</option>
-                        <option value="cost_desc">Costo u. (alto-bajo)</option>
-                        <option value="subtotal_desc">Subtotal (alto-bajo)</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
                 {lotInventoryLoading && (
                   <p className="muted small">Cargando ítems…</p>
                 )}
@@ -1848,37 +2571,64 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                 {!lotInventoryLoading &&
                   !lotInventoryError &&
                   lotEditorVisibleRows.length > 0 && (
-                    <div className="data-table-wrap data-table-compact purchase-lot-table-wrap">
-                      <table className="data-table data-table-striped purchase-lot-line-items-table">
+                    <div className="data-table-wrap data-table-compact purchase-lot-table-wrap purchase-lot-line-items-wrap">
+                      <table className="data-table data-table-striped purchase-lot-line-items-table purchase-lot-line-items-table--orphan purchase-lot-line-items-table--cols3">
                         <thead>
                           <tr>
-                            <th>Ítem</th>
-                            <th>Categoría</th>
-                            <th className="num" title="Sin comprobante por línea">
-                              Consumido
-                            </th>
-                            <th className="num" title="Unidades en existencia">
-                              En existencia
+                            <th scope="col">
+                              <span className="purchase-lot-th__full">Ítem</span>
+                              <span className="purchase-lot-th__mobile">
+                                Ítem / categoría
+                              </span>
                             </th>
                             <th
-                              className="num"
-                              title="Costo histórico de la línea; se conserva aunque las existencias estén en 0"
+                              scope="col"
+                              className="purchase-lot-th-summary"
+                              title="Estado del ítem y cantidades"
+                            >
+                              <span className="purchase-lot-th__full">
+                                Estado · cantidades
+                              </span>
+                              <span className="purchase-lot-th__mobile">
+                                Estado / cant.
+                              </span>
+                            </th>
+                            <th
+                              className="num purchase-lot-cost-th"
+                              scope="col"
+                              title="Costo total de compra de la línea"
                             >
                               Costo compra
                             </th>
-                            <th className="purchase-lot-th-actions" aria-label="Acciones" />
                           </tr>
                         </thead>
                         <tbody>
                           {lotEditorVisibleRows.map((inv) => (
-                            <tr key={inv.id}>
-                              <td>{inv.name}</td>
-                              <td className="muted small">
-                                {inv.category?.name ?? '—'}
-                              </td>
-                              {lotInventorySummaryTail(inv)}
-                            </tr>
-                          ))}
+                              <tr
+                                key={inv.id}
+                                className="purchase-lot-row purchase-lot-row--clickable"
+                                role="button"
+                                tabIndex={0}
+                                title="Tocá para editar"
+                                onClick={() => openLotItemEdit(inv)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    openLotItemEdit(inv)
+                                  }
+                                }}
+                              >
+                                <td className="purchase-lot-item-cell">
+                                  <span className="purchase-lot-item-cell__name">
+                                    {inv.name}
+                                  </span>
+                                  <span className="purchase-lot-item-cell__sub muted small">
+                                    {inv.category?.name ?? '—'}
+                                  </span>
+                                </td>
+                                {lotInventorySummaryTail(inv)}
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -1890,17 +2640,38 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       </div>
       {purchaseLotMetaDialog()}
       {purchaseLotItemEditDialog()}
+      {purchaseLotFiltersDialog()}
       </>
     )
   }
 
   return (
     <div className="products-layout">
-      <div className="products-list-pane products-list-pane--purchases">
-        <div className="page-intro page-intro--tight">
+      <div className="products-list-pane products-list-pane--purchases page-pane--floating-gear-dock">
+        <div className="page-intro page-intro--tight purchases-intro">
           <h2 className="page-title">Compras</h2>
+          <p className="muted small purchases-intro__description">
+            Lotes de compra registrados. Tocá un lote para ver el detalle.
+          </p>
         </div>
 
+        <MobileAwareFilterBar
+          hasActiveFilters={purchaseListFiltersActive}
+          composeMobileToolbar={
+            isMobileFilters
+              ? ({ filterToggle }) => (
+                  <FloatingGearFab
+                    navAriaLabel="Compras"
+                    menuToggleTitleClosed="Configuración del listado"
+                    menuToggleTitleOpen="Cerrar menú"
+                    ariaLabelMenuClosed="Abrir menú: buscar y ordenar compras"
+                    ariaLabelMenuOpen="Cerrar menú de compras"
+                    filterToggle={filterToggle}
+                  />
+                )
+              : undefined
+          }
+        >
         <div className="inventory-filter-bar app-toolbar-zone">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">
@@ -1975,6 +2746,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             </label>
           </div>
         </div>
+        </MobileAwareFilterBar>
 
         {listError && (
           <p className="error" role="alert">
@@ -1984,52 +2756,74 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         {loading && <p className="muted">Cargando compras…</p>}
 
         {!loading && list.length > 0 && (
-          <div className="data-table-wrap data-table-elevated">
-            <table className="data-table data-table-striped">
+          <div className="data-table-wrap data-table-elevated purchases-list-table-wrap">
+            <table className="data-table data-table-striped purchases-list-table">
               <thead>
                 <tr>
-                  <th>Nombre del lote</th>
-                  <th>Fecha de compra</th>
-                  <th>Proveedor</th>
-                  <th className="num" title="Cantidad de productos distintos en el lote">
+                  <th
+                    className="num table-col-index purchases-col-mobile-hide"
+                    scope="col"
+                    title="Número de lote en esta página"
+                  >
+                    #
+                  </th>
+                  <th>Lote</th>
+                  <th className="purchases-col-mobile-hide">Fecha de compra</th>
+                  <th className="purchases-col-mobile-hide">Proveedor</th>
+                  <th
+                    className="num purchases-col-mobile-hide"
+                    title="Cantidad de productos distintos en el lote"
+                  >
                     Productos
                   </th>
                   <th
-                    className="num"
+                    className="num purchases-col-mobile-hide"
                     title="Productos que aún tienen unidades por consumir en el lote"
                   >
                     Por consumir
                   </th>
                   <th
-                    className="num"
+                    className="num purchases-col-mobile-hide"
                     title="Productos del lote que ya se agotaron (sin saldo)"
                   >
                     Consumidos
                   </th>
-                  <th>Estado</th>
+                  <th className="purchases-th-status purchases-col-desktop-only">
+                    Estado
+                  </th>
                   <th
-                    className="num"
+                    className="num purchases-th-total"
                     title="Total de la compra (API o suma del comprobante si no hay total guardado)"
                   >
-                    Total compra
+                    <span className="purchases-th-total__full">Total</span>
+                    <span className="purchases-th-total__mobile">Estado / Total</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {sortedList.map((row) => {
+                {sortedList.map((row, rowIdx) => {
                   const secondary = purchaseLotSecondaryLine(row)
+                  const lotNum = purchaseLotsListRowOffset + rowIdx + 1
                   return (
                     <tr
                     key={row.id}
                     className={selectedId === row.id ? 'row-active' : ''}
                   >
+                    <td className="num mono muted table-col-index purchases-col-mobile-hide">
+                      {lotNum}
+                    </td>
                     <td>
                       <button
                         type="button"
                         className="table-link purchases-lot-cell"
-                        title={row.code ? `Código: ${row.code}` : undefined}
+                        title={`${purchaseLotDisplayName(row)}${
+                          secondary ? ` · ${secondary}` : ''
+                        }`}
                         onClick={() => void openLot(row.code?.trim() || row.id, row, true)}
                       >
+                        <span className="purchases-lot-cell__num" aria-hidden>
+                          #{lotNum}
+                        </span>
                         <span className="purchases-lot-cell__name">
                           {purchaseLotDisplayName(row)}
                         </span>
@@ -2040,38 +2834,74 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                         ) : null}
                       </button>
                     </td>
-                    <td className="purchases-date-cell">
+                    <td className="purchases-date-cell purchases-col-mobile-hide">
                       {formatPurchaseLotDate(row.purchaseDate, 'long')}
                     </td>
-                    <td className="muted">
+                    <td className="muted purchases-col-mobile-hide">
                       {displayPurchaseLotSupplier(row) || '—'}
                     </td>
-                    <td className="num">
+                    <td className="num purchases-col-mobile-hide">
                       {row.inventoryMetrics?.productsCount ?? row.itemCount}
                     </td>
-                    <td className="num purchases-cell-pending">
+                    <td className="num purchases-cell-pending purchases-col-mobile-hide">
                       {row.inventoryMetrics == null
                         ? '—'
                         : Math.round(
                             qty(row.inventoryMetrics.availableItemsCount),
                           )}
                     </td>
-                    <td className="num purchases-cell-done">
+                    <td className="num purchases-cell-done purchases-col-mobile-hide">
                       {row.inventoryMetrics == null
                         ? '—'
                         : Math.round(
                             qty(row.inventoryMetrics.consumedItemsCount),
                           )}
                     </td>
-                    <td>
-                      {lotConsumptionStatusLabel(
+                    {(() => {
+                      const statusKey = lotConsumptionStatusKey(
                         row.inventoryMetrics?.consumptionStatus,
                         row.inventoryMetrics?.isDepleted,
-                      )}
-                    </td>
-                    <td className="num mono">
-                      {formatCOP(purchaseLotRowTotalCOP(row))}
-                    </td>
+                      )
+                      const label = lotConsumptionStatusLabel(
+                        row.inventoryMetrics?.consumptionStatus,
+                        row.inventoryMetrics?.isDepleted,
+                      )
+                      const totalRaw = purchaseLotRowTotalCOP(row)
+                      const totalFull = formatCOP(totalRaw)
+                      const renderPill = () => (
+                        <span
+                          className={`purchases-status-pill purchases-status-pill--${statusKey}`}
+                          title={label}
+                          aria-label={label}
+                        >
+                          <span
+                            className="purchases-status-pill__dot"
+                            aria-hidden
+                          />
+                          <span className="purchases-status-pill__full">
+                            {label}
+                          </span>
+                        </span>
+                      )
+                      return (
+                        <>
+                          <td className="purchases-status-cell purchases-col-desktop-only">
+                            {renderPill()}
+                          </td>
+                          <td
+                            className="num mono purchases-total-cell"
+                            title={`${label} · ${totalFull}`}
+                          >
+                            <span className="purchases-total-cell__status">
+                              {renderPill()}
+                            </span>
+                            <span className="purchases-total-cell__amount">
+                              {totalFull}
+                            </span>
+                          </td>
+                        </>
+                      )
+                    })()}
                     </tr>
                   )
                 })}
@@ -2175,12 +3005,13 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                 <>
                 <div className="purchases-lot-inventory-block">
                   <h3 className="purchases-lot-inventory-block__title">
-                    Consumo del lote
+                    Detalle de lote
                   </h3>
                   <p className="muted small purchases-lot-metrics-hint">
                     Cada fila es un producto del lote: <strong>por consumir</strong> vs{' '}
                     <strong>ya consumidos</strong> (agotados).
                   </p>
+                <MobileAwareFilterBar hasActiveFilters={lotDetailFiltersActive}>
                 <div className="inventory-filter-bar" style={{ marginBottom: '0.65rem' }}>
                   <div className="inventory-filter-bar__controls">
                     <label className="inventory-filter">
@@ -2270,6 +3101,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                     </label>
                   </div>
                 </div>
+                </MobileAwareFilterBar>
                   {lotInventoryLoading && (
                     <p className="muted small">Cargando ítems…</p>
                   )}
@@ -2302,6 +3134,13 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                         <table className="data-table data-table-striped">
                           <thead>
                             <tr>
+                              <th
+                                className="num table-col-index"
+                                scope="col"
+                                title="Número de ítem en esta lista"
+                              >
+                                #
+                              </th>
                               <th>Ítem</th>
                               <th>Categoría</th>
                               <th className="num">Cantidad</th>
@@ -2310,8 +3149,11 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                             </tr>
                           </thead>
                           <tbody>
-                          {lotEditorVisibleRows.map((inv) => (
+                          {lotEditorVisibleRows.map((inv, invIdx) => (
                               <tr key={inv.id}>
+                                <td className="num mono muted table-col-index">
+                                  {invIdx + 1}
+                                </td>
                                 <td>{inv.name}</td>
                                 <td className="muted small">
                                   {inv.category?.name ?? '—'}
@@ -2328,6 +3170,20 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
                       </div>
                     )}
                 </div>
+                <label className="field">
+                  <span>Nombre del lote</span>
+                  <input
+                    value={draft.lotName}
+                    onChange={(e) =>
+                      setDraft({ ...draft, lotName: e.target.value })
+                    }
+                    placeholder={purchaseLotDisplayName(selectedLotRow)}
+                    aria-label="Nombre del lote"
+                  />
+                  <p className="muted small">
+                    Código: <span className="mono">{selectedLotRow.code}</span>
+                  </p>
+                </label>
                 <label className="field">
                   <span>Fecha de compra</span>
                   <input

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createSale,
   fetchProducts,
@@ -14,7 +14,14 @@ import {
   type SaleLineDetail,
   type SaleListRow,
 } from '../api'
-import { SectionSummaryBar, type SectionSummaryItem } from './SectionSummaryBar'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
+import { SectionSummaryDeck } from './SectionSummaryDeck'
+import { type SectionSummaryItem } from './SectionSummaryBar'
 
 const LIMIT = 15
 const SALE_SOURCES = ['MANUAL', 'CART', 'AI'] as const
@@ -154,6 +161,8 @@ function headerFromSale(s: SaleDetail): HeaderDraft {
 }
 
 export function SalesManager({ baseUrl }: { baseUrl: string }) {
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
+  const salesSearchInputRef = useRef<HTMLInputElement>(null)
   const [list, setList] = useState<SaleListRow[]>([])
   const [meta, setMeta] = useState<{
     page: number
@@ -523,18 +532,61 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     meta && meta.limit > 0 ? Math.max(1, Math.ceil(meta.total / meta.limit)) : 1
   const pageDots = paginationDots(page, totalPages)
 
+  const salesFiltersActive = useMemo(
+    () =>
+      search.trim() !== '' ||
+      filterSource !== '' ||
+      filterDateFrom !== '' ||
+      filterDateTo !== '',
+    [search, filterSource, filterDateFrom, filterDateTo],
+  )
+
   return (
     <div className="products-layout">
-      <div className="products-list-pane">
-        <div className="page-intro">
+      <div className="products-list-pane page-pane--floating-gear-dock">
+        <div className="page-intro page-intro--tight">
           <h2 className="page-title">Ventas</h2>
+          <p className="muted page-subtitle">
+            Tickets y totales por página; filtrá por fecha, origen o texto. Cinco tipos
+            de producto en menú alineados con recetas y catálogo.
+          </p>
         </div>
 
+        <MobileAwareFilterBar
+          hasActiveFilters={salesFiltersActive}
+          composeMobileToolbar={
+            isMobileFilters
+              ? ({ filterToggle }) => (
+                  <FloatingGearFab
+                    navAriaLabel="Ventas"
+                    menuToggleTitleClosed="Configuración del listado"
+                    menuToggleTitleOpen="Cerrar menú"
+                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y nueva venta"
+                    ariaLabelMenuOpen="Cerrar menú de ventas"
+                    filterToggle={filterToggle}
+                  >
+                    <FloatingGearFabDockAdd
+                      title="Nueva venta"
+                      ariaLabel="Nueva venta"
+                      onClick={openCreate}
+                    />
+                    <SectionSummaryDeck
+                      section="sales"
+                      items={salesSummaryItems}
+                      loading={loading}
+                      suspendDetailWhileLoading
+                    />
+                  </FloatingGearFab>
+                )
+              : undefined
+          }
+        >
         <div className="inventory-filter-bar app-toolbar-zone">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">
               <span className="inventory-filter__label">Buscar</span>
               <input
+                ref={salesSearchInputRef}
                 className="inventory-filter__input"
                 type="search"
                 placeholder="Producto, mesa, pago, notas…"
@@ -590,13 +642,50 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             >
               Limpiar
             </button>
-            <button type="button" className="btn-primary" onClick={openCreate}>
+            <button
+              type="button"
+              className="btn-primary"
+              data-mobile-filter-primary="inside"
+              onClick={openCreate}
+            >
               Nueva venta
             </button>
           </div>
         </div>
+        </MobileAwareFilterBar>
 
-        <SectionSummaryBar section="sales" items={salesSummaryItems} />
+        {!isMobileFilters && (
+          <FloatingGearFab
+            navAriaLabel="Ventas"
+            menuToggleTitleClosed="Configuración del listado"
+            menuToggleTitleOpen="Cerrar menú"
+            ariaLabelMenuClosed="Abrir menú: buscar y ver resumen"
+            ariaLabelMenuOpen="Cerrar menú de ventas"
+            filterToggle={
+              <button
+                type="button"
+                className="btn-catalog-dock-tool btn-catalog-dock-tool--search"
+                onClick={() => salesSearchInputRef.current?.focus()}
+                aria-label="Buscar ventas"
+                title="Buscar ventas"
+              >
+                <span className="icon-mobile-search" aria-hidden />
+              </button>
+            }
+          >
+            <FloatingGearFabDockAdd
+              title="Nueva venta"
+              ariaLabel="Nueva venta"
+              onClick={openCreate}
+            />
+            <SectionSummaryDeck
+              section="sales"
+              items={salesSummaryItems}
+              loading={loading}
+              suspendDetailWhileLoading
+            />
+          </FloatingGearFab>
+        )}
 
         {listError && (
           <p className="error" role="alert">

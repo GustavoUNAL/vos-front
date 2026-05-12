@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createInventoryItem,
   deleteInventoryItem,
   fetchInventoryCategories,
+  datetimeLocalValueToIsoUtcOrNull,
   fetchInventoryItem,
   fetchInventoryItems,
   displayPurchaseLotSupplier,
   fetchPurchaseLotsCodeIndex,
   formatPurchaseLotDate,
+  formatSystemDateTime,
   inventoryLotDisplayLabel,
   inventoryResolvedPurchaseLot,
+  isoInstantToDatetimeLocalValue,
   updateInventoryItem,
   type CategoryRef,
   type InventoryMovementStats,
@@ -17,7 +20,14 @@ import {
   type PurchaseLotRow,
 } from '../api'
 import { useNavigation } from '../NavigationContext'
-import { SectionSummaryBar, type SectionSummaryItem } from './SectionSummaryBar'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
+import { SectionSummaryDeck } from './SectionSummaryDeck'
+import { type SectionSummaryItem } from './SectionSummaryBar'
 
 const LIMIT = 18
 
@@ -139,6 +149,7 @@ type Draft = {
   supplier: string
   lot: string
   minStock: string
+  traceModifiedLocal: string
 }
 
 function emptyDraft(cats: CategoryRef[]): Draft {
@@ -151,6 +162,7 @@ function emptyDraft(cats: CategoryRef[]): Draft {
     supplier: '',
     lot: '',
     minStock: '',
+    traceModifiedLocal: '',
   }
 }
 
@@ -164,11 +176,16 @@ function rowToDraft(r: InventoryRow): Draft {
     supplier: r.supplier ?? '',
     lot: r.lot ?? '',
     minStock: r.minStock != null ? String(r.minStock) : '',
+    traceModifiedLocal: isoInstantToDatetimeLocalValue(r.traceModifiedAt),
   }
 }
 
+const INVENTORY_EDITOR_MOBILE_MQ = '(max-width: 959px)'
+
 export function InventoryManager({ baseUrl }: { baseUrl: string }) {
   const { inventorySubtitle } = useNavigation()
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
+  const inventoryEditorMobile = useMatchMedia(INVENTORY_EDITOR_MOBILE_MQ)
   const [categories, setCategories] = useState<CategoryRef[]>([])
   const [catError, setCatError] = useState<string | null>(null)
 
@@ -402,6 +419,9 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
           supplier: draft.supplier.trim() || undefined,
           lot: draft.lot.trim() || undefined,
           minStock,
+          traceModifiedAt: datetimeLocalValueToIsoUtcOrNull(
+            draft.traceModifiedLocal,
+          ),
         })
       }
       closePanel()
@@ -457,6 +477,25 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
   }, [baseUrl, closePanel, inventoryListQuery, page, selectedId])
 
   const panelOpen = creating || selectedId !== null
+
+  useEffect(() => {
+    if (!panelOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePanel()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [closePanel, panelOpen])
+
+  useEffect(() => {
+    if (!panelOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [panelOpen])
+
   const totalPages =
     meta && meta.limit > 0 ? Math.max(1, Math.ceil(meta.total / meta.limit)) : 1
   const pageDots = paginationDots(page, totalPages)
@@ -533,16 +572,55 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
     return items
   }, [list, lowStockIds, meta])
 
+  const inventoryFiltersActive = useMemo(
+    () =>
+      filterCategoryId !== '' ||
+      lotFilter.trim() !== '' ||
+      filterAvailability !== '' ||
+      showStats,
+    [filterCategoryId, lotFilter, filterAvailability, showStats],
+  )
+
+  const lotFilterInputRef = useRef<HTMLInputElement>(null)
+
   return (
     <div className="products-layout">
-      <div className="products-list-pane">
+      <div className="products-list-pane page-pane--floating-gear-dock">
         <div className="page-intro">
-          <h2 className="page-title">Inventario</h2>
+          <h2 className="page-title">Productos</h2>
           {inventorySubtitle ? (
             <p className="muted page-subtitle">{inventorySubtitle}</p>
           ) : null}
         </div>
 
+        <MobileAwareFilterBar
+          hasActiveFilters={inventoryFiltersActive}
+          composeMobileToolbar={
+            isMobileFilters
+              ? ({ filterToggle }) => (
+                  <FloatingGearFab
+                    navAriaLabel="Productos"
+                    menuToggleTitleClosed="Configuración del listado"
+                    menuToggleTitleOpen="Cerrar menú"
+                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y nuevo ítem"
+                    ariaLabelMenuOpen="Cerrar menú de inventario"
+                    filterToggle={filterToggle}
+                  >
+                    <FloatingGearFabDockAdd
+                      title="Nuevo ítem"
+                      ariaLabel="Nuevo ítem"
+                      onClick={openCreate}
+                    />
+                    <SectionSummaryDeck
+                      section="inventory"
+                      items={inventorySummaryItems}
+                      loading={loading}
+                    />
+                  </FloatingGearFab>
+                )
+              : undefined
+          }
+        >
         <div className="inventory-filter-bar">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">
@@ -564,6 +642,7 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
             <label className="inventory-filter">
               <span className="inventory-filter__label">Lote</span>
               <input
+                ref={lotFilterInputRef}
                 className="inventory-filter__input"
                 type="search"
                 placeholder="Código…"
@@ -612,13 +691,49 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
             >
               Limpiar
             </button>
-            <button type="button" className="btn-primary" onClick={openCreate}>
+            <button
+              type="button"
+              className="btn-primary"
+              data-mobile-filter-primary="inside"
+              onClick={openCreate}
+            >
               Nuevo ítem
             </button>
           </div>
         </div>
+        </MobileAwareFilterBar>
 
-        <SectionSummaryBar section="inventory" items={inventorySummaryItems} />
+        {!isMobileFilters && (
+          <FloatingGearFab
+            navAriaLabel="Productos"
+            menuToggleTitleClosed="Configuración del listado"
+            menuToggleTitleOpen="Cerrar menú"
+            ariaLabelMenuClosed="Abrir menú: buscar, filtros y nuevo ítem"
+            ariaLabelMenuOpen="Cerrar menú de inventario"
+            filterToggle={
+              <button
+                type="button"
+                className="btn-catalog-dock-tool btn-catalog-dock-tool--search"
+                onClick={() => lotFilterInputRef.current?.focus()}
+                aria-label="Buscar por código de lote"
+                title="Buscar por lote"
+              >
+                <span className="icon-mobile-search" aria-hidden />
+              </button>
+            }
+          >
+            <FloatingGearFabDockAdd
+              title="Nuevo ítem"
+              ariaLabel="Nuevo ítem"
+              onClick={openCreate}
+            />
+            <SectionSummaryDeck
+              section="inventory"
+              items={inventorySummaryItems}
+              loading={loading}
+            />
+          </FloatingGearFab>
+        )}
 
         {catError && (
           <p className="banner-warn" role="status">
@@ -789,7 +904,24 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
       </div>
 
       {panelOpen && draft && (
-        <aside className="editor-panel" aria-label="Editor de inventario">
+        <>
+          {inventoryEditorMobile && (
+            <div
+              className="editor-panel-backdrop"
+              role="presentation"
+              onMouseDown={(e) => {
+                if (e.target === e.currentTarget) closePanel()
+              }}
+            />
+          )}
+          <aside
+            className={
+              inventoryEditorMobile
+                ? 'editor-panel editor-panel--modal-mobile'
+                : 'editor-panel'
+            }
+            aria-label="Editor de inventario"
+          >
           <div className="editor-panel-head">
             <h2>{creating ? 'Nuevo ítem' : 'Editar inventario'}</h2>
             <button
@@ -913,6 +1045,73 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
               />
             </label>
 
+            {!creating ? (
+              <>
+                <div className="field">
+                  <span>Último cambio en sistema (solo lectura)</span>
+                  <p className="mono muted small">
+                    {formatSystemDateTime(selectedRowFull?.updatedAt)}
+                  </p>
+                </div>
+                <label className="field">
+                  <span>Revisión / trazabilidad</span>
+                  <input
+                    type="datetime-local"
+                    value={draft.traceModifiedLocal}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        traceModifiedLocal: e.target.value,
+                      })
+                    }
+                  />
+                  <p className="muted small">
+                    Se guarda al pulsar Guardar; vacío envía{' '}
+                    <span className="mono">traceModifiedAt: null</span>.
+                  </p>
+                </label>
+                <div className="field">
+                  <button
+                    type="button"
+                    className="btn-secondary btn-compact"
+                    disabled={saving}
+                    onClick={() => {
+                      void (async () => {
+                        if (!selectedId) return
+                        setSaving(true)
+                        setSaveError(null)
+                        try {
+                          const updated = await updateInventoryItem(
+                            baseUrl,
+                            selectedId,
+                            { traceModifiedAt: null },
+                          )
+                          setSelectedRowFull(updated)
+                          setDraft((d) =>
+                            d ? { ...d, traceModifiedLocal: '' } : d,
+                          )
+                          const res = await fetchInventoryItems(baseUrl, {
+                            page,
+                            limit: LIMIT,
+                            ...inventoryListQuery,
+                          })
+                          setList(res.data)
+                          setMeta(res.meta)
+                          refreshLotIndex()
+                        } catch (e) {
+                          setSaveError((e as Error).message)
+                        } finally {
+                          setSaving(false)
+                        }
+                      })()
+                    }}
+                  >
+                    Quitar marca de revisión
+                  </button>
+                </div>
+              </>
+            ) : null}
+
             {!creating && selectedRowFull?.stats?.movements && (
               <div className="panel-stats-block" aria-label="Resumen de movimientos">
                 <p className="panel-stats-block__title">Movimientos (acumulado)</p>
@@ -972,6 +1171,7 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
             </div>
           </div>
         </aside>
+        </>
       )}
     </div>
   )

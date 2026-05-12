@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useMatchMedia } from './hooks/useMatchMedia'
 import {
   fetchMe,
   getAccessToken,
@@ -42,13 +43,16 @@ const VIEW_HASH: Record<View, string> = {
   explorer: '#/explorer',
 }
 
-const NAV_GROUPS_CLOSED: Record<NavGroupId, boolean> = {
-  catalog: false,
-  stock: false,
-  sales: false,
-  purchases: false,
-  finance: false,
-  data: false,
+const MOBILE_NAV_TITLE: Record<View, string> = {
+  menu: 'Inicio',
+  products: 'Productos a la venta',
+  recipes: 'Recetas',
+  inventory: 'Productos',
+  sales: 'Ventas',
+  purchases: 'Compras',
+  costs: 'Costos',
+  gastos: 'Gastos',
+  explorer: 'DB',
 }
 
 const VIEW_TO_GROUP: Record<Exclude<View, 'menu'>, NavGroupId> = {
@@ -68,10 +72,10 @@ function activeNavGroup(view: View): NavGroupId | null {
 }
 
 const COLLAPSED_GROUP_LABEL: Record<NavGroupId, string> = {
-  catalog: 'Catálogo',
+  catalog: 'Productos a la venta',
   stock: 'Inventario',
-  sales: 'Ventas',
   purchases: 'Compras',
+  sales: 'Ventas',
   finance: 'Finanzas',
   data: 'Datos',
 }
@@ -107,6 +111,18 @@ function NavGlyph({ group }: { group: NavGroupId }) {
           />
         </svg>
       )
+    case 'purchases':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M9 3v2m6-2v2M5 9h14l-1 12H6L5 9Zm0 0-.7-3.5A1 1 0 0 1 5.3 4h13.4a1 1 0 0 1 .9 1.5L19 9"
+            stroke="currentColor"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
     case 'sales':
       return (
         <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -119,23 +135,6 @@ function NavGlyph({ group }: { group: NavGroupId }) {
           />
           <circle cx="9" cy="20" r="1.35" fill="currentColor" />
           <circle cx="18" cy="20" r="1.35" fill="currentColor" />
-        </svg>
-      )
-    case 'purchases':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"
-            stroke="currentColor"
-            strokeWidth="1.35"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M14 2v6h6M8 13h8M8 17h6M8 9h3"
-            stroke="currentColor"
-            strokeWidth="1.35"
-            strokeLinecap="round"
-          />
         </svg>
       )
     case 'finance':
@@ -263,13 +262,39 @@ export default function App() {
     }
   })
 
-  const [navGroupsOpen, setNavGroupsOpen] = useState<Record<NavGroupId, boolean>>(
-    () => ({ ...NAV_GROUPS_CLOSED }),
-  )
+  const isMobileNav = useMatchMedia('(max-width: 720px)')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
-  const toggleNavGroup = (id: NavGroupId) => {
-    setNavGroupsOpen((p) => ({ ...p, [id]: !p[id] }))
-  }
+  useEffect(() => {
+    if (!isMobileNav) setMobileNavOpen(false)
+  }, [isMobileNav])
+
+
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [view])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (!isMobileNav || !mobileNavOpen) {
+      root.classList.remove('app--mobile-nav-open')
+      return
+    }
+    root.classList.add('app--mobile-nav-open')
+    return () => root.classList.remove('app--mobile-nav-open')
+  }, [isMobileNav, mobileNavOpen])
+
+  useEffect(() => {
+    if (!isMobileNav || !mobileNavOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isMobileNav, mobileNavOpen])
+
+
 
   const goCollapsedGroup = (g: NavGroupId) => {
     switch (g) {
@@ -279,11 +304,11 @@ export default function App() {
       case 'stock':
         setView('inventory')
         return
-      case 'sales':
-        setView('sales')
-        return
       case 'purchases':
         setView('purchases')
+        return
+      case 'sales':
+        setView('sales')
         return
       case 'finance':
         setView('costs')
@@ -358,7 +383,9 @@ export default function App() {
   }, [view])
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${isMobileNav ? ' app-shell--mobile-nav-drawer' : ''}${mobileNavOpen && isMobileNav ? ' app-shell--mobile-nav-open' : ''}`}
+    >
       <a href="#main-content" className="skip-to-main">
         Saltar al contenido
       </a>
@@ -369,9 +396,81 @@ export default function App() {
       )}
 
       <div className="app-body">
+        <main className="app-main" id="main-content" tabIndex={-1}>
+          {isMobileNav && (
+            <header className="app-mobile-nav-bar">
+              <div className="app-mobile-nav-bar__lead">
+                <img
+                  className="app-mobile-nav-bar__logo"
+                  src="/logo.png"
+                  width={38}
+                  height={38}
+                  alt=""
+                  decoding="async"
+                />
+                <p className="app-mobile-nav-bar__title">{MOBILE_NAV_TITLE[view]}</p>
+              </div>
+              <button
+                type="button"
+                className="btn-nav-hamburger"
+                aria-expanded={mobileNavOpen}
+                aria-controls="app-sidebar"
+                onClick={() => setMobileNavOpen((o) => !o)}
+              >
+                <span className="icon-nav-hamburger" aria-hidden />
+                <span className="sr-only">
+                  {mobileNavOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
+                </span>
+              </button>
+            </header>
+          )}
+          {view === 'menu' && (
+            <NavigationHub
+              inventoryHint={
+                inventorySubtitle ??
+                'Recurso físico: existencias y movimientos'
+              }
+              purchasesHint={
+                purchasesSubtitle ??
+                'Registro financiero del lote (proveedor, monto, fecha)'
+              }
+              onNavigate={(v: HubTargetView) => {
+                setView(v)
+                if (v === 'recipes') {
+                  window.history.replaceState({}, '', '#/recipes')
+                }
+              }}
+            />
+          )}
+          {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
+          {view === 'recipes' && <RecipesView baseUrl={baseUrl} />}
+          {view === 'inventory' && <InventoryManager baseUrl={baseUrl} />}
+          {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
+          {view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
+          {view === 'costs' && <CostsView baseUrl={baseUrl} />}
+          {view === 'gastos' && <GastosView baseUrl={baseUrl} />}
+          {view === 'explorer' && <TableExplorer baseUrl={baseUrl} />}
+        </main>
+
+        {isMobileNav && mobileNavOpen && (
+          <button
+            type="button"
+            className="app-sidebar-backdrop"
+            aria-label="Cerrar menú"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
+
         <aside
+          id="app-sidebar"
           className={`app-sidebar${sidebarCollapsed ? ' app-sidebar--collapsed' : ''}`}
           aria-label="Navegación principal"
+          onClick={(e) => {
+            if (!isMobileNav || !mobileNavOpen) return
+            const el = e.target as HTMLElement
+            if (el.closest('.theme-switch')) return
+            if (el.closest('button, a[href]')) setMobileNavOpen(false)
+          }}
         >
           <div className="app-sidebar__brand">
             <div className="app-sidebar__brand-start">
@@ -398,27 +497,42 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              className="app-sidebar__pin"
-              aria-expanded={!sidebarCollapsed}
-              aria-controls="app-sidebar-nav app-sidebar-collapsed-rail"
-              aria-label={
-                sidebarCollapsed
-                  ? 'Expandir barra lateral'
-                  : 'Contraer barra lateral'
-              }
-              title={
-                sidebarCollapsed
-                  ? 'Expandir barra lateral'
-                  : 'Contraer barra lateral'
-              }
-              onClick={() => setSidebarCollapsed((v) => !v)}
-            >
-              <span className="app-sidebar__pin-char" aria-hidden>
-                {sidebarCollapsed ? '›' : '‹'}
-              </span>
-            </button>
+            {isMobileNav && mobileNavOpen ? (
+              <button
+                type="button"
+                className="app-sidebar__drawer-close"
+                aria-label="Cerrar menú"
+                onClick={() => setMobileNavOpen(false)}
+              >
+                <span className="app-sidebar__drawer-close-icon" aria-hidden>
+                  ×
+                </span>
+              </button>
+            ) : (
+              !isMobileNav && (
+                <button
+                  type="button"
+                  className="app-sidebar__pin"
+                  aria-expanded={!sidebarCollapsed}
+                  aria-controls="app-sidebar-nav app-sidebar-collapsed-rail"
+                  aria-label={
+                    sidebarCollapsed
+                      ? 'Expandir barra lateral'
+                      : 'Contraer barra lateral'
+                  }
+                  title={
+                    sidebarCollapsed
+                      ? 'Expandir barra lateral'
+                      : 'Contraer barra lateral'
+                  }
+                  onClick={() => setSidebarCollapsed((v) => !v)}
+                >
+                  <span className="app-sidebar__pin-char" aria-hidden>
+                    {sidebarCollapsed ? '‹' : '›'}
+                  </span>
+                </button>
+              )
+            )}
           </div>
           <div className="app-sidebar__meta">
             {user && (
@@ -458,15 +572,20 @@ export default function App() {
               </span>
             </div>
           </div>
-          {sidebarCollapsed && (
+          {sidebarCollapsed && !isMobileNav && (
             <SidebarCollapsedRail view={view} onPick={goCollapsedGroup} />
           )}
           <nav
             id="app-sidebar-nav"
             className="app-nav"
             aria-label="Secciones"
-            hidden={sidebarCollapsed}
+            hidden={sidebarCollapsed && !isMobileNav}
           >
+            {isMobileNav && (
+              <p className="app-nav-mobile-intro muted small">
+                Toca una opción para ir a esa pantalla.
+              </p>
+            )}
             <div className="app-nav-home">
               <ul className="app-nav-list">
                 <li>
@@ -480,269 +599,174 @@ export default function App() {
                 </li>
               </ul>
             </div>
-            <div
-              className={`app-nav-group app-nav-group--catalog${navGroupsOpen.catalog ? '' : ' app-nav-group--folded'}`}
-            >
-              <button
-                type="button"
-                className="app-nav-group__toggle"
-                aria-expanded={navGroupsOpen.catalog}
+            <div className="app-nav-group app-nav-group--catalog">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
                 id="nav-head-catalog"
-                onClick={() => toggleNavGroup('catalog')}
               >
                 <span className="app-nav-group__toggle-main">
-                  <span className="app-nav-group__title">Catálogo</span>
+                  <span className="app-nav-group__title">Productos a la venta</span>
                   <span className="app-nav-group__hint">
-                    Carta, recetas e insumos
+                    Carta, recetas y fichas
                   </span>
                 </span>
-                <span className="app-nav-group__chevron" aria-hidden />
-              </button>
-              {navGroupsOpen.catalog && (
-                <ul
-                  className="app-nav-list"
-                  aria-labelledby="nav-head-catalog"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'products' ? 'active' : ''}
-                      onClick={() => setView('products')}
-                    >
-                      Productos
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'recipes' ? 'active' : ''}
-                      onClick={() => {
-                        setView('recipes')
-                        window.history.replaceState({}, '', '#/recipes')
-                      }}
-                    >
-                      Recetas
-                    </button>
-                  </li>
-                </ul>
-              )}
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-catalog"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'products' ? 'active' : ''}
+                    onClick={() => setView('products')}
+                  >
+                    Productos a la venta
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'recipes' ? 'active' : ''}
+                    onClick={() => {
+                      setView('recipes')
+                      window.history.replaceState({}, '', '#/recipes')
+                    }}
+                  >
+                    Recetas
+                  </button>
+                </li>
+              </ul>
             </div>
 
-            <div
-              className={`app-nav-group app-nav-group--stock${navGroupsOpen.stock ? '' : ' app-nav-group--folded'}`}
-            >
-              <button
-                type="button"
-                className="app-nav-group__toggle"
-                aria-expanded={navGroupsOpen.stock}
+            <div className="app-nav-group app-nav-group--stock">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
                 id="nav-head-stock"
-                onClick={() => toggleNavGroup('stock')}
               >
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Inventario</span>
                   <span className="app-nav-group__hint">
-                    {inventorySubtitle ??
-                      'Recurso físico: existencias y movimientos'}
+                    {[inventorySubtitle, purchasesSubtitle]
+                      .filter(Boolean)
+                      .join(' · ') ||
+                      'Insumos en existencia y compras por lote'}
                   </span>
                 </span>
-                <span className="app-nav-group__chevron" aria-hidden />
-              </button>
-              {navGroupsOpen.stock && (
-                <ul
-                  className="app-nav-list"
-                  aria-labelledby="nav-head-stock"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'inventory' ? 'active' : ''}
-                      onClick={() => setView('inventory')}
-                    >
-                      Inventario
-                    </button>
-                  </li>
-                </ul>
-              )}
-            </div>
-
-            <div
-              className={`app-nav-group app-nav-group--purchases${navGroupsOpen.purchases ? '' : ' app-nav-group--folded'}`}
-            >
-              <button
-                type="button"
-                className="app-nav-group__toggle"
-                aria-expanded={navGroupsOpen.purchases}
-                id="nav-head-purchases"
-                onClick={() => toggleNavGroup('purchases')}
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-stock"
               >
-                <span className="app-nav-group__toggle-main">
-                  <span className="app-nav-group__title">Compras</span>
-                  <span className="app-nav-group__hint">
-                    {purchasesSubtitle ??
-                      'Registro financiero del lote (proveedor, monto, fecha)'}
-                  </span>
-                </span>
-                <span className="app-nav-group__chevron" aria-hidden />
-              </button>
-              {navGroupsOpen.purchases && (
-                <ul
-                  className="app-nav-list"
-                  aria-labelledby="nav-head-purchases"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'purchases' ? 'active' : ''}
-                      onClick={() => setView('purchases')}
-                    >
-                      Compras
-                    </button>
-                  </li>
-                </ul>
-              )}
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'inventory' ? 'active' : ''}
+                    onClick={() => setView('inventory')}
+                  >
+                    Productos
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'purchases' ? 'active' : ''}
+                    onClick={() => setView('purchases')}
+                  >
+                    Compras
+                  </button>
+                </li>
+              </ul>
             </div>
 
-            <div
-              className={`app-nav-group app-nav-group--sales${navGroupsOpen.sales ? '' : ' app-nav-group--folded'}`}
-            >
-              <button
-                type="button"
-                className="app-nav-group__toggle"
-                aria-expanded={navGroupsOpen.sales}
+            <div className="app-nav-group app-nav-group--sales">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
                 id="nav-head-sales"
-                onClick={() => toggleNavGroup('sales')}
               >
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Ventas</span>
                   <span className="app-nav-group__hint">Ingresos del día</span>
                 </span>
-                <span className="app-nav-group__chevron" aria-hidden />
-              </button>
-              {navGroupsOpen.sales && (
-                <ul
-                  className="app-nav-list"
-                  aria-labelledby="nav-head-sales"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'sales' ? 'active' : ''}
-                      onClick={() => setView('sales')}
-                    >
-                      Ventas
-                    </button>
-                  </li>
-                </ul>
-              )}
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-sales"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'sales' ? 'active' : ''}
+                    onClick={() => setView('sales')}
+                  >
+                    Ventas
+                  </button>
+                </li>
+              </ul>
             </div>
 
-            <div
-              className={`app-nav-group app-nav-group--finance${navGroupsOpen.finance ? '' : ' app-nav-group--folded'}`}
-            >
-              <button
-                type="button"
-                className="app-nav-group__toggle"
-                aria-expanded={navGroupsOpen.finance}
+            <div className="app-nav-group app-nav-group--finance">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
                 id="nav-head-finance"
-                onClick={() => toggleNavGroup('finance')}
               >
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Finanzas</span>
                   <span className="app-nav-group__hint">Costos y gastos</span>
                 </span>
-                <span className="app-nav-group__chevron" aria-hidden />
-              </button>
-              {navGroupsOpen.finance && (
-                <ul
-                  className="app-nav-list"
-                  aria-labelledby="nav-head-finance"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'costs' ? 'active' : ''}
-                      onClick={() => setView('costs')}
-                    >
-                      Costos
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'gastos' ? 'active' : ''}
-                      onClick={() => setView('gastos')}
-                    >
-                      Gastos
-                    </button>
-                  </li>
-                </ul>
-              )}
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-finance"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'costs' ? 'active' : ''}
+                    onClick={() => setView('costs')}
+                  >
+                    Costos
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'gastos' ? 'active' : ''}
+                    onClick={() => setView('gastos')}
+                  >
+                    Gastos
+                  </button>
+                </li>
+              </ul>
             </div>
 
-            <div
-              className={`app-nav-group app-nav-group--data${navGroupsOpen.data ? '' : ' app-nav-group--folded'}`}
-            >
-              <button
-                type="button"
-                className="app-nav-group__toggle"
-                aria-expanded={navGroupsOpen.data}
+            <div className="app-nav-group app-nav-group--data">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
                 id="nav-head-data"
-                onClick={() => toggleNavGroup('data')}
               >
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Datos</span>
                   <span className="app-nav-group__hint">Solo lectura</span>
                 </span>
-                <span className="app-nav-group__chevron" aria-hidden />
-              </button>
-              {navGroupsOpen.data && (
-                <ul
-                  className="app-nav-list"
-                  aria-labelledby="nav-head-data"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      className={view === 'explorer' ? 'active' : ''}
-                      onClick={() => setView('explorer')}
-                    >
-                      DB
-                    </button>
-                  </li>
-                </ul>
-              )}
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-data"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'explorer' ? 'active' : ''}
+                    onClick={() => setView('explorer')}
+                  >
+                    DB
+                  </button>
+                </li>
+              </ul>
             </div>
           </nav>
         </aside>
-
-        <main className="app-main" id="main-content" tabIndex={-1}>
-          {view === 'menu' && (
-            <NavigationHub
-              inventoryHint={
-                inventorySubtitle ??
-                'Recurso físico: existencias y movimientos'
-              }
-              purchasesHint={
-                purchasesSubtitle ??
-                'Registro financiero del lote (proveedor, monto, fecha)'
-              }
-              onNavigate={(v: HubTargetView) => {
-                setView(v)
-                if (v === 'recipes') {
-                  window.history.replaceState({}, '', '#/recipes')
-                }
-              }}
-            />
-          )}
-          {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
-          {view === 'recipes' && <RecipesView baseUrl={baseUrl} />}
-          {view === 'inventory' && <InventoryManager baseUrl={baseUrl} />}
-          {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
-          {view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
-          {view === 'costs' && <CostsView baseUrl={baseUrl} />}
-          {view === 'gastos' && <GastosView baseUrl={baseUrl} />}
-          {view === 'explorer' && <TableExplorer baseUrl={baseUrl} />}
-        </main>
       </div>
     </div>
   )

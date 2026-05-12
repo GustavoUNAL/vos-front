@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   fetchInventoryOptions,
   fetchProduct,
@@ -10,8 +17,14 @@ import {
   type ProductRecipeFull,
   type RecipeCatalogEntry,
 } from '../api'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import { FloatingGearFab } from './FloatingGearFab'
 import { RecipeEditor } from './RecipeEditor'
-import { SectionSummaryBar } from './SectionSummaryBar'
+import { SectionSummaryDeck } from './SectionSummaryDeck'
 
 function getRecipeIdFromHash(): string | null {
   const raw = (window.location.hash ?? '').replace(/^#/, '') // "recipes/..."
@@ -28,25 +41,13 @@ function replaceRouteToRecipesList(): void {
   window.history.replaceState({}, '', '#/recipes')
 }
 
-function paginationDots(current: number, total: number): number[] {
-  if (total <= 1) return []
-  const out: number[] = []
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, current + 2)
-  for (let p = start; p <= end; p++) out.push(p)
-  if (!out.includes(1)) out.unshift(1)
-  if (!out.includes(total)) out.push(total)
-  return out
-}
-
 export function RecipesView({ baseUrl }: { baseUrl: string }) {
-  const PAGE_SIZE = 24
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const [categories, setCategories] = useState<CategoryRef[]>([])
   const [catalog, setCatalog] = useState<RecipeCatalogEntry[]>([])
   const [inventory, setInventory] = useState<InventoryOption[]>([])
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
-  const [page, setPage] = useState(1)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadingList, setLoadingList] = useState(true)
 
@@ -68,10 +69,6 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
     const t = window.setTimeout(() => setSearchDebounced(search), 320)
     return () => window.clearTimeout(t)
   }, [search])
-
-  useEffect(() => {
-    setPage(1)
-  }, [searchDebounced])
 
   useEffect(() => {
     let cancelled = false
@@ -138,21 +135,12 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
     return catalog.filter((r) => r.productName.toLowerCase().includes(q))
   }, [catalog, searchDebounced])
 
-  const totalPages = Math.max(1, Math.ceil(filteredCatalog.length / PAGE_SIZE))
-  const pageSafe = Math.min(page, totalPages)
-  const pageDots = paginationDots(pageSafe, totalPages)
-  const pageRows = useMemo(
-    () =>
-      filteredCatalog.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE),
-    [filteredCatalog, pageSafe, PAGE_SIZE],
-  )
-
   const recipeSections = useMemo(() => {
     const known = new Set(categories.map((c) => c.id))
     const buckets = new Map<string, RecipeCatalogEntry[]>()
     for (const c of categories) buckets.set(c.id, [])
     const orphans: RecipeCatalogEntry[] = []
-    for (const r of pageRows) {
+    for (const r of filteredCatalog) {
       const cid = r.categoryId ?? ''
       if (cid && known.has(cid)) {
         buckets.get(cid)!.push(r)
@@ -177,7 +165,27 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
       })
     }
     return sections
-  }, [categories, pageRows])
+  }, [categories, filteredCatalog])
+
+  const catalogLayoutKey = useMemo(
+    () =>
+      recipeSections
+        .filter((s) => s.rows.length > 0)
+        .map((s) => s.id)
+        .join('|'),
+    [recipeSections],
+  )
+
+  const [openCategoryIds, setOpenCategoryIds] = useState(() => new Set<string>())
+
+  useLayoutEffect(() => {
+    const first = recipeSections.find((s) => s.rows.length > 0)?.id
+    if (!first) {
+      setOpenCategoryIds(new Set())
+      return
+    }
+    setOpenCategoryIds(new Set([first]))
+  }, [catalogLayoutKey])
 
   const reloadCatalog = useCallback(async () => {
     const controller = new AbortController()
@@ -286,39 +294,72 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
       {
         label: 'Visibles',
         value: filteredCatalog.length,
-        title: 'Tras filtrar por búsqueda (todas las páginas)',
+        title: 'Tras filtrar por búsqueda (lista completa)',
       },
       {
-        label: 'En página',
-        value: pageRows.length,
-        title: `Página ${pageSafe} de ${totalPages}`,
+        label: 'Categorías',
+        value: recipeSections.filter((s) => s.rows.length > 0).length,
+        title: 'Bloques de categoría con al menos una receta visible',
       },
       {
         label: 'Insumos',
         value: inventory.length,
-        title: 'Ítems de inventario disponibles para enlazar',
+        title: 'Ítems de inventario disponibles para enlazar (al abrir una receta)',
       },
     ],
-    [catalog.length, filteredCatalog.length, inventory.length, pageRows.length, pageSafe, totalPages],
+    [
+      catalog.length,
+      filteredCatalog.length,
+      inventory.length,
+      recipeSections,
+    ],
   )
 
+  const recipeFiltersActive = search.trim() !== ''
+
+  const recipeSearchInputRef = useRef<HTMLInputElement>(null)
+
   return (
-    <div className="recipes-layout">
-      <div className="recipes-catalog-pane">
-        <div className="recipes-catalog-head">
-          <div>
-            <h2 className="pane-title">Recetas</h2>
-            <p className="muted">
-              Productos con ficha técnica. Elige uno para ver y editar insumos.
-            </p>
-          </div>
+    <div className="products-layout">
+      <div className="products-list-pane page-pane--floating-gear-dock">
+        <div className="page-intro">
+          <h2 className="page-title">Recetas</h2>
+          <p className="muted page-subtitle">
+            Cinco familias de menú (Bar, Cafetería, Cócteles, Comida, Shots). Lista
+            completa por categoría; usá buscar para acotar.
+          </p>
         </div>
 
-        <div className="inventory-filter-bar app-toolbar-zone">
+        <MobileAwareFilterBar
+          hasActiveFilters={recipeFiltersActive}
+          composeMobileToolbar={
+            isMobileFilters
+              ? ({ filterToggle }) => (
+                  <FloatingGearFab
+                    navAriaLabel="Recetas"
+                    menuToggleTitleClosed="Configuración del listado"
+                    menuToggleTitleOpen="Cerrar menú"
+                    ariaLabelMenuClosed="Abrir menú: buscar y limpiar recetas"
+                    ariaLabelMenuOpen="Cerrar menú de recetas"
+                    filterToggle={filterToggle}
+                  >
+                    <SectionSummaryDeck
+                      section="recipes"
+                      items={recipeSummaryItems}
+                      loading={loadingList}
+                      suspendDetailWhileLoading
+                    />
+                  </FloatingGearFab>
+                )
+              : undefined
+          }
+        >
+        <div className="inventory-filter-bar">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">
               <span className="inventory-filter__label">Buscar</span>
               <input
+                ref={recipeSearchInputRef}
                 className="inventory-filter__input"
                 type="search"
                 placeholder="Receta por producto…"
@@ -340,9 +381,34 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
             </button>
           </div>
         </div>
+        </MobileAwareFilterBar>
 
-        {!loadingList && (
-          <SectionSummaryBar section="recipes" items={recipeSummaryItems} />
+        {!isMobileFilters && (
+          <FloatingGearFab
+            navAriaLabel="Recetas"
+            menuToggleTitleClosed="Configuración del listado"
+            menuToggleTitleOpen="Cerrar menú"
+            ariaLabelMenuClosed="Abrir menú: buscar y ver resumen"
+            ariaLabelMenuOpen="Cerrar menú de recetas"
+            filterToggle={
+              <button
+                type="button"
+                className="btn-catalog-dock-tool btn-catalog-dock-tool--search"
+                onClick={() => recipeSearchInputRef.current?.focus()}
+                aria-label="Buscar recetas"
+                title="Buscar recetas"
+              >
+                <span className="icon-mobile-search" aria-hidden />
+              </button>
+            }
+          >
+            <SectionSummaryDeck
+              section="recipes"
+              items={recipeSummaryItems}
+              loading={loadingList}
+              suspendDetailWhileLoading
+            />
+          </FloatingGearFab>
         )}
 
         {loadError && (
@@ -360,41 +426,22 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
 
         {!loadingList && filteredCatalog.length > 0 && (
           <div className="catalog-by-category" aria-label="Recetas por categoría">
-            <div className="pagination-bar">
-              <span className="muted">
-                Página {pageSafe} de {totalPages} · {filteredCatalog.length} receta
-                {filteredCatalog.length !== 1 ? 's' : ''}
-              </span>
-              {pageDots.length > 1 && (
-                <div className="pager-dots" aria-hidden>
-                  {pageDots.map((p) => (
-                    <span
-                      key={p}
-                      className={`pager-dot${p === pageSafe ? ' is-active' : ''}`}
-                    />
-                  ))}
-                </div>
-              )}
-              <div className="pager">
-                <button
-                  type="button"
-                  disabled={pageSafe <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  disabled={pageSafe >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
             {recipeSections.map((section) =>
               section.rows.length === 0 ? null : (
-                <details key={section.id} className="catalog-category-block">
+                <details
+                  key={section.id}
+                  className="catalog-category-block"
+                  open={openCategoryIds.has(section.id)}
+                  onToggle={(e) => {
+                    const nextOpen = e.currentTarget.open
+                    setOpenCategoryIds((prev) => {
+                      const next = new Set(prev)
+                      if (nextOpen) next.add(section.id)
+                      else next.delete(section.id)
+                      return next
+                    })
+                  }}
+                >
                   <summary className="catalog-category-block__summary">
                     <span className="catalog-category-block__summary-main">
                       <span className="catalog-category-block__chevron" aria-hidden />

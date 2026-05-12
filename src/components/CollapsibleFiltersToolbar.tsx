@@ -1,4 +1,10 @@
 import { useId, useState, type ReactNode } from 'react'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import { FloatingGearFab } from './FloatingGearFab'
 
 type CollapsibleFiltersToolbarProps = {
   search: string
@@ -23,11 +29,12 @@ export function CollapsibleFiltersToolbar({
   hasActiveFilters,
   filterDrawer,
 }: CollapsibleFiltersToolbarProps) {
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const drawerId = useId()
   const triggerId = useId()
 
-  return (
+  const bar = (
     <div
       className={`inventory-filter-bar inventory-filter-bar--collapsible costs-toolbar app-toolbar-zone${filtersOpen ? ' is-filters-open' : ''}`}
     >
@@ -76,5 +83,27 @@ export function CollapsibleFiltersToolbar({
         {filterDrawer}
       </div>
     </div>
+  )
+
+  return (
+    <MobileAwareFilterBar
+      hasActiveFilters={hasActiveFilters}
+      composeMobileToolbar={
+        isMobileFilters
+          ? ({ filterToggle }) => (
+              <FloatingGearFab
+                navAriaLabel="Búsqueda y filtros"
+                menuToggleTitleClosed="Configuración del listado"
+                menuToggleTitleOpen="Cerrar menú"
+                ariaLabelMenuClosed="Abrir menú: buscar y más filtros"
+                ariaLabelMenuOpen="Cerrar menú de filtros"
+                filterToggle={filterToggle}
+              />
+            )
+          : undefined
+      }
+    >
+      {bar}
+    </MobileAwareFilterBar>
   )
 }

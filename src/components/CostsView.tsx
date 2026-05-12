@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchRecipeCosts, type RecipeCostLineRow } from '../api'
-import { SectionSummaryBar } from './SectionSummaryBar'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import {
+  FloatingGearFab,
+  FloatingGearFabDockRefresh,
+} from './FloatingGearFab'
+import { SectionSummaryDeck } from './SectionSummaryDeck'
 
 function num(v: string | number | null | undefined): number {
   const n = parseFloat(String(v ?? '').replace(',', '.'))
@@ -73,6 +82,8 @@ function CostTable({
 const UNCATEGORIZED_LABEL = 'Sin categoría'
 
 export function CostsView({ baseUrl }: { baseUrl: string }) {
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
+  const costsSearchInputRef = useRef<HTMLInputElement>(null)
   const [data, setData] = useState<Awaited<
     ReturnType<typeof fetchRecipeCosts>
   > | null>(null)
@@ -249,19 +260,61 @@ export function CostsView({ baseUrl }: { baseUrl: string }) {
     ],
   )
 
+  const costsFiltersActive = useMemo(
+    () =>
+      search.trim() !== '' ||
+      filterKind !== 'all' ||
+      filterCategory !== '',
+    [search, filterKind, filterCategory],
+  )
+
   return (
     <div className="products-layout">
-      <div className="products-list-pane">
+      <div className="products-list-pane page-pane--floating-gear-dock">
         <div className="page-intro page-intro--tight">
           <h2 className="page-title">Costos por producto</h2>
-          <p className="muted">Analiza costos FIJO y VARIABLE por receta.</p>
+          <p className="muted page-subtitle">
+            Costos FIJO y VARIABLE por receta. Categorías de menú alineadas con Bar,
+            Cafetería, Cócteles, Comida y Shots.
+          </p>
         </div>
 
+        <MobileAwareFilterBar
+          hasActiveFilters={costsFiltersActive}
+          composeMobileToolbar={
+            isMobileFilters
+              ? ({ filterToggle }) => (
+                  <FloatingGearFab
+                    navAriaLabel="Costos por producto"
+                    menuToggleTitleClosed="Configuración del listado"
+                    menuToggleTitleOpen="Cerrar menú"
+                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y actualizar costos"
+                    ariaLabelMenuOpen="Cerrar menú de costos"
+                    filterToggle={filterToggle}
+                  >
+                    <FloatingGearFabDockRefresh
+                      title="Actualizar"
+                      ariaLabel="Actualizar costos"
+                      onClick={load}
+                      disabled={loading}
+                    />
+                    <SectionSummaryDeck
+                      section="costs"
+                      items={costsSummaryItems}
+                      loading={loading}
+                      suspendDetailWhileLoading
+                    />
+                  </FloatingGearFab>
+                )
+              : undefined
+          }
+        >
         <div className="inventory-filter-bar app-toolbar-zone">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">
               <span className="inventory-filter__label">Buscar</span>
               <input
+                ref={costsSearchInputRef}
                 className="inventory-filter__input"
                 type="search"
                 placeholder="Producto, categoría o concepto…"
@@ -322,9 +375,40 @@ export function CostsView({ baseUrl }: { baseUrl: string }) {
             </button>
           </div>
         </div>
+        </MobileAwareFilterBar>
 
-        {!loading && data && (
-          <SectionSummaryBar section="costs" items={costsSummaryItems} />
+        {!isMobileFilters && (
+          <FloatingGearFab
+            navAriaLabel="Costos por producto"
+            menuToggleTitleClosed="Configuración del listado"
+            menuToggleTitleOpen="Cerrar menú"
+            ariaLabelMenuClosed="Abrir menú: buscar y ver resumen"
+            ariaLabelMenuOpen="Cerrar menú de costos"
+            filterToggle={
+              <button
+                type="button"
+                className="btn-catalog-dock-tool btn-catalog-dock-tool--search"
+                onClick={() => costsSearchInputRef.current?.focus()}
+                aria-label="Buscar costos"
+                title="Buscar costos"
+              >
+                <span className="icon-mobile-search" aria-hidden />
+              </button>
+            }
+          >
+            <FloatingGearFabDockRefresh
+              title="Actualizar"
+              ariaLabel="Actualizar costos"
+              onClick={() => void load()}
+              disabled={loading}
+            />
+            <SectionSummaryDeck
+              section="costs"
+              items={costsSummaryItems}
+              loading={loading}
+              suspendDetailWhileLoading
+            />
+          </FloatingGearFab>
         )}
 
         {error && (

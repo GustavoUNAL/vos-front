@@ -22,14 +22,16 @@ model Category {
 }
 
 model PurchaseLot {
-  id            String   @id @default(cuid())
-  code          String   @unique
-  purchaseDate  DateTime @map("purchase_date")
-  supplier      String?
-  notes         String?
-  totalValueCOP Decimal? @map("total_value_cop") @db.Decimal(18, 2)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id               String    @id @default(cuid())
+  code             String    @unique
+  purchaseDate     DateTime  @map("purchase_date")
+  supplier         String?
+  notes            String?
+  totalValueCOP    Decimal?  @map("total_value_cop") @db.Decimal(18, 2)
+  /** Marca manual de revisión / trazabilidad (independiente de `updated_at`). */
+  traceModifiedAt  DateTime? @map("trace_modified_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   lines PurchaseLotLine[] @relation("LotLines")
 
@@ -37,13 +39,15 @@ model PurchaseLot {
 }
 
 model InventoryItem {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  categoryId  String   @map("category_id")
-  quantity    Decimal  @db.Decimal(18, 4)
+  categoryId  String    @map("category_id")
+  quantity    Decimal   @db.Decimal(18, 4)
   unit        String
-  unitCostCOP Decimal  @map("unit_cost_cop") @db.Decimal(18, 2)
+  unitCostCOP Decimal   @map("unit_cost_cop") @db.Decimal(18, 2)
   lot         String? // código de lote → purchase_lots.code
+  /** Marca manual de revisión / trazabilidad (independiente de `updated_at` del API). */
+  traceModifiedAt DateTime? @map("trace_modified_at")
 
   category        Category         @relation(fields: [categoryId], references: [id])
   purchaseLotLine PurchaseLotLine?

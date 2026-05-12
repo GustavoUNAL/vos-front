@@ -74,6 +74,12 @@ html[data-theme='light'] {
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   font-family: var(--sans);
@@ -82,6 +88,16 @@ body {
   color: var(--text);
   background: var(--surface);
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+button,
+[role='button'],
+[role='switch'],
+.table-link,
+.table-link[type='button'],
+label.inventory-filter {
+  touch-action: manipulation;
 }
 
 input[type='search'] {
@@ -102,5 +118,7 @@ input[type='search'] {
 }
 
 #root {
+  min-height: 100vh;
+  min-height: 100dvh;
   min-height: 100svh;
 }
