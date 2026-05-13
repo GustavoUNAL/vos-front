@@ -1,14 +1,19 @@
-# Backend — `purchase_lot_lines` y costo de compra
+# Backend — compras (`purchase_lot_lines`) **referencia**
 
-Paquete de referencia dentro del monorepo front: **modelo Prisma**, **migración SQL**, **matemática compartida**, **tests** y **script de backfill**. Conectalo con tu API Nest existente copiando `src/common/` y las reglas al servicio de compras.
+Paquete de referencia dentro del monorepo: **modelo Prisma**, **migraciones SQL**, **matemática compartida** y **tests**. La API Nest vive fuera (`arandano-api`); esta carpeta sirve para **mantener definidos** modelo y contrato contra el front.
+
+Contrato único (auditoría BD ↔ REST ↔ SPA): [`docs/DATABASE-API-CONTRACT.md`](docs/DATABASE-API-CONTRACT.md).
 
 ## Contenido
 
 | Ruta | Descripción |
 |------|-------------|
-| `prisma/schema.prisma` | `PurchaseLotLine` + relaciones mínimas (`purchase_lots`, `inventory_items`, `categories`). |
+| `docs/DATABASE-API-CONTRACT.md` | Matriz tabla/columna ↔ JSON, endpoints, `:id` CUID vs UUID, brechas |
+| `prisma/schema.prisma` | `PurchaseLot`, `PurchaseLotLine`, inventario/categorías mínimos |
 | `prisma/migrations/20260420120000_add_purchase_lot_lines/migration.sql` | Crea `purchase_lot_lines` y FKs condicionales si existen las tablas padre. |
 | `prisma/migrations/20260508120000_trace_modified_at/migration.sql` | Añade `trace_modified_at` en `purchase_lots` e `inventory_items` (revisión manual vs `updated_at`). |
+| `prisma/migrations/20260511120000_inventory_consumed_at/migration.sql` | Añade `consumed_at` en `inventory_items` (marca de consumo / agotado). |
+| `prisma/migrations/20260511183000_lot_name_line_comment/migration.sql` | `purchase_lots.name`, `purchase_lot_lines.line_comment` (cabecera y notas por línea como en el PUT del front). |
 | `src/common/purchase-lot-line-math.ts` | Suma de líneas, consumido, validación PATCH `totalValue` vs Σ líneas (tolerancia 1 COP). |
 | `src/common/*.spec.ts` | Vitest. |
 | `scripts/backfill-purchase-lot-lines.ts` | Stub: reemplazar por `deriveBackfillQuantityPurchased` + movimientos. |
@@ -16,9 +21,12 @@ Paquete de referencia dentro del monorepo front: **modelo Prisma**, **migración
 ## Contrato API (resumen para Nest)
 
 - **GET `/products/:id/history`**: trazabilidad del **producto a la venta**: lotes de compra relacionados (p. ej. a través de receta → líneas con `inventoryItemId` → ítems de inventario con `lot` / líneas de comprobante), conteo, historial de **precio de venta** si existe auditoría, y eventos libres. Contrato consumido por el front en `src/api.ts` (`fetchProductHistory`, tipos `ProductHistoryResponse`). Si el endpoint no existe todavía, el servidor puede responder **404** y la UI lo trata como “no implementado”.
-- **GET `/purchase-lots/:id`**: `purchaseLines[]` (comprobante), `purchaseTotals`, `inventoryWithoutPurchaseLine`, `inventoryMetrics` ampliado (`purchasedValueCOP`, `purchaseLinesAuthoritative`, etc.).
+- **GET `/purchase-lots/:id`**: debe aceptar el **PK real del lote** (p. ej. **CUID**; no usar solo `ParseUUIDPipe` sobre `:id`). Cuadro esperado por el SPA: `purchaseLines[]`, `purchaseTotals`, `inventoryWithoutPurchaseLine`, `inventoryMetrics` ampliado (`purchasedValueCOP`, `purchaseLinesAuthoritative`, etc.).
 - **PATCH `/purchase-lots/:id`**: si hay líneas y `totalValue` no cuadra con Σ `line_total_cop` → **400** (usá `assertPatchTotalValueCoherentWithLines`). Opcional: `traceModifiedAt` (ISO UTC o `null` explícito para limpiar).
-- **PATCH `/inventory/:id`**: opcional `traceModifiedAt` (ISO UTC o `null`); `categoryId` para corregir categoría del ítem.
+- **PATCH `/purchase-lots/:id/purchase-lines/:lineId`**: actualizar una línea concreta del comprobante (p. ej. `{ "quantityPurchased": number }`). Recalcular `line_total_cop` con el costo unitario de esa línea, **`purchase_lots.total_value`** = suma de líneas (misma tolerancia que arriba) y reflejar la nueva cantidad en el GET detalle (`purchaseLines[]`, vínculo con inventario).
+- **PATCH `/inventory/:id`**: opcional `traceModifiedAt` (ISO UTC o `null`); opcional **`consumedAt`** (ISO UTC o `null` para borrar la marca de consumo); `categoryId` para corregir categoría del ítem.
+- **GET `/inventory` y GET/PATCH `/inventory/:id`**: incluir **`consumedAt`** cuando exista la columna, para que el front muestre y persista la fecha de consumo.
+- **GET `/purchase-lots/:id`**: cada elemento de **`purchaseLines`** debe incluir un **`id`** estable (PK de `purchase_lot_lines`) y, si aplica, **`inventoryItemId`**; conviene también **`items[].purchaseLineId`** en el DTO del detalle para enlazar ítem ↔ línea sin heurísticas.
 - **PUT `/purchase-lots/:id/purchase-lines`**: reemplazo atómico de líneas; opcional `expectedTotalValueCOP`; al final `totalValue = sum(lines)`.
 
 ## Prompt para backend (total de compra = suma de líneas)

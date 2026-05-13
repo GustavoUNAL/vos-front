@@ -1,5 +1,5 @@
-// Esquema mínimo alineado con purchase_lot_lines + inventario y lotes.
-// Ajustá nombres de tablas si tu DB real difiere (p. ej. `inventory` vs `inventory_items`).
+// Referencia BD ↔ contrato REST: ver `backend/docs/DATABASE-API-CONTRACT.md`.
+// Ajustá `@map`/nombres de tabla si tu PostgreSQL real difiere.
 
 generator client {
   provider = "prisma-client-js"
@@ -24,6 +24,8 @@ model Category {
 model PurchaseLot {
   id               String    @id @default(cuid())
   code             String    @unique
+  /** Título en listados/cabecera; puede ser null (UI cae a `code`). Alineado con PATCH `name` del API. */
+  name             String?
   purchaseDate     DateTime  @map("purchase_date")
   supplier         String?
   notes            String?
@@ -48,6 +50,8 @@ model InventoryItem {
   lot         String? // código de lote → purchase_lots.code
   /** Marca manual de revisión / trazabilidad (independiente de `updated_at` del API). */
   traceModifiedAt DateTime? @map("trace_modified_at")
+  /** Marca manual: cuándo se consideró consumido o agotado el ítem. */
+  consumedAt DateTime? @map("consumed_at")
 
   category        Category         @relation(fields: [categoryId], references: [id])
   purchaseLotLine PurchaseLotLine?
@@ -68,6 +72,8 @@ model PurchaseLotLine {
   purchaseUnitCostCOP  Decimal  @map("purchase_unit_cost_cop") @db.Decimal(18, 2)
   lineTotalCOP         Decimal  @map("line_total_cop") @db.Decimal(18, 2)
   sortOrder            Int      @map("sort_order")
+  /** Notas por línea (PUT `/purchase-lots/:id/purchase-lines` → `lineComment`). */
+  lineComment          String?  @map("line_comment")
 
   purchaseLot   PurchaseLot    @relation("LotLines", fields: [purchaseLotCode], references: [code], onDelete: Cascade)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)

@@ -5,12 +5,12 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import {
   createProduct,
   datetimeLocalValueToIsoUtcOrNull,
   deleteProduct,
-  fetchInventoryOptions,
   fetchProduct,
   fetchProductCategories,
   fetchProductHistory,
@@ -21,7 +21,6 @@ import {
   parseProductRecipeFull,
   updateProduct,
   type CategoryRef,
-  type InventoryOption,
   type ProductHistoryResponse,
   type ProductListSort,
   type ProductRow,
@@ -36,7 +35,6 @@ import {
   FloatingGearFabDockAdd,
 } from './FloatingGearFab'
 import { ProductSummaryCard } from './ProductSummaryCard'
-import { RecipeEditor } from './RecipeEditor'
 import {
   inferProductTypeFromCategory,
   isProductTypeSlug,
@@ -74,6 +72,20 @@ type Draft = {
   imageUrl: string
   active: boolean
   traceModifiedLocal: string
+}
+
+function draftSnapshot(d: Draft): string {
+  return JSON.stringify({
+    name: d.name.trim(),
+    price: d.price.trim(),
+    categoryId: d.categoryId,
+    type: d.type.trim(),
+    description: d.description,
+    size: d.size.trim(),
+    imageUrl: d.imageUrl.trim(),
+    active: d.active,
+    trace: d.traceModifiedLocal,
+  })
 }
 
 function emptyDraft(categories: CategoryRef[]): Draft {
@@ -129,6 +141,19 @@ function rowToDraft(p: ProductRow, categories: CategoryRef[]): Draft {
   }
 }
 
+function validateProductDraft(d: Draft): string | null {
+  if (!d.name.trim()) return 'El nombre es obligatorio.'
+  const price = parseFloat(d.price.replace(',', '.'))
+  if (!Number.isFinite(price) || price < 0) return 'Precio inválido.'
+  if (!d.categoryId) return 'Elige una categoría.'
+  const typeTrim = d.type.trim()
+  if (!typeTrim) return 'Elige el tipo de producto.'
+  if (!isProductTypeSlug(typeTrim)) {
+    return `El tipo debe ser uno de: ${PRODUCT_TYPE_SLUGS.join(', ')} (p. ej. bar, comida, combos).`
+  }
+  return null
+}
+
 export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -158,9 +183,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const [selectedProductDetail, setSelectedProductDetail] =
     useState<ProductRow | null>(null)
   const [detailRecipe, setDetailRecipe] = useState<unknown>(null)
-  const [inventoryOptions, setInventoryOptions] = useState<InventoryOption[]>(
-    [],
-  )
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const prefetchedProductIds = useRef<Set<string>>(new Set())
@@ -168,10 +190,16 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     useState<ProductHistoryResponse | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
-
-  const openRecipePage = useCallback((productId: string) => {
-    window.location.hash = `#/recipes/${productId}`
-  }, [])
+  const [committedSnapshot, setCommittedSnapshot] = useState('')
+  const [productUnlockedFields, setProductUnlockedFields] = useState(
+    () => new Set<string>(),
+  )
+  const [saveBannerVisible, setSaveBannerVisible] = useState(false)
+  const [saveAnimKey, setSaveAnimKey] = useState(0)
+  const saveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Edición: primer toque valida; el segundo envía al API. */
+  const [saveConfirmPending, setSaveConfirmPending] = useState(false)
 
   useEffect(() => {
     const t = window.setTimeout(() => setSearchDebounced(search), 320)
@@ -302,27 +330,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     }
   }, [baseUrl])
 
-  useEffect(() => {
-    let cancelled = false
-    // Cargar insumos solo cuando se abre edición de un producto con receta.
-    if (!selectedId) {
-      setInventoryOptions([])
-      return () => {
-        cancelled = true
-      }
-    }
-    fetchInventoryOptions(baseUrl)
-      .then((inv) => {
-        if (!cancelled) setInventoryOptions(inv)
-      })
-      .catch(() => {
-        if (!cancelled) setInventoryOptions([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [baseUrl, selectedId])
-
   const refreshCatalogSummary = useCallback(() => {
     setSummaryLoading(true)
     fetchProductsCatalogSummary(baseUrl)
@@ -363,14 +370,20 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setSelectedId(null)
     setSelectedProductDetail(null)
     setDetailRecipe(null)
-    setDraft(emptyDraft(categories))
+    const d = emptyDraft(categories)
+    setDraft(d)
+    setCommittedSnapshot(draftSnapshot(d))
+    setProductUnlockedFields(new Set())
+    setSaveConfirmPending(false)
     setSaveError(null)
+    setSaveBannerVisible(false)
   }, [categories])
 
   const openEdit = useCallback(
     async (id: string) => {
       setCreating(false)
       setSelectedId(id)
+      setSaveConfirmPending(false)
       setSaveError(null)
       setDetailRecipe(null)
       setProductHistory(null)
@@ -378,7 +391,10 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       setHistoryLoading(true)
       try {
         const p = await fetchProduct(baseUrl, id)
-        setDraft(rowToDraft(p, categories))
+        const rd = rowToDraft(p, categories)
+        setDraft(rd)
+        setCommittedSnapshot(draftSnapshot(rd))
+        setProductUnlockedFields(new Set())
         setSelectedProductDetail(p as ProductRow)
         setDetailRecipe('recipe' in p ? p.recipe : null)
         try {
@@ -401,6 +417,14 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   )
 
   const closePanel = useCallback(() => {
+    if (saveBannerTimerRef.current) {
+      clearTimeout(saveBannerTimerRef.current)
+      saveBannerTimerRef.current = null
+    }
+    if (saveCloseTimerRef.current) {
+      clearTimeout(saveCloseTimerRef.current)
+      saveCloseTimerRef.current = null
+    }
     setSelectedId(null)
     setCreating(false)
     setDraft(null)
@@ -410,18 +434,51 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setProductHistory(null)
     setHistoryError(null)
     setHistoryLoading(false)
+    setCommittedSnapshot('')
+    setProductUnlockedFields(new Set())
+    setSaveBannerVisible(false)
+    setSaveConfirmPending(false)
   }, [])
 
-  const panelOpen = creating || selectedId !== null
+  const navigateToProductRecipe = useCallback(
+    (productId: string) => {
+      closePanel()
+      window.location.hash = `#/recipes/${productId}`
+    },
+    [closePanel],
+  )
 
-  useEffect(() => {
-    if (!panelOpen) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closePanel()
+  const navigateToRecipesIndex = useCallback(() => {
+    closePanel()
+    window.location.hash = '#/recipes'
+  }, [closePanel])
+
+  const showSavedBanner = useCallback(() => {
+    setSaveAnimKey((k) => k + 1)
+    setSaveBannerVisible(true)
+    if (saveBannerTimerRef.current) {
+      clearTimeout(saveBannerTimerRef.current)
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [closePanel, panelOpen])
+    saveBannerTimerRef.current = window.setTimeout(() => {
+      setSaveBannerVisible(false)
+      saveBannerTimerRef.current = null
+    }, 3400)
+  }, [])
+
+  const syncDraftAfterServerProduct = useCallback(
+    (p: ProductRow) => {
+      const next = rowToDraft(p, categories)
+      setDraft(next)
+      setSelectedProductDetail(p)
+      setDetailRecipe('recipe' in p ? p.recipe : null)
+      setCommittedSnapshot(draftSnapshot(next))
+      setProductUnlockedFields(new Set())
+      setSaveConfirmPending(false)
+    },
+    [categories],
+  )
+
+  const panelOpen = creating || selectedId !== null
 
   useEffect(() => {
     if (!panelOpen) return
@@ -434,31 +491,13 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
 
   const save = useCallback(async () => {
     if (!draft) return
+    const validationError = validateProductDraft(draft)
+    if (validationError) {
+      setSaveError(validationError)
+      return
+    }
     const price = parseFloat(draft.price.replace(',', '.'))
-    if (!draft.name.trim()) {
-      setSaveError('El nombre es obligatorio.')
-      return
-    }
-    if (!Number.isFinite(price) || price < 0) {
-      setSaveError('Precio inválido.')
-      return
-    }
-    if (!draft.categoryId) {
-      setSaveError('Elige una categoría.')
-      return
-    }
     const typeTrim = draft.type.trim()
-    if (!typeTrim) {
-      setSaveError('Elige el tipo de producto.')
-      return
-    }
-    if (!isProductTypeSlug(typeTrim)) {
-      setSaveError(
-        `El tipo debe ser uno de: ${PRODUCT_TYPE_SLUGS.join(', ')} (p. ej. bar, comida, combos).`,
-      )
-      return
-    }
-
     setSaving(true)
     setSaveError(null)
     try {
@@ -492,11 +531,23 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       if (savedRow) {
         setAllProducts((prev) => {
           if (creating) return [savedRow!, ...prev]
-          return prev.map((p) => (p.id === savedRow!.id ? savedRow! : p))
+          return prev.map((pr) => (pr.id === savedRow!.id ? savedRow! : pr))
         })
+        refreshCatalogSummary()
+        if (creating) {
+          showSavedBanner()
+          if (saveCloseTimerRef.current) {
+            clearTimeout(saveCloseTimerRef.current)
+          }
+          saveCloseTimerRef.current = window.setTimeout(() => {
+            closePanel()
+            saveCloseTimerRef.current = null
+          }, 1500)
+        } else {
+          syncDraftAfterServerProduct(savedRow as ProductRow)
+          showSavedBanner()
+        }
       }
-      closePanel()
-      refreshCatalogSummary()
     } catch (e) {
       setSaveError((e as Error).message)
     } finally {
@@ -504,11 +555,14 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     }
   }, [
     baseUrl,
-    creating,
+    categories,
     closePanel,
+    creating,
     draft,
     refreshCatalogSummary,
     selectedId,
+    showSavedBanner,
+    syncDraftAfterServerProduct,
   ])
 
   const remove = useCallback(async () => {
@@ -529,10 +583,117 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     }
   }, [baseUrl, closePanel, refreshCatalogSummary, selectedId])
 
-  const parsedRecipe = useMemo(
-    () => parseProductRecipeFull(detailRecipe),
-    [detailRecipe],
-  )
+  const recipeCardMeta = useMemo(() => {
+    const r = parseProductRecipeFull(detailRecipe)
+    const nIng = r?.ingredients?.length ?? 0
+    const nCost = r?.costs?.length ?? 0
+    const hasViewableRecipe = nIng > 0 || nCost > 0
+    return { nIng, nCost, hasViewableRecipe }
+  }, [detailRecipe])
+
+  const isDraftDirty = useMemo(() => {
+    if (!draft) return false
+    if (!committedSnapshot) return true
+    return draftSnapshot(draft) !== committedSnapshot
+  }, [draft, committedSnapshot])
+
+  useEffect(() => {
+    if (!panelOpen || creating) return
+    if (!isDraftDirty && saveConfirmPending) {
+      setSaveConfirmPending(false)
+    }
+  }, [panelOpen, creating, isDraftDirty, saveConfirmPending])
+
+  useEffect(() => {
+    if (!panelOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (saveConfirmPending) {
+          setSaveConfirmPending(false)
+          return
+        }
+        closePanel()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [closePanel, panelOpen, saveConfirmPending])
+
+  const handleSaveOrConfirm = useCallback(() => {
+    if (!draft || saving || categories.length === 0) return
+    if (!creating && !isDraftDirty && !saveConfirmPending) return
+
+    const validationError = validateProductDraft(draft)
+    if (validationError) {
+      setSaveError(validationError)
+      return
+    }
+    setSaveError(null)
+
+    if (creating) {
+      void save()
+      return
+    }
+    if (saveConfirmPending) {
+      setSaveConfirmPending(false)
+      void save()
+      return
+    }
+    setSaveConfirmPending(true)
+  }, [
+    draft,
+    saving,
+    categories.length,
+    creating,
+    isDraftDirty,
+    saveConfirmPending,
+    save,
+  ])
+
+  function renderProductFieldRow(args: {
+    fieldKey: string
+    label: string
+    display: ReactNode
+    canLock: boolean
+    disabled?: boolean
+    children: ReactNode
+  }): ReactNode {
+    const { fieldKey, label, display, canLock, disabled, children } = args
+    const locksOn = canLock
+    const unlocked = !locksOn || productUnlockedFields.has(fieldKey)
+    const toggle = () => {
+      setProductUnlockedFields((prev) => {
+        const next = new Set(prev)
+        if (next.has(fieldKey)) next.delete(fieldKey)
+        else next.add(fieldKey)
+        return next
+      })
+    }
+    return (
+      <div
+        className={`product-editor-field-row${unlocked ? ' product-editor-field-row--unlocked' : ''}`}
+      >
+        <div className="product-editor-field-row__main">
+          <span className="product-editor-field-row__label">{label}</span>
+          {unlocked ? (
+            <div className="product-editor-field-row__input">{children}</div>
+          ) : (
+            <div className="product-editor-field-row__value">{display}</div>
+          )}
+        </div>
+        {locksOn ? (
+          <button
+            type="button"
+            className="btn-secondary btn-compact product-editor-field-row__edit"
+            disabled={disabled}
+            onClick={toggle}
+          >
+            {unlocked ? 'Listo' : 'Editar'}
+          </button>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="products-layout">
@@ -783,36 +944,30 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
 
       {panelOpen && draft && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop modal-backdrop--product-editor"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closePanel()
           }}
         >
           <section
-            className="modal modal--fullscreen"
+            className="modal modal--product-editor"
             role="dialog"
             aria-modal="true"
-            aria-label="Editor de producto"
+            aria-labelledby="product-editor-title"
           >
-            <header className="modal-head">
+            <header className="modal-head modal-head--product-editor">
               <div className="modal-head-title">
-                <h2>{creating ? 'Nuevo producto' : 'Editar producto'}</h2>
-                {!creating && (
-                  <p className="muted small modal-subtitle">
-                    {draft.name?.trim() ? draft.name.trim() : '—'}
-                  </p>
-                )}
+                <h2 id="product-editor-title">
+                  {creating ? 'Nuevo producto' : 'Producto'}
+                </h2>
+                <p className="muted small modal-subtitle">
+                  {creating
+                    ? 'Datos de carta y ticket. La receta se arma en su sección.'
+                    : draft.name?.trim() || 'Sin nombre'}
+                </p>
               </div>
               <div className="modal-head-actions">
-                <button
-                  type="button"
-                  className="btn-primary btn-compact products-catalog-save-head"
-                  disabled={saving || categories.length === 0}
-                  onClick={() => void save()}
-                >
-                  {saving ? 'Guardando…' : creating ? 'Crear' : 'Guardar'}
-                </button>
                 <button
                   type="button"
                   className="btn-ghost icon-close"
@@ -822,354 +977,682 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
               </div>
             </header>
 
-            <div className="modal-body">
-            {draft.imageUrl ? (
-              <div className="editor-preview-img">
-                <img src={draft.imageUrl} alt="Vista previa" />
+            <div className="modal-body modal-body--product-editor">
+            {saveBannerVisible ? (
+              <div
+                key={saveAnimKey}
+                className="product-editor-save-ribbon"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="product-editor-save-ribbon__check" aria-hidden />
+                <span className="product-editor-save-ribbon__text">
+                  {creating
+                    ? 'Producto creado correctamente'
+                    : 'Cambios guardados · verificado'}
+                </span>
               </div>
             ) : null}
+              {draft.imageUrl?.trim() ? (
+                <div className="editor-preview-img product-editor-preview-thumb">
+                  <img src={draft.imageUrl.trim()} alt="" />
+                </div>
+              ) : null}
 
-            <label className="field">
-              <span>Nombre</span>
-              <input
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              />
-            </label>
+              <div className="product-editor-fields">
+                {renderProductFieldRow({
+                  fieldKey: 'name',
+                  label: 'Nombre',
+                  canLock: !creating,
+                  disabled: saving,
+                  display: (
+                    <span className="product-editor-field-value-text">
+                      {draft.name.trim() || '—'}
+                    </span>
+                  ),
+                  children: (
+                    <input
+                      className="input-cell"
+                      value={draft.name}
+                      onChange={(e) =>
+                        setDraft({ ...draft, name: e.target.value })
+                      }
+                      autoComplete="off"
+                    />
+                  ),
+                })}
+                {renderProductFieldRow({
+                  fieldKey: 'price',
+                  label: 'Precio (COP)',
+                  canLock: !creating,
+                  disabled: saving,
+                  display: (
+                    <span className="mono product-editor-field-value-text">
+                      {formatCOP(draft.price)}
+                    </span>
+                  ),
+                  children: (
+                    <input
+                      className="input-cell mono"
+                      inputMode="decimal"
+                      value={draft.price}
+                      onChange={(e) =>
+                        setDraft({ ...draft, price: e.target.value })
+                      }
+                    />
+                  ),
+                })}
+                {renderProductFieldRow({
+                  fieldKey: 'category',
+                  label: 'Categoría',
+                  canLock: !creating,
+                  disabled: saving,
+                  display: (
+                    <span className="product-editor-field-value-text">
+                      {categories.find((c) => c.id === draft.categoryId)
+                        ?.name ?? '—'}
+                    </span>
+                  ),
+                  children: (
+                    <select
+                      className="inventory-filter__input"
+                      value={draft.categoryId}
+                      onChange={(e) => {
+                        const categoryId = e.target.value
+                        const cat = categories.find((c) => c.id === categoryId)
+                        setDraft({
+                          ...draft,
+                          categoryId,
+                          type: cat
+                            ? inferProductTypeFromCategory(cat)
+                            : draft.type,
+                        })
+                      }}
+                    >
+                      {categories.length === 0 && (
+                        <option value="">— Sin categorías —</option>
+                      )}
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ),
+                })}
+                {renderProductFieldRow({
+                  fieldKey: 'active',
+                  label: 'Estado en ventas',
+                  canLock: !creating,
+                  disabled: saving,
+                  display: (
+                    <span
+                      className={
+                        draft.active
+                          ? 'badge badge-ok'
+                          : 'badge badge-muted'
+                      }
+                    >
+                      {draft.active ? 'Activo' : 'Inactivo'}
+                    </span>
+                  ),
+                  children: (
+                    <label className="product-editor-checkbox-inline">
+                      <input
+                        type="checkbox"
+                        checked={draft.active}
+                        onChange={(e) =>
+                          setDraft({ ...draft, active: e.target.checked })
+                        }
+                      />
+                      <span>Visible para ventas</span>
+                    </label>
+                  ),
+                })}
+              </div>
 
-            <label className="field">
-              <span>Precio (COP)</span>
-              <input
-                inputMode="decimal"
-                value={draft.price}
-                onChange={(e) => setDraft({ ...draft, price: e.target.value })}
-              />
-            </label>
-
-            <label className="field">
-              <span>Categoría</span>
-              <select
-                value={draft.categoryId}
-                onChange={(e) => {
-                  const categoryId = e.target.value
-                  const cat = categories.find((c) => c.id === categoryId)
-                  setDraft({
-                    ...draft,
-                    categoryId,
-                    type: cat ? inferProductTypeFromCategory(cat) : draft.type,
-                  })
-                }}
-              >
-                {categories.length === 0 && <option value="">— Sin categorías —</option>}
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Tipo</span>
-              <select
-                value={
-                  isProductTypeSlug(draft.type) ? draft.type : PRODUCT_TYPE_SLUGS[0]
-                }
-                onChange={(e) => setDraft({ ...draft, type: e.target.value })}
-              >
-                {PRODUCT_TYPE_SLUGS.map((t) => (
-                  <option key={t} value={t}>
-                    {PRODUCT_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-              <span className="muted small">
-                Slug enviado al API (alinear con la categoría: {productTypeLabel(draft.type)}).
-              </span>
-            </label>
-
-            <label className="field">
-              <span>Descripción</span>
-              <textarea
-                rows={3}
-                value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              />
-            </label>
-
-            <label className="field">
-              <span>Tamaño / presentación</span>
-              <input
-                value={draft.size}
-                onChange={(e) => setDraft({ ...draft, size: e.target.value })}
-                placeholder="Opcional"
-              />
-            </label>
-
-            <label className="field">
-              <span>URL de imagen</span>
-              <input
-                type="url"
-                value={draft.imageUrl}
-                onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })}
-                placeholder="https://…"
-              />
-            </label>
-
-            {!creating && selectedProductDetail ? (
-              <>
-                <div className="field">
-                  <span>Último cambio en sistema (solo lectura)</span>
-                  <p className="mono muted small">
-                    {formatSystemDateTime(selectedProductDetail.updatedAt)}
+              {!creating && selectedId ? (
+                <div
+                  className="product-editor-recipe-card"
+                  aria-label="Accesos a recetas"
+                >
+                  <div className="product-editor-recipe-card__head">
+                    <h3 className="product-editor-recipe-card__title">
+                      Receta
+                    </h3>
+                    {recipeCardMeta.hasViewableRecipe ? (
+                      <span className="product-editor-recipe-card__badge product-editor-recipe-card__badge--ok">
+                        Con contenido
+                      </span>
+                    ) : (
+                      <span className="product-editor-recipe-card__badge product-editor-recipe-card__badge--muted">
+                        Sin insumos ni costos
+                      </span>
+                    )}
+                  </div>
+                  <p className="muted small product-editor-recipe-card__lead">
+                    {recipeCardMeta.hasViewableRecipe
+                      ? [
+                          recipeCardMeta.nIng > 0
+                            ? `${recipeCardMeta.nIng} insumo${recipeCardMeta.nIng !== 1 ? 's' : ''}`
+                            : null,
+                          recipeCardMeta.nCost > 0
+                            ? `${recipeCardMeta.nCost} línea${recipeCardMeta.nCost !== 1 ? 's' : ''} de costo`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                      : 'Agregá insumos o líneas de costo en la receta para poder verla aquí.'}
+                  </p>
+                  <div className="product-editor-recipe-card__actions product-editor-recipe-card__actions--primary-row">
+                    <button
+                      type="button"
+                      className="product-editor-recipe-view-btn"
+                      disabled={!recipeCardMeta.hasViewableRecipe}
+                      title={
+                        recipeCardMeta.hasViewableRecipe
+                          ? 'Abrir la receta de este producto'
+                          : 'Este producto aún no tiene insumos ni costos en la receta'
+                      }
+                      onClick={() => navigateToProductRecipe(selectedId)}
+                    >
+                      Ver receta
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact product-editor-recipe-card__btn-edit"
+                      onClick={() => navigateToProductRecipe(selectedId)}
+                    >
+                      {recipeCardMeta.nIng > 0 || recipeCardMeta.nCost > 0
+                        ? 'Editar receta'
+                        : 'Definir receta'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={navigateToRecipesIndex}
+                    >
+                      Todas las recetas
+                    </button>
+                  </div>
+                  <p className="muted small product-editor-recipe-card__foot">
+                    {recipeCardMeta.hasViewableRecipe ? (
+                      <>
+                        <a
+                          href={`#/recipes/${selectedId}`}
+                          className="product-editor-hash-link"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            navigateToProductRecipe(selectedId)
+                          }}
+                        >
+                          Abrir en pantalla completa
+                        </a>
+                        <span className="product-editor-hash-sep" aria-hidden>
+                          ·
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="product-editor-recipe-card__foot-hint">
+                          Vista de receta desactivada hasta que haya contenido.
+                        </span>
+                        <span className="product-editor-hash-sep" aria-hidden>
+                          ·
+                        </span>
+                      </>
+                    )}
+                    <a
+                      href="#/recipes"
+                      className="product-editor-hash-link"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        navigateToRecipesIndex()
+                      }}
+                    >
+                      Listado de recetas
+                    </a>
                   </p>
                 </div>
-                <label className="field">
-                  <span>Revisión / trazabilidad</span>
-                  <input
-                    type="datetime-local"
-                    value={draft.traceModifiedLocal}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        traceModifiedLocal: e.target.value,
-                      })
-                    }
-                  />
-                  <p className="muted small">
-                    Se guarda al pulsar Guardar; vacío envía{' '}
-                    <span className="mono">traceModifiedAt: null</span>.
-                  </p>
-                </label>
-                <div className="field">
-                  <button
-                    type="button"
-                    className="btn-secondary btn-compact"
-                    disabled={saving}
-                    onClick={() => {
-                      void (async () => {
-                        if (!selectedId) return
-                        setSaving(true)
-                        setSaveError(null)
-                        try {
-                          await updateProduct(baseUrl, selectedId, {
-                            traceModifiedAt: null,
-                          })
-                          const p = await fetchProduct(baseUrl, selectedId)
-                          setDraft(rowToDraft(p, categories))
-                          setSelectedProductDetail(p as ProductRow)
-                          setDetailRecipe('recipe' in p ? p.recipe : null)
-                          setAllProducts((prev) =>
-                            prev.map((row) =>
-                              row.id === selectedId ? (p as ProductRow) : row,
-                            ),
-                          )
-                        } catch (e) {
-                          setSaveError((e as Error).message)
-                        } finally {
-                          setSaving(false)
-                        }
-                      })()
+              ) : (
+                <p className="muted small product-editor-recipe-hint">
+                  Cuando guardes el producto, podrás{' '}
+                  <a
+                    href="#/recipes"
+                    className="product-editor-hash-link"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigateToRecipesIndex()
                     }}
                   >
-                    Quitar marca de revisión
-                  </button>
-                </div>
-              </>
-            ) : null}
+                    ir a Recetas
+                  </a>{' '}
+                  y definir insumos.
+                </p>
+              )}
 
-            {!creating && selectedId ? (
-              <div className="product-trace-history field">
-                <h3 className="product-trace-history__title">
-                  Historial, lotes y precios
-                </h3>
-                {historyLoading ? (
-                  <p className="muted small">Cargando historial…</p>
-                ) : historyError ? (
-                  <p className="error" role="alert">
-                    {historyError}
-                  </p>
-                ) : productHistory === null ? (
-                  <p className="muted small">
-                    Este servidor aún no expone{' '}
-                    <span className="mono">GET /products/:id/history</span>. Pedí al
-                    equipo de API implementar el contrato en{' '}
-                    <span className="mono">backend/README.md</span> (apartado historial
-                    de producto).
-                  </p>
-                ) : (
-                  <>
-                    {productHistory.summary ? (
-                      <p className="muted small">{productHistory.summary}</p>
-                    ) : null}
-                    <p className="small">
-                      <strong>{productHistory.lotsCount ?? productHistory.lots.length}</strong>{' '}
-                      lote
-                      {(productHistory.lotsCount ?? productHistory.lots.length) !== 1
-                        ? 's'
-                        : ''}{' '}
-                      relacionado
-                      {(productHistory.lotsCount ?? productHistory.lots.length) !== 1
-                        ? 's'
-                        : ''}{' '}
-                      (compras vía receta / inventario).
-                    </p>
-                    {productHistory.lots.length === 0 ? (
+              <details className="product-editor-details">
+                <summary>Texto, presentación e imagen</summary>
+                <div className="product-editor-details__body">
+                  {renderProductFieldRow({
+                    fieldKey: 'type',
+                    label: 'Tipo (API)',
+                    canLock: !creating,
+                    disabled: saving,
+                    display: (
+                      <span className="product-editor-field-value-text">
+                        {PRODUCT_TYPE_LABELS[
+                          isProductTypeSlug(draft.type)
+                            ? draft.type
+                            : PRODUCT_TYPE_SLUGS[0]
+                        ]}{' '}
+                        <span className="mono muted small">({draft.type})</span>
+                      </span>
+                    ),
+                    children: (
+                      <>
+                        <select
+                          className="inventory-filter__input"
+                          value={
+                            isProductTypeSlug(draft.type)
+                              ? draft.type
+                              : PRODUCT_TYPE_SLUGS[0]
+                          }
+                          onChange={(e) =>
+                            setDraft({ ...draft, type: e.target.value })
+                          }
+                        >
+                          {PRODUCT_TYPE_SLUGS.map((t) => (
+                            <option key={t} value={t}>
+                              {PRODUCT_TYPE_LABELS[t]}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="muted small product-editor-field-hint">
+                          Suele alinearse con la categoría (
+                          {productTypeLabel(draft.type)}).
+                        </p>
+                      </>
+                    ),
+                  })}
+                  {renderProductFieldRow({
+                    fieldKey: 'description',
+                    label: 'Descripción',
+                    canLock: !creating,
+                    disabled: saving,
+                    display: (
+                      <span className="product-editor-field-value-text product-editor-field-value-text--multiline">
+                        {draft.description.trim() || '—'}
+                      </span>
+                    ),
+                    children: (
+                      <textarea
+                        className="input-cell"
+                        rows={2}
+                        value={draft.description}
+                        onChange={(e) =>
+                          setDraft({ ...draft, description: e.target.value })
+                        }
+                      />
+                    ),
+                  })}
+                  {renderProductFieldRow({
+                    fieldKey: 'size',
+                    label: 'Tamaño / presentación',
+                    canLock: !creating,
+                    disabled: saving,
+                    display: (
+                      <span className="product-editor-field-value-text">
+                        {draft.size.trim() || '—'}
+                      </span>
+                    ),
+                    children: (
+                      <input
+                        className="input-cell"
+                        value={draft.size}
+                        onChange={(e) =>
+                          setDraft({ ...draft, size: e.target.value })
+                        }
+                        placeholder="Opcional"
+                      />
+                    ),
+                  })}
+                  {renderProductFieldRow({
+                    fieldKey: 'imageUrl',
+                    label: 'URL de imagen',
+                    canLock: !creating,
+                    disabled: saving,
+                    display: (
+                      <span className="mono muted small product-editor-field-value-text product-editor-field-value-text--clip">
+                        {draft.imageUrl.trim() || '—'}
+                      </span>
+                    ),
+                    children: (
+                      <input
+                        className="input-cell"
+                        type="url"
+                        value={draft.imageUrl}
+                        onChange={(e) =>
+                          setDraft({ ...draft, imageUrl: e.target.value })
+                        }
+                        placeholder="https://…"
+                      />
+                    ),
+                  })}
+                </div>
+              </details>
+
+              {!creating && selectedProductDetail ? (
+                <details className="product-editor-details">
+                  <summary>Revisión y auditoría</summary>
+                  <div className="product-editor-details__body">
+                    <div className="product-editor-readonly-block">
+                      <span className="product-editor-field-row__label">
+                        Último cambio en sistema
+                      </span>
+                      <p className="mono muted small">
+                        {formatSystemDateTime(
+                          selectedProductDetail.updatedAt,
+                        )}
+                      </p>
+                    </div>
+                    {renderProductFieldRow({
+                      fieldKey: 'trace',
+                      label: 'Marca de revisión',
+                      canLock: true,
+                      disabled: saving,
+                      display: (
+                        <span className="product-editor-field-value-text">
+                          {draft.traceModifiedLocal
+                            ? (() => {
+                                const dt = new Date(
+                                  draft.traceModifiedLocal,
+                                )
+                                return Number.isFinite(dt.getTime())
+                                  ? dt.toLocaleString('es-CO', {
+                                      dateStyle: 'medium',
+                                      timeStyle: 'short',
+                                    })
+                                  : draft.traceModifiedLocal
+                              })()
+                            : 'Sin marca'}
+                        </span>
+                      ),
+                      children: (
+                        <>
+                          <input
+                            className="input-cell"
+                            type="datetime-local"
+                            value={draft.traceModifiedLocal}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                traceModifiedLocal: e.target.value,
+                              })
+                            }
+                          />
+                          <p className="muted small product-editor-field-hint">
+                            Vacío al guardar limpia la marca en el servidor.
+                          </p>
+                        </>
+                      ),
+                    })}
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      disabled={saving}
+                      onClick={() => {
+                        void (async () => {
+                          if (!selectedId) return
+                          setSaving(true)
+                          setSaveError(null)
+                          try {
+                            await updateProduct(baseUrl, selectedId, {
+                              traceModifiedAt: null,
+                            })
+                            const p = await fetchProduct(baseUrl, selectedId)
+                            syncDraftAfterServerProduct(p as ProductRow)
+                            setAllProducts((prev) =>
+                              prev.map((row) =>
+                                row.id === selectedId
+                                  ? (p as ProductRow)
+                                  : row,
+                              ),
+                            )
+                            showSavedBanner()
+                          } catch (e) {
+                            setSaveError((e as Error).message)
+                          } finally {
+                            setSaving(false)
+                          }
+                        })()
+                      }}
+                    >
+                      Quitar marca de revisión
+                    </button>
+                  </div>
+                </details>
+              ) : null}
+
+              {!creating && selectedId ? (
+                <details className="product-editor-details">
+                  <summary>Historial, compras y precios</summary>
+                  <div className="product-editor-details__body product-editor-history-body">
+                    {historyLoading ? (
+                      <p className="muted small">Cargando historial…</p>
+                    ) : historyError ? (
+                      <p className="error" role="alert">
+                        {historyError}
+                      </p>
+                    ) : productHistory === null ? (
                       <p className="muted small">
-                        No hay lotes enlazados: receta vacía, insumos sin compra, o datos
-                        aún no cargados en el servidor.
+                        Este servidor aún no expone{' '}
+                        <span className="mono">GET /products/:id/history</span>.
+                        Ver contrato en{' '}
+                        <span className="mono">backend/README.md</span>.
                       </p>
                     ) : (
-                      <div className="data-table-wrap data-table-elevated product-history-lots-table">
-                        <table className="data-table data-table-striped">
-                          <thead>
-                            <tr>
-                              <th>Lote</th>
-                              <th>Fecha compra</th>
-                              <th>Proveedor</th>
-                              <th className="num">Valor línea</th>
-                              <th />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {productHistory.lots.map((lot) => (
-                              <tr key={`${lot.code}-${lot.id ?? ''}`}>
-                                <td className="mono">{lot.code}</td>
-                                <td>
-                                  {lot.purchaseDate
-                                    ? formatSystemDateTime(lot.purchaseDate)
-                                    : '—'}
-                                </td>
-                                <td>{lot.supplier?.trim() || '—'}</td>
-                                <td className="num mono">
-                                  {lot.lineTotalCOP !== undefined &&
-                                  lot.lineTotalCOP !== null &&
-                                  String(lot.lineTotalCOP).trim() !== ''
-                                    ? formatCOP(lot.lineTotalCOP)
-                                    : '—'}
-                                </td>
-                                <td>
-                                  {lot.id ? (
-                                    <button
-                                      type="button"
-                                      className="btn-secondary btn-compact"
-                                      onClick={() => openPurchaseLotInApp(lot.id!)}
-                                    >
-                                      Ver compra
-                                    </button>
+                      <>
+                        {productHistory.summary ? (
+                          <p className="muted small">
+                            {productHistory.summary}
+                          </p>
+                        ) : null}
+                        <p className="small">
+                          <strong>
+                            {productHistory.lotsCount ??
+                              productHistory.lots.length}
+                          </strong>{' '}
+                          lote
+                          {(productHistory.lotsCount ??
+                            productHistory.lots.length) !== 1
+                            ? 's'
+                            : ''}{' '}
+                          relacionado
+                          {(productHistory.lotsCount ??
+                            productHistory.lots.length) !== 1
+                            ? 's'
+                            : ''}
+                          .
+                        </p>
+                        {productHistory.lots.length === 0 ? (
+                          <p className="muted small">
+                            Sin lotes enlazados (receta o compras).
+                          </p>
+                        ) : (
+                          <div className="data-table-wrap data-table-elevated product-history-lots-table product-history-lots-table--compact">
+                            <table className="data-table data-table-striped">
+                              <thead>
+                                <tr>
+                                  <th>Lote</th>
+                                  <th>Fecha</th>
+                                  <th>Proveedor</th>
+                                  <th className="num">Valor</th>
+                                  <th />
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {productHistory.lots.map((lot) => (
+                                  <tr key={`${lot.code}-${lot.id ?? ''}`}>
+                                    <td className="mono">{lot.code}</td>
+                                    <td>
+                                      {lot.purchaseDate
+                                        ? formatSystemDateTime(
+                                            lot.purchaseDate,
+                                          )
+                                        : '—'}
+                                    </td>
+                                    <td>{lot.supplier?.trim() || '—'}</td>
+                                    <td className="num mono">
+                                      {lot.lineTotalCOP !== undefined &&
+                                      lot.lineTotalCOP !== null &&
+                                      String(lot.lineTotalCOP).trim() !== ''
+                                        ? formatCOP(lot.lineTotalCOP)
+                                        : '—'}
+                                    </td>
+                                    <td>
+                                      {lot.id ? (
+                                        <button
+                                          type="button"
+                                          className="btn-secondary btn-compact"
+                                          onClick={() =>
+                                            openPurchaseLotInApp(lot.id!)
+                                          }
+                                        >
+                                          Compra
+                                        </button>
+                                      ) : null}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {productHistory.salePriceHistory &&
+                        productHistory.salePriceHistory.length > 0 ? (
+                          <div className="product-history-prices">
+                            <h4 className="muted small product-history-prices__title">
+                              Precio de venta (historial)
+                            </h4>
+                            <ul className="product-history-prices__list">
+                              {productHistory.salePriceHistory.map((pt, i) => (
+                                <li key={`${pt.effectiveAt}-${i}`}>
+                                  <span className="mono muted small">
+                                    {formatSystemDateTime(pt.effectiveAt)}
+                                  </span>{' '}
+                                  <strong className="mono">
+                                    {formatCOP(pt.price)}
+                                  </strong>
+                                  {pt.kind ? (
+                                    <span className="muted small">
+                                      {' '}
+                                      ({pt.kind})
+                                    </span>
                                   ) : null}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                                  {pt.note ? (
+                                    <span className="muted small">
+                                      {' '}
+                                      — {pt.note}
+                                    </span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {productHistory.events &&
+                        productHistory.events.length > 0 ? (
+                          <div className="product-history-events">
+                            <h4 className="muted small">Eventos</h4>
+                            <ul className="product-history-events__list">
+                              {productHistory.events.map((ev, i) => (
+                                <li key={`${ev.at}-${i}`}>
+                                  <span className="mono muted small">
+                                    {formatSystemDateTime(ev.at)}
+                                  </span>{' '}
+                                  {ev.label}
+                                  {ev.detail ? (
+                                    <span className="muted small">
+                                      {' '}
+                                      — {ev.detail}
+                                    </span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </>
                     )}
-                    {productHistory.salePriceHistory &&
-                    productHistory.salePriceHistory.length > 0 ? (
-                      <div className="product-history-prices">
-                        <h4 className="muted small product-history-prices__title">
-                          Precio de venta (historial)
-                        </h4>
-                        <ul className="product-history-prices__list">
-                          {productHistory.salePriceHistory.map((pt, i) => (
-                            <li key={`${pt.effectiveAt}-${i}`}>
-                              <span className="mono muted small">
-                                {formatSystemDateTime(pt.effectiveAt)}
-                              </span>{' '}
-                              <strong className="mono">{formatCOP(pt.price)}</strong>
-                              {pt.kind ? (
-                                <span className="muted small"> ({pt.kind})</span>
-                              ) : null}
-                              {pt.note ? (
-                                <span className="muted small"> — {pt.note}</span>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {productHistory.events && productHistory.events.length > 0 ? (
-                      <div className="product-history-events">
-                        <h4 className="muted small">Eventos</h4>
-                        <ul className="product-history-events__list">
-                          {productHistory.events.map((ev, i) => (
-                            <li key={`${ev.at}-${i}`}>
-                              <span className="mono muted small">
-                                {formatSystemDateTime(ev.at)}
-                              </span>{' '}
-                              {ev.label}
-                              {ev.detail ? (
-                                <span className="muted small"> — {ev.detail}</span>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            ) : null}
+                  </div>
+                </details>
+              ) : null}
 
-            <label className="field checkbox-field">
-              <input
-                type="checkbox"
-                checked={draft.active}
-                onChange={(e) => setDraft({ ...draft, active: e.target.checked })}
-              />
-              <span>Producto activo (visible en ventas)</span>
-            </label>
+              {saveError ? (
+                <p className="error" role="alert">
+                  {saveError}
+                </p>
+              ) : null}
+            </div>
 
-            {!creating && selectedId && (
-              <div className="recipe-embed">
-                <div className="recipe-embed-tools">
-                  <button
-                    type="button"
-                    className="btn-secondary btn-compact recipe-embed-open-recipe"
-                    onClick={() => openRecipePage(selectedId)}
-                    title="Abrir la receta en una ruta dedicada"
-                  >
-                    <span>Abrir receta</span>
-                    <span className="table-link-icon-external" aria-hidden />
-                  </button>
-                </div>
-                <RecipeEditor
-                  baseUrl={baseUrl}
-                  productId={selectedId}
-                  recipe={parsedRecipe}
-                  inventory={inventoryOptions}
-                  onRecipeUpdated={(r) => setDetailRecipe(r)}
-                />
-              </div>
-            )}
-
-            {saveError && (
-              <p className="error" role="alert">
-                {saveError}
-              </p>
-            )}
-
-            <div className="editor-actions">
-              {!creating && (
+            <div
+              className={`product-editor-save-popup${saveConfirmPending && !creating ? ' product-editor-save-popup--step2' : ''}`}
+              role="toolbar"
+              aria-label="Acciones de guardado"
+            >
+              {saveConfirmPending && !creating ? (
+                <p
+                  className="product-editor-save-popup__hint"
+                  role="status"
+                >
+                  <span className="product-editor-save-popup__hint-badge" aria-hidden>
+                    ②
+                  </span>
+                  Revisá los cambios. Un segundo toque en{' '}
+                  <strong>Confirmar y guardar</strong> los envía al servidor.
+                </p>
+              ) : null}
+              <div className="product-editor-save-popup__actions">
                 <button
                   type="button"
-                  className="btn-danger"
-                  disabled={saving}
-                  onClick={() => void remove()}
+                  className={`btn-primary product-editor-save-popup__primary${saveConfirmPending && !creating ? ' product-editor-save-popup__primary--confirm' : ''}`}
+                  disabled={
+                    saving ||
+                    categories.length === 0 ||
+                    (!creating && !isDraftDirty && !saveConfirmPending)
+                  }
+                  onClick={() => void handleSaveOrConfirm()}
                 >
-                  Archivar
+                  {saving
+                    ? 'Guardando…'
+                    : creating
+                      ? 'Crear'
+                      : saveConfirmPending
+                        ? 'Confirmar y guardar'
+                        : 'Guardar'}
                 </button>
-              )}
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={saving || categories.length === 0}
-                onClick={() => void save()}
-              >
-                {saving ? 'Guardando…' : 'Guardar'}
-              </button>
-            </div>
+                {saveConfirmPending && !creating ? (
+                  <button
+                    type="button"
+                    className="btn-ghost btn-compact product-editor-save-popup__cancel"
+                    disabled={saving}
+                    onClick={() => setSaveConfirmPending(false)}
+                  >
+                    Volver a editar
+                  </button>
+                ) : null}
+                {!creating && !saveConfirmPending ? (
+                  <button
+                    type="button"
+                    className="btn-danger btn-compact product-editor-save-popup__secondary"
+                    disabled={saving}
+                    onClick={() => void remove()}
+                  >
+                    Archivar
+                  </button>
+                ) : null}
+              </div>
             </div>
           </section>
         </div>

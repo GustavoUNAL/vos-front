@@ -2,14 +2,21 @@ const STORAGE_KEY = 'arandano_api_base'
 const TOKEN_KEY = 'arandano_access_token'
 
 export function getApiBase(): string {
+  const trim = (s: string) => s.replace(/\/$/, '')
+  /** Evita `.../api` + `/purchase-lots` cuando la ruta real del Nest no lleva prefijo `/api`. */
+  const normalize = (raw: string) => {
+    let u = trim(raw.trim())
+    if (u.endsWith('/api')) u = trim(u.slice(0, -4))
+    return u
+  }
   const fromEnv = import.meta.env.VITE_API_URL as string | undefined
   if (fromEnv?.trim()) {
-    return fromEnv.replace(/\/$/, '')
+    return normalize(fromEnv)
   }
   if (typeof window !== 'undefined') {
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (stored?.trim()) {
-      return stored.replace(/\/$/, '')
+      return normalize(stored)
     }
   }
   /**
@@ -24,7 +31,10 @@ export function getApiBase(): string {
 }
 
 export function setApiBase(url: string): void {
-  window.localStorage.setItem(STORAGE_KEY, url.replace(/\/$/, ''))
+  const trim = (s: string) => s.replace(/\/$/, '')
+  let u = trim(url)
+  if (u.endsWith('/api')) u = trim(u.slice(0, -4))
+  window.localStorage.setItem(STORAGE_KEY, u)
 }
 
 export function getAccessToken(): string | null {
@@ -804,7 +814,10 @@ export type PurchaseLotRow = {
   } | null
   /** Líneas de compra enlazadas a ítems de inventario (alternativa a items[].purchase). */
   purchaseLines?: Array<{
+    /** Id de `purchase_lot_lines` (requerido para PATCH cantidad comprada). */
+    id?: string
     inventoryItemId?: string | null
+    quantityPurchased?: string | number | null
     linePurchaseTotalCOP?: string | number | null
     purchaseUnitCostCOP?: string | number | null
     inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
@@ -834,6 +847,11 @@ export type PurchaseLotRow = {
     inventoryBehavior?: 'CONSUMABLE' | 'CAPITAL_ASSET'
     /** Cantidad consumida del total comprado (p. ej. 0 en líneas de activo). */
     quantityConsumed?: string | number | null
+    /**
+     * Id de línea de compra (`purchase_lot_lines`) si el API lo expone
+     * (alternativa a cruzar solo por `purchaseLines[].inventoryItemId`).
+     */
+    purchaseLineId?: string | null
     /** Histórico del comprobante; si es null, no hay línea de compra enlazada. */
     purchase?: {
       linePurchaseTotalCOP?: string | number | null
@@ -847,9 +865,19 @@ export type PurchaseLotRow = {
   traceModifiedAt?: string | null
 }
 
+export type PurchaseLotsListMeta = {
+  page: number
+  limit: number
+  total: number
+  hasNextPage: boolean
+  /** Si true, el servidor indica que falta migración DB de líneas de comprobante. */
+  purchaseLotLinesMigrationPending?: boolean
+  purchaseLotLinesMigrationHint?: string | null
+}
+
 export type PurchaseLotsListResponse = {
   data: PurchaseLotRow[]
-  meta: { page: number; limit: number; total: number; hasNextPage: boolean }
+  meta: PurchaseLotsListMeta
 }
 
 export type PatchPurchaseLotPayload = {
@@ -858,6 +886,8 @@ export type PatchPurchaseLotPayload = {
   purchaseDate?: string
   supplier?: string
   notes?: string
+  /** Mismo efecto que notas en el backend; si se envían ambos, suele predominar `comment`. */
+  comment?: string
   totalValue?: number
   /** Si el backend lo expone en PATCH: lote agotado vs aún con saldo. */
   isDepleted?: boolean
@@ -920,6 +950,10 @@ export type InventoryRow = {
   updatedAt?: string | null
   /** Revisión / trazabilidad (manual). Distinto de `updatedAt`. */
   traceModifiedAt?: string | null
+  /**
+   * Marca manual: cuándo se consideró consumido/agotado el ítem (ISO 8601).
+   */
+  consumedAt?: string | null
 }
 
 export type InventoryListResponse = {
@@ -941,6 +975,73 @@ export type CreateInventoryPayload = {
 export type UpdateInventoryPayload = Partial<CreateInventoryPayload> & {
   /** ISO UTC; `null` explícito borra la marca en PATCH. */
   traceModifiedAt?: string | null
+  /** ISO UTC; `null` explícito borra la marca de consumo en PATCH. */
+  consumedAt?: string | null
+}
+
+export type PatchPurchaseLotPurchaseLinePayload = {
+  /** Nueva cantidad declarada en comprobante (unidades de la línea). */
+  quantityPurchased: number
+}
+
+/** Línea del body `PUT /purchase-lots/:id/purchase-lines` (reemplazo del comprobante). */
+export type PutPurchaseLotLineItem = {
+  inventoryItemId: string | null
+  lineName: string
+  categoryId: string | null
+  quantityPurchased: number
+  unit: string
+  purchaseUnitCostCOP: number
+  lineTotalCOP?: number
+  sortOrder: number
+  lineComment?: string | null
+}
+
+export type PutPurchaseLotLinesPayload = {
+  lines: PutPurchaseLotLineItem[]
+  expectedTotalValueCOP?: number
+}
+
+/**
+ * Reemplaza todas las líneas de comprobante del lote (`PUT`, no `PATCH` sobre la colección).
+ * Después conviene `GET /purchase-lots/:id`: con `inventoryItemId`, el servidor puede
+ * recalcular `quantityPurchased`.
+ */
+export async function putPurchaseLotLines(
+  base: string,
+  purchaseLotId: string,
+  payload: PutPurchaseLotLinesPayload,
+): Promise<void> {
+  const res = await apiFetch(
+    `${base}/purchase-lots/${encodeURIComponent(purchaseLotId)}/purchase-lines`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  )
+  if (!res.ok) throw new Error(await parseJsonError(res))
+}
+
+/**
+ * Ajusta una línea vía sub-recurso `PATCH .../purchase-lines/:lineId` (si el backend lo expone).
+ * Si solo existe reemplazo completo, usá {@link putPurchaseLotLines}.
+ */
+export async function patchPurchaseLotPurchaseLine(
+  base: string,
+  purchaseLotId: string,
+  purchaseLineId: string,
+  payload: PatchPurchaseLotPurchaseLinePayload,
+): Promise<void> {
+  const res = await apiFetch(
+    `${base}/purchase-lots/${encodeURIComponent(purchaseLotId)}/purchase-lines/${encodeURIComponent(purchaseLineId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  )
+  if (!res.ok) throw new Error(await parseJsonError(res))
 }
 
 export async function fetchInventoryItems(
@@ -1575,6 +1676,13 @@ export function isoInstantToDatetimeLocalValue(
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/** Valor actual para `<input type="datetime-local">` (hora local del navegador). */
+export function nowDatetimeLocalValue(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 /**
  * Valor de `<input type="datetime-local">` (interpretado como hora local) → ISO UTC (`…Z`) para JSON PATCH.
  * Cadena vacía → `null` (limpiar marca de revisión).
@@ -1687,9 +1795,35 @@ export async function fetchPurchaseLot(
   base: string,
   id: string,
 ): Promise<PurchaseLotRow> {
-  const res = await apiFetch(`${base}/purchase-lots/${id}`)
-  if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<PurchaseLotRow>
+  const trimmed = id.trim()
+  if (!trimmed) throw new Error('Falta el identificador del lote.')
+
+  const directUrl = `${base}/purchase-lots/${encodeURIComponent(trimmed)}`
+  const res = await apiFetch(directUrl)
+  if (res.ok) return res.json() as Promise<PurchaseLotRow>
+
+  const errMsg = await parseJsonError(res)
+
+  /**
+   * Algunos despliegues validan el segmento como UUID y devuelven 400 para ids tipo CUID.
+   * Respaldo: buscar en el listado por id o código (mismo texto que en la URL).
+   */
+  if (res.status === 400 || res.status === 404) {
+    try {
+      const listRes = await fetchPurchaseLots(base, {
+        search: trimmed,
+        limit: 100,
+      })
+      const hit =
+        listRes.data.find((r) => r.id === trimmed) ??
+        listRes.data.find((r) => (r.code ?? '').trim() === trimmed)
+      if (hit) return hit
+    } catch {
+      /* usar errMsg */
+    }
+  }
+
+  throw new Error(errMsg)
 }
 
 export async function patchPurchaseLot(
@@ -1697,7 +1831,7 @@ export async function patchPurchaseLot(
   id: string,
   payload: PatchPurchaseLotPayload,
 ): Promise<PurchaseLotRow> {
-  const res = await apiFetch(`${base}/purchase-lots/${id}`, {
+  const res = await apiFetch(`${base}/purchase-lots/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
