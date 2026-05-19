@@ -1,5 +1,16 @@
+import { isBackendDown } from './backendHealth'
+
 const STORAGE_KEY = 'arandano_api_base'
 const TOKEN_KEY = 'arandano_access_token'
+
+export class ApiUnreachableError extends Error {
+  constructor() {
+    super(
+      'No se pudo conectar con el API. Levantá arandano-api en el puerto 3000 (npm run start:dev).',
+    )
+    this.name = 'ApiUnreachableError'
+  }
+}
 
 export function getApiBase(): string {
   const trim = (s: string) => s.replace(/\/$/, '')
@@ -311,6 +322,15 @@ async function apiFetch(
   url: string,
   init?: RequestInit & { auth?: boolean },
 ): Promise<Response> {
+  if (isBackendDown()) {
+    return new Response(
+      JSON.stringify({
+        message: 'API no disponible',
+        hint: 'Iniciá el backend: cd arandano-api && npm run start:dev',
+      }),
+      { status: 503, statusText: 'Service Unavailable' },
+    )
+  }
   const auth = init?.auth !== false
   const token = auth ? getAccessToken() : null
   const headers = new Headers(init?.headers ?? undefined)

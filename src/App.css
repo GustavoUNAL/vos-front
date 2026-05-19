@@ -56,6 +56,24 @@
   padding: 0.65rem 1.25rem 0;
 }
 
+.app-banner--api-down {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding-bottom: 0.65rem;
+}
+
+.app-api-boot {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  color: var(--muted);
+  font-family: var(--sans);
+}
+
 .theme-switch {
   display: inline-flex;
   align-items: center;

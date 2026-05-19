@@ -5,6 +5,7 @@ export type HubTargetView =
   | 'recipes'
   | 'inventory'
   | 'sales'
+  | 'pos'
   | 'purchases'
   | 'costs'
   | 'gastos'
@@ -66,6 +67,7 @@ function HubCardIcon({ view }: { view: HubTargetView }) {
         </svg>
       )
     case 'sales':
+    case 'pos':
       return (
         <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
           <path
@@ -204,6 +206,11 @@ export function NavigationHub({
           view: 'sales',
           label: 'Ventas',
           hint: 'Tickets y cobros',
+        },
+        {
+          view: 'pos',
+          label: 'POS · Mesas',
+          hint: 'Salón, pedidos y cobro en vivo',
         },
       ],
     },

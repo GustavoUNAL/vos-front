@@ -15,6 +15,7 @@ import { PurchaseLotsView } from './components/PurchaseLotsView'
 import { RecipesView } from './components/RecipesView'
 import { SalesManager } from './components/SalesManager'
 import { TableExplorer } from './components/TableExplorer'
+import { PosApp } from './pos/PosApp'
 import { useNavigation } from './NavigationContext'
 import { NavigationHub, type HubTargetView } from './components/NavigationHub'
 import type { NavGroupId } from './navTypes'
@@ -26,6 +27,7 @@ type View =
   | 'recipes'
   | 'inventory'
   | 'sales'
+  | 'pos'
   | 'purchases'
   | 'costs'
   | 'gastos'
@@ -37,6 +39,7 @@ const VIEW_HASH: Record<View, string> = {
   recipes: '#/recipes',
   inventory: '#/inventory',
   sales: '#/sales',
+  pos: '#/pos',
   purchases: '#/purchases',
   costs: '#/costs',
   gastos: '#/gastos',
@@ -49,6 +52,7 @@ const MOBILE_NAV_TITLE: Record<View, string> = {
   recipes: 'Recetas',
   inventory: 'Productos',
   sales: 'Ventas',
+  pos: 'POS Mesas',
   purchases: 'Compras',
   costs: 'Costos',
   gastos: 'Gastos',
@@ -60,6 +64,7 @@ const VIEW_TO_GROUP: Record<Exclude<View, 'menu'>, NavGroupId> = {
   recipes: 'catalog',
   inventory: 'stock',
   sales: 'sales',
+  pos: 'sales',
   purchases: 'purchases',
   costs: 'finance',
   gastos: 'finance',
@@ -221,6 +226,7 @@ function getViewFromHash(): View | null {
   if (first === 'recipes') return 'recipes'
   if (first === 'inventory') return 'inventory'
   if (first === 'sales') return 'sales'
+  if (first === 'pos') return 'pos'
   if (first === 'purchases') return 'purchases'
   if (first === 'costs') return 'costs'
   if (first === 'gastos') return 'gastos'
@@ -230,7 +236,12 @@ function getViewFromHash(): View | null {
 }
 
 export default function App() {
-  const { inventorySubtitle, purchasesSubtitle } = useNavigation()
+  const {
+    inventorySubtitle,
+    purchasesSubtitle,
+    backendDown,
+    retryApiProbe,
+  } = useNavigation()
   const [baseUrl] = useState(() => getApiBase())
   const [view, setView] = useState<View>(() => {
     try {
@@ -394,6 +405,17 @@ export default function App() {
           <span className="banner-warn">Auth: {authError}</span>
         </div>
       )}
+      {backendDown && (
+        <div className="app-banner app-banner--api-down" role="alert">
+          <span className="banner-warn">
+            API apagado (puerto 3000). El POS usa modo local; ventas, productos e inventario
+            necesitan arandano-api.
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={retryApiProbe}>
+            Reintentar conexión
+          </button>
+        </div>
+      )}
 
       <div className="app-body">
         <main className="app-main" id="main-content" tabIndex={-1}>
@@ -446,6 +468,7 @@ export default function App() {
           {view === 'recipes' && <RecipesView baseUrl={baseUrl} />}
           {view === 'inventory' && <InventoryManager baseUrl={baseUrl} />}
           {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
+          {view === 'pos' && <PosApp />}
           {view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
           {view === 'costs' && <CostsView baseUrl={baseUrl} />}
           {view === 'gastos' && <GastosView baseUrl={baseUrl} />}
@@ -700,6 +723,15 @@ export default function App() {
                     onClick={() => setView('sales')}
                   >
                     Ventas
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'pos' ? 'active' : ''}
+                    onClick={() => setView('pos')}
+                  >
+                    POS · Mesas
                   </button>
                 </li>
               </ul>
