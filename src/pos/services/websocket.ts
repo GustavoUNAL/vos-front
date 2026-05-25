@@ -1,4 +1,4 @@
-import { getApiBase } from '../../api'
+import { getAccessToken, getApiBase } from '../../api'
 import { POS_WS_PATH } from '../constants'
 import { isPosDemoMode } from './posApi'
 import type { PosWsEvent } from '../types'
@@ -7,18 +7,24 @@ export type PosWsStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error' | 
 
 function wsUrlFromApiBase(base: string): string {
   const trimmed = base.replace(/\/$/, '')
+  const withToken = (raw: string): string => {
+    const token = getAccessToken()
+    if (!token) return raw
+    const sep = raw.includes('?') ? '&' : '?'
+    return `${raw}${sep}token=${encodeURIComponent(token)}`
+  }
   if (trimmed.startsWith('https://')) {
-    return trimmed.replace(/^https:/, 'wss:') + POS_WS_PATH
+    return withToken(trimmed.replace(/^https:/, 'wss:') + POS_WS_PATH)
   }
   if (trimmed.startsWith('http://')) {
-    return trimmed.replace(/^http:/, 'ws:') + POS_WS_PATH
+    return withToken(trimmed.replace(/^http:/, 'ws:') + POS_WS_PATH)
   }
   if (trimmed.includes('/dev-api')) {
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'
-    return `${origin.replace(/^http/, 'ws')}/dev-api${POS_WS_PATH}`
+    return withToken(`${origin.replace(/^http/, 'ws')}/dev-api${POS_WS_PATH}`)
   }
-  return `ws://localhost:3000${POS_WS_PATH}`
+  return withToken(`ws://localhost:3000${POS_WS_PATH}`)
 }
 
 export class PosWebSocketClient {

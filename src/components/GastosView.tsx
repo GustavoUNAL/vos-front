@@ -288,32 +288,23 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
 
         <MobileAwareFilterBar
           hasActiveFilters={gastosFiltersActive}
-          composeMobileToolbar={
-            isMobileFilters
-              ? ({ filterToggle }) => (
-                  <FloatingGearFab
-                    navAriaLabel="Gastos"
-                    menuToggleTitleClosed="Configuración del listado"
-                    menuToggleTitleOpen="Cerrar menú"
-                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y actualizar"
-                    ariaLabelMenuOpen="Cerrar menú de gastos"
-                    filterToggle={filterToggle}
-                  >
-                    <FloatingGearFabDockRefresh
-                      title="Actualizar"
-                      ariaLabel="Actualizar gastos"
-                      onClick={() => void load()}
-                      disabled={loading}
-                    />
-                    <SectionSummaryDeck
-                      section="gastos"
-                      items={summaryItems}
-                      loading={loading}
-                      suspendDetailWhileLoading
-                    />
-                  </FloatingGearFab>
-                )
-              : undefined
+          trailing={
+            isMobileFilters ? (
+              <div className="mobile-list-toolbar__actions">
+                <SectionSummaryDeck
+                  section="gastos"
+                  items={summaryItems}
+                  loading={loading}
+                  suspendDetailWhileLoading
+                />
+                <FloatingGearFabDockRefresh
+                  title="Actualizar"
+                  ariaLabel="Actualizar gastos"
+                  onClick={() => void load()}
+                  disabled={loading}
+                />
+              </div>
+            ) : undefined
           }
         >
           <div className="inventory-filter-bar app-toolbar-zone">

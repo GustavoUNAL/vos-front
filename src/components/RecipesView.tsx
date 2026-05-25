@@ -332,26 +332,17 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
 
         <MobileAwareFilterBar
           hasActiveFilters={recipeFiltersActive}
-          composeMobileToolbar={
-            isMobileFilters
-              ? ({ filterToggle }) => (
-                  <FloatingGearFab
-                    navAriaLabel="Recetas"
-                    menuToggleTitleClosed="Configuración del listado"
-                    menuToggleTitleOpen="Cerrar menú"
-                    ariaLabelMenuClosed="Abrir menú: buscar y limpiar recetas"
-                    ariaLabelMenuOpen="Cerrar menú de recetas"
-                    filterToggle={filterToggle}
-                  >
-                    <SectionSummaryDeck
-                      section="recipes"
-                      items={recipeSummaryItems}
-                      loading={loadingList}
-                      suspendDetailWhileLoading
-                    />
-                  </FloatingGearFab>
-                )
-              : undefined
+          trailing={
+            isMobileFilters ? (
+              <div className="mobile-list-toolbar__actions">
+                <SectionSummaryDeck
+                  section="recipes"
+                  items={recipeSummaryItems}
+                  loading={loadingList}
+                  suspendDetailWhileLoading
+                />
+              </div>
+            ) : undefined
           }
         >
         <div className="inventory-filter-bar">

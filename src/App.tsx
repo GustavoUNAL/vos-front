@@ -7,17 +7,29 @@ import {
   setAccessToken,
   type AuthUser,
 } from './api'
-import { InventoryManager } from './components/InventoryManager'
 import { ProductsManager } from './components/ProductsManager'
+import { SalesManager } from './components/SalesManager'
+import { InventoryManager } from './components/InventoryManager'
 import { CostsView } from './components/CostsView'
 import { GastosView } from './components/GastosView'
 import { PurchaseLotsView } from './components/PurchaseLotsView'
 import { RecipesView } from './components/RecipesView'
-import { SalesManager } from './components/SalesManager'
 import { TableExplorer } from './components/TableExplorer'
 import { PosApp } from './pos/PosApp'
+import {
+  SALES_FLOOR_ONLY,
+  SALES_FLOOR_DEFAULT_VIEW,
+  SALES_FLOOR_NAV_GROUPS,
+  resolveSalesFloorView,
+} from './appScope'
 import { useNavigation } from './NavigationContext'
 import { NavigationHub, type HubTargetView } from './components/NavigationHub'
+import { LoginView } from './components/LoginView'
+import {
+  APP_BRAND_TITLE,
+  MobileAppChrome,
+  type MobileChromeView,
+} from './components/MobileAppChrome'
 import type { NavGroupId } from './navTypes'
 import './App.css'
 
@@ -46,17 +58,33 @@ const VIEW_HASH: Record<View, string> = {
   explorer: '#/explorer',
 }
 
-const MOBILE_NAV_TITLE: Record<View, string> = {
-  menu: 'Inicio',
-  products: 'Productos a la venta',
-  recipes: 'Recetas',
-  inventory: 'Productos',
-  sales: 'Ventas',
-  pos: 'POS Mesas',
-  purchases: 'Compras',
-  costs: 'Costos',
-  gastos: 'Gastos',
-  explorer: 'DB',
+function ThemeSwitch({
+  theme,
+  onToggle,
+}: {
+  theme: 'dark' | 'light'
+  onToggle: () => void
+}) {
+  return (
+    <div className="theme-switch" title="Cambiar tema">
+      <span className="muted small" id="theme-switch-label">
+        Tema
+      </span>
+      <button
+        type="button"
+        role="switch"
+        className={`theme-switch__track${theme === 'light' ? ' theme-switch__track--on' : ''}`}
+        aria-checked={theme === 'light'}
+        aria-labelledby="theme-switch-label"
+        onClick={onToggle}
+      >
+        <span className="theme-switch__thumb" aria-hidden />
+      </button>
+      <span className="theme-switch__value muted small">
+        {theme === 'light' ? 'Claro' : 'Oscuro'}
+      </span>
+    </div>
+  )
 }
 
 const VIEW_TO_GROUP: Record<Exclude<View, 'menu'>, NavGroupId> = {
@@ -182,14 +210,9 @@ function SidebarCollapsedRail({
   view: View
   onPick: (g: NavGroupId) => void
 }) {
-  const groups: NavGroupId[] = [
-    'catalog',
-    'stock',
-    'purchases',
-    'sales',
-    'finance',
-    'data',
-  ]
+  const groups: NavGroupId[] = SALES_FLOOR_ONLY
+    ? [...SALES_FLOOR_NAV_GROUPS]
+    : ['catalog', 'stock', 'purchases', 'sales', 'finance', 'data']
   return (
     <nav
       id="app-sidebar-collapsed-rail"
@@ -245,9 +268,13 @@ export default function App() {
   const [baseUrl] = useState(() => getApiBase())
   const [view, setView] = useState<View>(() => {
     try {
-      return getViewFromHash() ?? 'menu'
+      const h = getViewFromHash()
+      if (SALES_FLOOR_ONLY) {
+        return resolveSalesFloorView(h) as View
+      }
+      return h ?? 'menu'
     } catch {
-      return 'menu'
+      return SALES_FLOOR_ONLY ? SALES_FLOOR_DEFAULT_VIEW : 'menu'
     }
   })
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -261,6 +288,9 @@ export default function App() {
 
   const [user, setUser] = useState<AuthUser | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [authInitializing, setAuthInitializing] = useState<boolean>(() =>
+    Boolean(getAccessToken()),
+  )
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -274,36 +304,22 @@ export default function App() {
   })
 
   const isMobileNav = useMatchMedia('(max-width: 720px)')
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
   useEffect(() => {
-    if (!isMobileNav) setMobileNavOpen(false)
+    if (!isMobileNav) setMobileSheetOpen(false)
   }, [isMobileNav])
 
-
-
   useEffect(() => {
-    setMobileNavOpen(false)
+    setMobileSheetOpen(false)
   }, [view])
 
-  useEffect(() => {
-    const root = document.documentElement
-    if (!isMobileNav || !mobileNavOpen) {
-      root.classList.remove('app--mobile-nav-open')
-      return
+  const handleMobileNavigate = (v: MobileChromeView) => {
+    setView(v)
+    if (v === 'recipes') {
+      window.history.replaceState({}, '', '#/recipes')
     }
-    root.classList.add('app--mobile-nav-open')
-    return () => root.classList.remove('app--mobile-nav-open')
-  }, [isMobileNav, mobileNavOpen])
-
-  useEffect(() => {
-    if (!isMobileNav || !mobileNavOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileNavOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [isMobileNav, mobileNavOpen])
+  }
 
 
 
@@ -353,8 +369,12 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
-    if (!getAccessToken()) return
+    if (!getAccessToken()) {
+      setAuthInitializing(false)
+      return
+    }
     let cancelled = false
+    setAuthInitializing(true)
     fetchMe(baseUrl)
       .then((u) => {
         if (!cancelled) {
@@ -368,15 +388,31 @@ export default function App() {
           setAuthError(e.message)
         }
       })
+      .finally(() => {
+        if (!cancelled) setAuthInitializing(false)
+      })
     return () => {
       cancelled = true
     }
   }, [baseUrl])
 
+  useEffect(() => {
+    const onLogout = () => {
+      setUser(null)
+      setAuthError('Sesión expirada. Iniciá sesión nuevamente.')
+    }
+    window.addEventListener('auth:logout', onLogout)
+    return () => window.removeEventListener('auth:logout', onLogout)
+  }, [])
+
   // Sync view from URL hash.
   useEffect(() => {
     const onHash = () => {
       const v = getViewFromHash()
+      if (SALES_FLOOR_ONLY) {
+        setView(resolveSalesFloorView(v) as View)
+        return
+      }
       if (v) setView(v)
     }
     window.addEventListener('hashchange', onHash)
@@ -393,9 +429,26 @@ export default function App() {
     window.history.replaceState({}, '', desired)
   }, [view])
 
+  if (authInitializing) {
+    return <div className="login-shell" aria-busy="true" />
+  }
+
+  if (!user) {
+    return (
+      <LoginView
+        baseUrl={baseUrl}
+        initialMessage={authError}
+        onLogin={(u) => {
+          setUser(u)
+          setAuthError(null)
+        }}
+      />
+    )
+  }
+
   return (
     <div
-      className={`app-shell${isMobileNav ? ' app-shell--mobile-nav-drawer' : ''}${mobileNavOpen && isMobileNav ? ' app-shell--mobile-nav-open' : ''}`}
+      className={`app-shell${isMobileNav ? ' app-shell--mobile-dock' : ''}`}
     >
       <a href="#main-content" className="skip-to-main">
         Saltar al contenido
@@ -408,8 +461,7 @@ export default function App() {
       {backendDown && (
         <div className="app-banner app-banner--api-down" role="alert">
           <span className="banner-warn">
-            API apagado (puerto 3000). El POS usa modo local; ventas, productos e inventario
-            necesitan arandano-api.
+            API apagado (puerto 3000). Ventas y productos a la venta necesitan arandano-api.
           </span>
           <button type="button" className="btn btn-secondary btn-sm" onClick={retryApiProbe}>
             Reintentar conexión
@@ -419,34 +471,25 @@ export default function App() {
 
       <div className="app-body">
         <main className="app-main" id="main-content" tabIndex={-1}>
-          {isMobileNav && (
-            <header className="app-mobile-nav-bar">
-              <div className="app-mobile-nav-bar__lead">
-                <img
-                  className="app-mobile-nav-bar__logo"
-                  src="/logo.png"
-                  width={38}
-                  height={38}
-                  alt=""
-                  decoding="async"
-                />
-                <p className="app-mobile-nav-bar__title">{MOBILE_NAV_TITLE[view]}</p>
-              </div>
-              <button
-                type="button"
-                className="btn-nav-hamburger"
-                aria-expanded={mobileNavOpen}
-                aria-controls="app-sidebar"
-                onClick={() => setMobileNavOpen((o) => !o)}
-              >
-                <span className="icon-nav-hamburger" aria-hidden />
-                <span className="sr-only">
-                  {mobileNavOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
-                </span>
-              </button>
-            </header>
-          )}
-          {view === 'menu' && (
+          {isMobileNav ? (
+            <MobileAppChrome
+              view={view}
+              onNavigate={handleMobileNavigate}
+              theme={theme}
+              onToggleTheme={() =>
+                setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+              }
+              user={user}
+              onLogout={() => {
+                setAccessToken(null)
+                setUser(null)
+                setAuthError(null)
+              }}
+              sheetOpen={mobileSheetOpen}
+              onSheetOpenChange={setMobileSheetOpen}
+            />
+          ) : null}
+          {view === 'menu' && !SALES_FLOOR_ONLY && (
             <NavigationHub
               inventoryHint={
                 inventorySubtitle ??
@@ -465,44 +508,46 @@ export default function App() {
             />
           )}
           {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
-          {view === 'recipes' && <RecipesView baseUrl={baseUrl} />}
-          {view === 'inventory' && <InventoryManager baseUrl={baseUrl} />}
+          {!SALES_FLOOR_ONLY && view === 'recipes' && (
+            <RecipesView baseUrl={baseUrl} />
+          )}
+          {!SALES_FLOOR_ONLY && view === 'inventory' && (
+            <InventoryManager baseUrl={baseUrl} />
+          )}
           {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
-          {view === 'pos' && <PosApp />}
-          {view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
-          {view === 'costs' && <CostsView baseUrl={baseUrl} />}
-          {view === 'gastos' && <GastosView baseUrl={baseUrl} />}
-          {view === 'explorer' && <TableExplorer baseUrl={baseUrl} />}
+          {!SALES_FLOOR_ONLY && view === 'pos' && <PosApp />}
+          {!SALES_FLOOR_ONLY && view === 'purchases' && (
+            <PurchaseLotsView baseUrl={baseUrl} />
+          )}
+          {!SALES_FLOOR_ONLY && view === 'costs' && (
+            <CostsView baseUrl={baseUrl} />
+          )}
+          {!SALES_FLOOR_ONLY && view === 'gastos' && (
+            <GastosView baseUrl={baseUrl} />
+          )}
+          {!SALES_FLOOR_ONLY && view === 'explorer' && (
+            <TableExplorer baseUrl={baseUrl} />
+          )}
         </main>
 
-        {isMobileNav && mobileNavOpen && (
-          <button
-            type="button"
-            className="app-sidebar-backdrop"
-            aria-label="Cerrar menú"
-            onClick={() => setMobileNavOpen(false)}
-          />
-        )}
-
+        {!isMobileNav ? (
         <aside
           id="app-sidebar"
           className={`app-sidebar${sidebarCollapsed ? ' app-sidebar--collapsed' : ''}`}
           aria-label="Navegación principal"
-          onClick={(e) => {
-            if (!isMobileNav || !mobileNavOpen) return
-            const el = e.target as HTMLElement
-            if (el.closest('.theme-switch')) return
-            if (el.closest('button, a[href]')) setMobileNavOpen(false)
-          }}
         >
           <div className="app-sidebar__brand">
             <div className="app-sidebar__brand-start">
               <button
                 type="button"
                 className="app-sidebar__logo-btn"
-                onClick={() => setView('menu')}
-                title="Inicio"
-                aria-label="Ir al inicio"
+                onClick={() =>
+                  setView(SALES_FLOOR_ONLY ? SALES_FLOOR_DEFAULT_VIEW : 'menu')
+                }
+                title={SALES_FLOOR_ONLY ? 'Productos a la venta' : 'Inicio'}
+                aria-label={
+                  SALES_FLOOR_ONLY ? 'Ir a productos a la venta' : 'Ir al inicio'
+                }
               >
                 <img
                   className="app-logo"
@@ -514,48 +559,30 @@ export default function App() {
                 />
               </button>
               <div className="app-sidebar__brand-text">
-                <span className="app-sidebar__brand-name">Arándano Café</span>
-                <span className="app-sidebar__brand-sub muted">
-                  Operación del local
-                </span>
+                <span className="app-sidebar__brand-name">{APP_BRAND_TITLE}</span>
               </div>
             </div>
-            {isMobileNav && mobileNavOpen ? (
-              <button
-                type="button"
-                className="app-sidebar__drawer-close"
-                aria-label="Cerrar menú"
-                onClick={() => setMobileNavOpen(false)}
-              >
-                <span className="app-sidebar__drawer-close-icon" aria-hidden>
-                  ×
-                </span>
-              </button>
-            ) : (
-              !isMobileNav && (
-                <button
-                  type="button"
-                  className="app-sidebar__pin"
-                  aria-expanded={!sidebarCollapsed}
-                  aria-controls="app-sidebar-nav app-sidebar-collapsed-rail"
-                  aria-label={
-                    sidebarCollapsed
-                      ? 'Expandir barra lateral'
-                      : 'Contraer barra lateral'
-                  }
-                  title={
-                    sidebarCollapsed
-                      ? 'Expandir barra lateral'
-                      : 'Contraer barra lateral'
-                  }
-                  onClick={() => setSidebarCollapsed((v) => !v)}
-                >
-                  <span className="app-sidebar__pin-char" aria-hidden>
-                    {sidebarCollapsed ? '‹' : '›'}
-                  </span>
-                </button>
-              )
-            )}
+            <button
+              type="button"
+              className="app-sidebar__pin"
+              aria-expanded={!sidebarCollapsed}
+              aria-controls="app-sidebar-nav app-sidebar-collapsed-rail"
+              aria-label={
+                sidebarCollapsed
+                  ? 'Expandir barra lateral'
+                  : 'Contraer barra lateral'
+              }
+              title={
+                sidebarCollapsed
+                  ? 'Expandir barra lateral'
+                  : 'Contraer barra lateral'
+              }
+              onClick={() => setSidebarCollapsed((v) => !v)}
+            >
+              <span className="app-sidebar__pin-char" aria-hidden>
+                {sidebarCollapsed ? '‹' : '›'}
+              </span>
+            </button>
           </div>
           <div className="app-sidebar__meta">
             {user && (
@@ -576,52 +603,37 @@ export default function App() {
                 </button>
               </div>
             )}
-            <div className="theme-switch" title="Cambiar tema">
-              <span className="muted small" id="theme-switch-label">
-                Tema
-              </span>
-              <button
-                type="button"
-                role="switch"
-                className={`theme-switch__track${theme === 'light' ? ' theme-switch__track--on' : ''}`}
-                aria-checked={theme === 'light'}
-                aria-labelledby="theme-switch-label"
-                onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              >
-                <span className="theme-switch__thumb" aria-hidden />
-              </button>
-              <span className="theme-switch__value muted small">
-                {theme === 'light' ? 'Claro' : 'Oscuro'}
-              </span>
-            </div>
+            <ThemeSwitch
+              theme={theme}
+              onToggle={() =>
+                setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+              }
+            />
           </div>
-          {sidebarCollapsed && !isMobileNav && (
+          {sidebarCollapsed ? (
             <SidebarCollapsedRail view={view} onPick={goCollapsedGroup} />
-          )}
+          ) : null}
           <nav
             id="app-sidebar-nav"
             className="app-nav"
             aria-label="Secciones"
-            hidden={sidebarCollapsed && !isMobileNav}
+            hidden={sidebarCollapsed}
           >
-            {isMobileNav && (
-              <p className="app-nav-mobile-intro muted small">
-                Toca una opción para ir a esa pantalla.
-              </p>
+            {!SALES_FLOOR_ONLY && (
+              <div className="app-nav-home">
+                <ul className="app-nav-list">
+                  <li>
+                    <button
+                      type="button"
+                      className={view === 'menu' ? 'active' : ''}
+                      onClick={() => setView('menu')}
+                    >
+                      Inicio
+                    </button>
+                  </li>
+                </ul>
+              </div>
             )}
-            <div className="app-nav-home">
-              <ul className="app-nav-list">
-                <li>
-                  <button
-                    type="button"
-                    className={view === 'menu' ? 'active' : ''}
-                    onClick={() => setView('menu')}
-                  >
-                    Inicio
-                  </button>
-                </li>
-              </ul>
-            </div>
             <div className="app-nav-group app-nav-group--catalog">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -630,7 +642,9 @@ export default function App() {
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Productos a la venta</span>
                   <span className="app-nav-group__hint">
-                    Carta, recetas y fichas
+                    {SALES_FLOOR_ONLY
+                      ? 'Carta, precios y visibilidad'
+                      : 'Carta, recetas y fichas'}
                   </span>
                 </span>
               </div>
@@ -647,21 +661,24 @@ export default function App() {
                     Productos a la venta
                   </button>
                 </li>
-                <li>
-                  <button
-                    type="button"
-                    className={view === 'recipes' ? 'active' : ''}
-                    onClick={() => {
-                      setView('recipes')
-                      window.history.replaceState({}, '', '#/recipes')
-                    }}
-                  >
-                    Recetas
-                  </button>
-                </li>
+                {!SALES_FLOOR_ONLY && (
+                  <li>
+                    <button
+                      type="button"
+                      className={view === 'recipes' ? 'active' : ''}
+                      onClick={() => {
+                        setView('recipes')
+                        window.history.replaceState({}, '', '#/recipes')
+                      }}
+                    >
+                      Recetas
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
 
+            {!SALES_FLOOR_ONLY && (
             <div className="app-nav-group app-nav-group--stock">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -701,6 +718,7 @@ export default function App() {
                 </li>
               </ul>
             </div>
+            )}
 
             <div className="app-nav-group app-nav-group--sales">
               <div
@@ -725,18 +743,21 @@ export default function App() {
                     Ventas
                   </button>
                 </li>
-                <li>
-                  <button
-                    type="button"
-                    className={view === 'pos' ? 'active' : ''}
-                    onClick={() => setView('pos')}
-                  >
-                    POS · Mesas
-                  </button>
-                </li>
+                {!SALES_FLOOR_ONLY && (
+                  <li>
+                    <button
+                      type="button"
+                      className={view === 'pos' ? 'active' : ''}
+                      onClick={() => setView('pos')}
+                    >
+                      POS · Mesas
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
 
+            {!SALES_FLOOR_ONLY && (
             <div className="app-nav-group app-nav-group--finance">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -771,7 +792,9 @@ export default function App() {
                 </li>
               </ul>
             </div>
+            )}
 
+            {!SALES_FLOOR_ONLY && (
             <div className="app-nav-group app-nav-group--data">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -797,8 +820,10 @@ export default function App() {
                 </li>
               </ul>
             </div>
+            )}
           </nav>
         </aside>
+        ) : null}
       </div>
     </div>
   )

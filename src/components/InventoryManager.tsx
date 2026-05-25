@@ -595,30 +595,21 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
 
         <MobileAwareFilterBar
           hasActiveFilters={inventoryFiltersActive}
-          composeMobileToolbar={
-            isMobileFilters
-              ? ({ filterToggle }) => (
-                  <FloatingGearFab
-                    navAriaLabel="Productos"
-                    menuToggleTitleClosed="Configuración del listado"
-                    menuToggleTitleOpen="Cerrar menú"
-                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y nuevo ítem"
-                    ariaLabelMenuOpen="Cerrar menú de inventario"
-                    filterToggle={filterToggle}
-                  >
-                    <FloatingGearFabDockAdd
-                      title="Nuevo ítem"
-                      ariaLabel="Nuevo ítem"
-                      onClick={openCreate}
-                    />
-                    <SectionSummaryDeck
-                      section="inventory"
-                      items={inventorySummaryItems}
-                      loading={loading}
-                    />
-                  </FloatingGearFab>
-                )
-              : undefined
+          trailing={
+            isMobileFilters ? (
+              <div className="mobile-list-toolbar__actions">
+                <SectionSummaryDeck
+                  section="inventory"
+                  items={inventorySummaryItems}
+                  loading={loading}
+                />
+                <FloatingGearFabDockAdd
+                  title="Nuevo ítem"
+                  ariaLabel="Nuevo ítem"
+                  onClick={openCreate}
+                />
+              </div>
+            ) : undefined
           }
         >
         <div className="inventory-filter-bar">

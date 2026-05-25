@@ -34,12 +34,7 @@ import {
   isCapitalAssetBehavior,
   resolveLotLineInventoryBehavior,
 } from '../inventorySemantics'
-import { useMatchMedia } from '../hooks/useMatchMedia'
-import {
-  MobileAwareFilterBar,
-  MOBILE_FILTER_BREAKPOINT,
-} from './MobileAwareFilterBar'
-import { FloatingGearFab } from './FloatingGearFab'
+import { MobileAwareFilterBar } from './MobileAwareFilterBar'
 
 type PurchaseLotInvoiceItem = NonNullable<PurchaseLotRow['items']>[number]
 
@@ -537,7 +532,6 @@ function purchaseLotSecondaryLine(row: {
 }
 
 export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
-  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const [list, setList] = useState<PurchaseLotRow[]>([])
   const [meta, setMeta] = useState<PurchaseLotsListMeta | null>(null)
   const [page, setPage] = useState(1)
@@ -3027,23 +3021,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
           </div>
         ) : null}
 
-        <MobileAwareFilterBar
-          hasActiveFilters={purchaseListFiltersActive}
-          composeMobileToolbar={
-            isMobileFilters
-              ? ({ filterToggle }) => (
-                  <FloatingGearFab
-                    navAriaLabel="Compras"
-                    menuToggleTitleClosed="Configuración del listado"
-                    menuToggleTitleOpen="Cerrar menú"
-                    ariaLabelMenuClosed="Abrir menú: buscar y ordenar compras"
-                    ariaLabelMenuOpen="Cerrar menú de compras"
-                    filterToggle={filterToggle}
-                  />
-                )
-              : undefined
-          }
-        >
+        <MobileAwareFilterBar hasActiveFilters={purchaseListFiltersActive}>
         <div className="inventory-filter-bar inventory-filter-bar--purchases-catalog">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">

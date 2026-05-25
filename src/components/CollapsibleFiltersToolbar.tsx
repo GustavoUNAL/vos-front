@@ -4,7 +4,7 @@ import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
-import { FloatingGearFab } from './FloatingGearFab'
+import { FloatingGearFabDockRefresh } from './FloatingGearFab'
 
 type CollapsibleFiltersToolbarProps = {
   search: string
@@ -88,19 +88,17 @@ export function CollapsibleFiltersToolbar({
   return (
     <MobileAwareFilterBar
       hasActiveFilters={hasActiveFilters}
-      composeMobileToolbar={
-        isMobileFilters
-          ? ({ filterToggle }) => (
-              <FloatingGearFab
-                navAriaLabel="Búsqueda y filtros"
-                menuToggleTitleClosed="Configuración del listado"
-                menuToggleTitleOpen="Cerrar menú"
-                ariaLabelMenuClosed="Abrir menú: buscar y más filtros"
-                ariaLabelMenuOpen="Cerrar menú de filtros"
-                filterToggle={filterToggle}
-              />
-            )
-          : undefined
+      trailing={
+        isMobileFilters ? (
+          <div className="mobile-list-toolbar__actions">
+            <FloatingGearFabDockRefresh
+              title="Actualizar"
+              ariaLabel="Actualizar listado"
+              onClick={onRefresh}
+              disabled={refreshDisabled}
+            />
+          </div>
+        ) : undefined
       }
     >
       {bar}

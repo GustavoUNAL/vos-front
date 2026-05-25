@@ -252,6 +252,8 @@ export type ProductRow = {
   type: string
   imageUrl?: string | null
   size?: string | null
+  /** Unidad por defecto al vender (und, porción, etc.). */
+  saleUnit?: string | null
   active: boolean
   createdAt?: string
   updatedAt?: string
@@ -272,6 +274,7 @@ export type CreateProductPayload = {
   type: string
   description?: string
   size?: string
+  saleUnit?: string
   imageUrl?: string
   active?: boolean
 }
@@ -335,7 +338,15 @@ async function apiFetch(
   const token = auth ? getAccessToken() : null
   const headers = new Headers(init?.headers ?? undefined)
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  return fetch(url, { ...init, headers })
+  const res = await fetch(url, { ...init, headers })
+  /** Token rechazado por el API → limpiar sesión y avisar a la app para volver al login. */
+  if (auth && token && res.status === 401) {
+    setAccessToken(null)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+    }
+  }
+  return res
 }
 
 export type LoginPayload = { email: string; password: string }
@@ -1513,11 +1524,18 @@ export type SaleLineDetail = {
   unitPrice?: string | number | null
   unit_price?: string | number | null
   unitPriceCOP?: string | null
+  lineUnit?: string | null
+  lineSize?: string | null
   lineTotal?: string | number | null
   lineTotalCOP?: string | null
   costAtSale?: string | number | null
   profit?: string | number | null
-  product?: { id: string; name: string } | null
+  product?: {
+    id: string
+    name: string
+    size?: string | null
+    saleUnit?: string | null
+  } | null
 }
 
 export type SaleDetail = {
@@ -1550,6 +1568,8 @@ export type SaleLineInputPayload = {
   productName: string
   quantity: number
   unitPrice: number
+  lineUnit?: string
+  lineSize?: string
   costAtSale?: number
   profit?: number
 }

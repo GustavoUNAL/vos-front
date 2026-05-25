@@ -35,6 +35,7 @@ import {
   FloatingGearFabDockAdd,
 } from './FloatingGearFab'
 import { ProductSummaryCard } from './ProductSummaryCard'
+import { SALES_FLOOR_ONLY } from '../appScope'
 import {
   inferProductTypeFromCategory,
   isProductTypeSlug,
@@ -69,6 +70,7 @@ type Draft = {
   type: string
   description: string
   size: string
+  saleUnit: string
   imageUrl: string
   active: boolean
   traceModifiedLocal: string
@@ -82,6 +84,7 @@ function draftSnapshot(d: Draft): string {
     type: d.type.trim(),
     description: d.description,
     size: d.size.trim(),
+    saleUnit: d.saleUnit.trim(),
     imageUrl: d.imageUrl.trim(),
     active: d.active,
     trace: d.traceModifiedLocal,
@@ -97,10 +100,44 @@ function emptyDraft(categories: CategoryRef[]): Draft {
     type: first ? inferProductTypeFromCategory(first) : PRODUCT_TYPE_SLUGS[0],
     description: '',
     size: '',
+    saleUnit: 'und',
     imageUrl: '',
     active: true,
     traceModifiedLocal: '',
   }
+}
+
+function productListMeta(p: ProductRow): string | null {
+  const parts: string[] = []
+  if (p.size?.trim()) parts.push(p.size.trim())
+  const unit = p.saleUnit?.trim()
+  if (unit && unit !== 'und') parts.push(unit)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/** Resumen de unidad/tamaño por defecto al vender este producto. */
+function productSaleDefaultsSummary(d: Draft): string {
+  const unit = d.saleUnit.trim() || 'und'
+  const size = d.size.trim()
+  if (!size) return `Unidad ${unit} · sin tamaño`
+  return `Unidad ${unit} · tamaño ${size}`
+}
+
+function productHistorySummary(
+  loading: boolean,
+  error: string | null,
+  history: ProductHistoryResponse | null,
+): string {
+  if (loading) return 'Cargando…'
+  if (error) return 'No se pudo cargar'
+  if (!history) return 'No disponible en este servidor'
+  const lots = history.lotsCount ?? history.lots.length
+  const prices = history.salePriceHistory?.length ?? 0
+  const events = history.events?.length ?? 0
+  const parts = [`${lots} lote${lots !== 1 ? 's' : ''}`]
+  if (prices > 0) parts.push(`${prices} cambio${prices !== 1 ? 's' : ''} de precio`)
+  if (events > 0) parts.push(`${events} evento${events !== 1 ? 's' : ''}`)
+  return parts.join(' · ')
 }
 
 function openPurchaseLotInApp(lotId: string): void {
@@ -135,6 +172,7 @@ function rowToDraft(p: ProductRow, categories: CategoryRef[]): Draft {
     type,
     description: p.description ?? '',
     size: p.size ?? '',
+    saleUnit: p.saleUnit ?? 'und',
     imageUrl: p.imageUrl ?? '',
     active: p.active,
     traceModifiedLocal: isoInstantToDatetimeLocalValue(p.traceModifiedAt),
@@ -200,6 +238,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const saveCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Edición: primer toque valida; el segundo envía al API. */
   const [saveConfirmPending, setSaveConfirmPending] = useState(false)
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const [advancedPopupOpen, setAdvancedPopupOpen] = useState(false)
+  const [historyPopupOpen, setHistoryPopupOpen] = useState(false)
 
   useEffect(() => {
     const t = window.setTimeout(() => setSearchDebounced(search), 320)
@@ -438,6 +479,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setProductUnlockedFields(new Set())
     setSaveBannerVisible(false)
     setSaveConfirmPending(false)
+    setArchiveConfirmOpen(false)
+    setAdvancedPopupOpen(false)
+    setHistoryPopupOpen(false)
   }, [])
 
   const navigateToProductRecipe = useCallback(
@@ -510,6 +554,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           type: typeTrim,
           description: draft.description.trim() || undefined,
           size: draft.size.trim() || undefined,
+          saleUnit: draft.saleUnit.trim() || undefined,
           imageUrl: draft.imageUrl.trim() || undefined,
           active: draft.active,
         })
@@ -521,6 +566,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           type: typeTrim,
           description: draft.description,
           size: draft.size.trim() || undefined,
+          saleUnit: draft.saleUnit.trim() || undefined,
           imageUrl: draft.imageUrl.trim() || undefined,
           active: draft.active,
           traceModifiedAt: datetimeLocalValueToIsoUtcOrNull(
@@ -565,19 +611,28 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     syncDraftAfterServerProduct,
   ])
 
-  const remove = useCallback(async () => {
+  const requestArchive = useCallback(() => {
+    if (!selectedId || saving) return
+    setArchiveConfirmOpen(true)
+  }, [selectedId, saving])
+
+  const cancelArchive = useCallback(() => {
+    setArchiveConfirmOpen(false)
+  }, [])
+
+  const confirmArchive = useCallback(async () => {
     if (!selectedId) return
-    if (!window.confirm('¿Archivar este producto? Dejará de mostrarse en listados.'))
-      return
     setSaving(true)
     setSaveError(null)
     try {
       await deleteProduct(baseUrl, selectedId)
       setAllProducts((prev) => prev.filter((p) => p.id !== selectedId))
+      setArchiveConfirmOpen(false)
       closePanel()
       refreshCatalogSummary()
     } catch (e) {
       setSaveError((e as Error).message)
+      setArchiveConfirmOpen(false)
     } finally {
       setSaving(false)
     }
@@ -608,6 +663,18 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     if (!panelOpen) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (historyPopupOpen) {
+          setHistoryPopupOpen(false)
+          return
+        }
+        if (advancedPopupOpen) {
+          setAdvancedPopupOpen(false)
+          return
+        }
+        if (archiveConfirmOpen) {
+          setArchiveConfirmOpen(false)
+          return
+        }
         if (saveConfirmPending) {
           setSaveConfirmPending(false)
           return
@@ -617,7 +684,14 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [closePanel, panelOpen, saveConfirmPending])
+  }, [
+    advancedPopupOpen,
+    archiveConfirmOpen,
+    closePanel,
+    historyPopupOpen,
+    panelOpen,
+    saveConfirmPending,
+  ])
 
   const handleSaveOrConfirm = useCallback(() => {
     if (!draft || saving || categories.length === 0) return
@@ -657,11 +731,22 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     canLock: boolean
     disabled?: boolean
     children: ReactNode
+    /** Estilo compacto dentro del popup de edición avanzada */
+    inAdvancedPopup?: boolean
   }): ReactNode {
-    const { fieldKey, label, display, canLock, disabled, children } = args
+    const {
+      fieldKey,
+      label,
+      display,
+      canLock,
+      disabled,
+      children,
+      inAdvancedPopup,
+    } = args
     const locksOn = canLock
     const unlocked = !locksOn || productUnlockedFields.has(fieldKey)
     const toggle = () => {
+      if (disabled) return
       setProductUnlockedFields((prev) => {
         const next = new Set(prev)
         if (next.has(fieldKey)) next.delete(fieldKey)
@@ -671,12 +756,22 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     }
     return (
       <div
-        className={`product-editor-field-row${unlocked ? ' product-editor-field-row--unlocked' : ''}`}
+        className={`product-editor-field-row${unlocked ? ' product-editor-field-row--unlocked' : ''}${inAdvancedPopup ? ' product-editor-field-row--advanced' : ''}`}
       >
         <div className="product-editor-field-row__main">
           <span className="product-editor-field-row__label">{label}</span>
           {unlocked ? (
             <div className="product-editor-field-row__input">{children}</div>
+          ) : locksOn ? (
+            <button
+              type="button"
+              className="product-editor-field-row__value-btn"
+              disabled={disabled}
+              onClick={toggle}
+              aria-label={`Editar ${label}`}
+            >
+              {display}
+            </button>
           ) : (
             <div className="product-editor-field-row__value">{display}</div>
           )}
@@ -684,11 +779,43 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         {locksOn ? (
           <button
             type="button"
-            className="btn-secondary btn-compact product-editor-field-row__edit"
+            className={`product-editor-field-edit${unlocked ? ' product-editor-field-edit--active' : ''}`}
             disabled={disabled}
             onClick={toggle}
+            aria-pressed={unlocked}
+            aria-label={unlocked ? `Listo: ${label}` : `Editar ${label}`}
+            title={unlocked ? 'Listo' : 'Editar'}
           >
-            {unlocked ? 'Listo' : 'Editar'}
+            {unlocked ? (
+              <svg
+                aria-hidden
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            )}
           </button>
         ) : null}
       </div>
@@ -702,30 +829,21 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
 
         <MobileAwareFilterBar
           hasActiveFilters={filtersBarActive}
-          composeMobileToolbar={
-            isMobile
-              ? ({ filterToggle }) => (
-                  <FloatingGearFab
-                    navAriaLabel="Productos a la venta"
-                    menuToggleTitleClosed="Configuración del listado"
-                    menuToggleTitleOpen="Cerrar menú"
-                    ariaLabelMenuClosed="Abrir menú (buscar, nuevo producto, resumen)"
-                    ariaLabelMenuOpen="Cerrar menú"
-                    filterToggle={filterToggle}
-                  >
-                    <FloatingGearFabDockAdd
-                      title="Nuevo producto"
-                      ariaLabel="Nuevo producto"
-                      onClick={openCreate}
-                    />
-                    <ProductSummaryCard
-                      summary={catalogSummary}
-                      categories={categories}
-                      loading={summaryLoading}
-                    />
-                  </FloatingGearFab>
-                )
-              : undefined
+          trailing={
+            isMobile ? (
+              <div className="mobile-list-toolbar__actions">
+                <ProductSummaryCard
+                  summary={catalogSummary}
+                  categories={categories}
+                  loading={summaryLoading}
+                />
+                <FloatingGearFabDockAdd
+                  title="Nuevo producto"
+                  ariaLabel="Nuevo producto"
+                  onClick={openCreate}
+                />
+              </div>
+            ) : undefined
           }
         >
           <>
@@ -892,34 +1010,55 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                   </span>
                 </summary>
                 <div className="catalog-category-block__body">
-                  <div className="data-table-wrap data-table-elevated">
-                  <table className="data-table data-table-striped">
+                  <div className="data-table-wrap data-table-elevated products-catalog-table-wrap">
+                  <table className="data-table data-table-striped data-table--products-catalog">
                     <thead>
                       <tr>
-                        <th>Producto</th>
-                        <th className="num">Precio</th>
-                        <th>Estado</th>
+                        <th className="products-table-col products-table-col--name">
+                          Producto
+                        </th>
+                        <th className="products-table-col products-table-col--price num">
+                          Precio
+                        </th>
+                        <th className="products-table-col products-table-col--status">
+                          Estado
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {section.products.map((p) => (
+                      {section.products.map((p) => {
+                        const meta = productListMeta(p)
+                        return (
                         <tr
                           key={p.id}
-                          className={selectedId === p.id ? 'row-active' : ''}
+                          className={
+                            selectedId === p.id
+                              ? 'row-active products-table-row--active'
+                              : ''
+                          }
                         >
-                          <td>
+                          <td className="products-table-cell products-table-cell--name">
                             <button
                               type="button"
-                              className="table-link"
+                              className="table-link products-table-link"
                               onMouseEnter={() => prefetchProductDetail(p.id)}
                               onFocus={() => prefetchProductDetail(p.id)}
                               onClick={() => void openEdit(p.id)}
                             >
-                              {p.name}
+                              <span className="products-table-link__name">
+                                {p.name}
+                              </span>
+                              {meta ? (
+                                <span className="products-table-link__meta muted small">
+                                  {meta}
+                                </span>
+                              ) : null}
                             </button>
                           </td>
-                          <td className="num mono">{formatCOP(p.price)}</td>
-                          <td>
+                          <td className="num mono products-table-cell products-table-cell--price">
+                            {formatCOP(p.price)}
+                          </td>
+                          <td className="products-table-cell products-table-cell--status">
                             {p.active ? (
                               <span className="badge badge-ok">Activo</span>
                             ) : (
@@ -927,7 +1066,8 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                   </div>
@@ -947,7 +1087,12 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           className="modal-backdrop modal-backdrop--product-editor"
           role="presentation"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closePanel()
+            if (e.target !== e.currentTarget) return
+            if (archiveConfirmOpen) {
+              cancelArchive()
+              return
+            }
+            closePanel()
           }}
         >
           <section
@@ -957,23 +1102,44 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
             aria-labelledby="product-editor-title"
           >
             <header className="modal-head modal-head--product-editor">
-              <div className="modal-head-title">
-                <h2 id="product-editor-title">
-                  {creating ? 'Nuevo producto' : 'Producto'}
-                </h2>
-                <p className="muted small modal-subtitle">
-                  {creating
-                    ? 'Datos de carta y ticket. La receta se arma en su sección.'
-                    : draft.name?.trim() || 'Sin nombre'}
-                </p>
+              <div className="modal-head-title product-editor-head__title">
+                {creating ? (
+                  <>
+                    <h2 id="product-editor-title">Nuevo producto</h2>
+                    <p className="modal-subtitle product-editor-head__subtitle">
+                      Precio, categoría y visibilidad en ventas
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="product-editor-head__eyebrow">Editar producto</p>
+                    <h2 id="product-editor-title">
+                      {draft.name?.trim() || 'Sin nombre'}
+                    </h2>
+                    <p className="modal-subtitle product-editor-head__subtitle">
+                      {categories.find((c) => c.id === draft.categoryId)?.name ??
+                        'Sin categoría'}
+                      {draft.active ? (
+                        <span className="product-editor-head__status"> · Activo</span>
+                      ) : (
+                        <span className="product-editor-head__status product-editor-head__status--off">
+                          {' '}
+                          · Inactivo
+                        </span>
+                      )}
+                    </p>
+                  </>
+                )}
               </div>
-              <div className="modal-head-actions">
+              <div className="modal-head-actions product-editor-head__actions">
                 <button
                   type="button"
-                  className="btn-ghost icon-close"
+                  className="product-editor-close"
                   onClick={closePanel}
-                  aria-label="Cerrar"
-                />
+                  aria-label="Cerrar editor"
+                >
+                  <span aria-hidden>×</span>
+                </button>
               </div>
             </header>
 
@@ -1111,7 +1277,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                 })}
               </div>
 
-              {!creating && selectedId ? (
+              {!SALES_FLOOR_ONLY && !creating && selectedId ? (
                 <div
                   className="product-editor-recipe-card"
                   aria-label="Accesos a recetas"
@@ -1214,7 +1380,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     </a>
                   </p>
                 </div>
-              ) : (
+              ) : !SALES_FLOOR_ONLY ? (
                 <p className="muted small product-editor-recipe-hint">
                   Cuando guardes el producto, podrás{' '}
                   <a
@@ -1229,14 +1395,287 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                   </a>{' '}
                   y definir insumos.
                 </p>
-              )}
+              ) : null}
 
-              <details className="product-editor-details">
-                <summary>Texto, presentación e imagen</summary>
-                <div className="product-editor-details__body">
+              <div className="product-editor-extra-links" role="group" aria-label="Más opciones">
+                <p className="product-editor-extra-links__label">Más opciones</p>
+                <div className="product-editor-extra-links__grid">
+                  <button
+                    type="button"
+                    className="product-editor-link-card product-editor-link-card--advanced"
+                    onClick={() => setAdvancedPopupOpen(true)}
+                  >
+                    <span className="product-editor-link-card__copy">
+                      <span className="product-editor-link-card__title">
+                        Edición avanzada
+                      </span>
+                      <span className="product-editor-link-card__preview muted small">
+                        {productSaleDefaultsSummary(draft)}
+                      </span>
+                    </span>
+                    <span className="product-editor-link-card__chevron" aria-hidden />
+                  </button>
+                  {!creating && selectedId ? (
+                    <button
+                      type="button"
+                      className="product-editor-link-card product-editor-link-card--history"
+                      onClick={() => setHistoryPopupOpen(true)}
+                    >
+                      <span className="product-editor-link-card__copy">
+                        <span className="product-editor-link-card__title">
+                          Historial
+                        </span>
+                        <span className="product-editor-link-card__preview muted small">
+                          {productHistorySummary(
+                            historyLoading,
+                            historyError,
+                            productHistory,
+                          )}
+                        </span>
+                      </span>
+                      <span className="product-editor-link-card__chevron" aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {saveError ? (
+                <p className="error" role="alert">
+                  {saveError}
+                </p>
+              ) : null}
+
+              {!creating && selectedId ? (
+                <div
+                  className="product-editor-archive-bar"
+                  role="group"
+                  aria-label="Archivar producto"
+                >
+                  <button
+                    type="button"
+                    className="product-editor-btn product-editor-btn--danger product-editor-btn--archive-full"
+                    onClick={requestArchive}
+                    disabled={saving || archiveConfirmOpen}
+                  >
+                    Archivar producto
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {(creating || isDraftDirty || saveConfirmPending) ? (
+              <footer
+                className={`product-editor-footer${saveConfirmPending && !creating ? ' product-editor-footer--confirm' : ''}`}
+                role="toolbar"
+                aria-label="Guardar producto"
+              >
+                {saveConfirmPending && !creating ? (
+                  <p className="product-editor-footer__hint" role="status">
+                    <span className="product-editor-footer__hint-step" aria-hidden>
+                      2
+                    </span>
+                    Revisá los cambios. Tocá otra vez{' '}
+                    <strong>Confirmar y guardar</strong> para aplicarlos.
+                  </p>
+                ) : null}
+                <div className="product-editor-footer__actions">
+                  <button
+                    type="button"
+                    className={`product-editor-btn product-editor-btn--primary${saveConfirmPending && !creating ? ' product-editor-btn--confirm' : ''}`}
+                    disabled={saving || categories.length === 0}
+                    onClick={() => void handleSaveOrConfirm()}
+                  >
+                    {saving
+                      ? 'Guardando…'
+                      : creating
+                        ? 'Crear producto'
+                        : saveConfirmPending
+                          ? 'Confirmar y guardar'
+                          : 'Guardar cambios'}
+                  </button>
+                  {saveConfirmPending && !creating ? (
+                    <button
+                      type="button"
+                      className="product-editor-btn product-editor-btn--secondary"
+                      disabled={saving}
+                      onClick={() => setSaveConfirmPending(false)}
+                    >
+                      Seguir editando
+                    </button>
+                  ) : null}
+                </div>
+              </footer>
+            ) : null}
+
+            {archiveConfirmOpen && !creating ? (
+              <div
+                className="product-editor-confirm-layer"
+                role="presentation"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) cancelArchive()
+                }}
+              >
+                <div
+                  className="product-editor-confirm"
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="product-archive-confirm-title"
+                  aria-describedby="product-archive-confirm-desc"
+                >
+                  <h3
+                    id="product-archive-confirm-title"
+                    className="product-editor-confirm__title"
+                  >
+                    ¿Archivar este producto?
+                  </h3>
+                  <p
+                    id="product-archive-confirm-desc"
+                    className="product-editor-confirm__desc"
+                  >
+                    <strong>{draft.name?.trim() || 'Sin nombre'}</strong> dejará
+                    de mostrarse en la carta y en ventas. Podés cancelar si no
+                    estás seguro.
+                  </p>
+                  <div className="product-editor-confirm__actions">
+                    <button
+                      type="button"
+                      className="product-editor-btn product-editor-btn--secondary"
+                      disabled={saving}
+                      onClick={cancelArchive}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="product-editor-btn product-editor-btn--danger"
+                      disabled={saving}
+                      onClick={() => void confirmArchive()}
+                    >
+                      {saving ? 'Archivando…' : 'Sí, archivar'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          {advancedPopupOpen && draft ? (
+            <div
+              className="modal-backdrop modal-backdrop--product-submodal"
+              role="presentation"
+              onMouseDown={(e) => {
+                if (e.target === e.currentTarget) setAdvancedPopupOpen(false)
+              }}
+            >
+              <section
+                className="modal modal--product-submodal modal--product-advanced-popup"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="product-advanced-popup-title"
+              >
+                <header className="modal-head modal-head--product-submodal modal-head--product-submodal--advanced">
+                  <div className="modal-head-title product-submodal-head__copy">
+                    <h2 id="product-advanced-popup-title">Edición avanzada</h2>
+                    <p className="product-submodal-head__product">
+                      {draft.name?.trim() || 'Sin nombre'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="product-editor-close"
+                    onClick={() => setAdvancedPopupOpen(false)}
+                    aria-label="Cerrar edición avanzada"
+                  >
+                    <span aria-hidden>×</span>
+                  </button>
+                </header>
+                <div className="modal-body modal-body--product-submodal">
+                  <div className="product-submodal-callout" role="note">
+                    <p className="product-submodal-callout__text muted small">
+                      Unidad, tamaño, texto e imagen del catálogo. Se usan al
+                      enlazar el producto en una venta. Los cambios se guardan con
+                      el botón principal del producto.
+                    </p>
+                  </div>
+                  <div className="product-editor-panel-scroll product-editor-panel-scroll--popup product-advanced-fields">
+                  <section className="product-editor-subsection product-editor-subsection--advanced-sale">
+                    <header className="product-editor-subsection__head">
+                      <h4 className="product-editor-subsection__title">
+                        Venta: unidad y tamaño
+                      </h4>
+                    </header>
+                    <div className="product-editor-subsection__body">
+                      <p className="product-editor-sale-defaults-preview muted small">
+                        <strong>Por defecto en ventas:</strong>{' '}
+                        {productSaleDefaultsSummary(draft)}
+                      </p>
+                      {renderProductFieldRow({
+                        fieldKey: 'saleUnit',
+                        label: 'Unidad de venta',
+                        inAdvancedPopup: true,
+                        canLock: !creating,
+                        disabled: saving,
+                        display: (
+                          <span className="product-editor-field-value-text">
+                            {draft.saleUnit.trim() || '—'}
+                          </span>
+                        ),
+                        children: (
+                          <input
+                            className="input-cell"
+                            value={draft.saleUnit}
+                            onChange={(e) =>
+                              setDraft({ ...draft, saleUnit: e.target.value })
+                            }
+                            placeholder="und, porción, oz…"
+                            list="product-sale-unit-suggestions"
+                          />
+                        ),
+                      })}
+                      {renderProductFieldRow({
+                        fieldKey: 'size',
+                        label: 'Tamaño / presentación',
+                        inAdvancedPopup: true,
+                        canLock: !creating,
+                        disabled: saving,
+                        display: (
+                          <span className="product-editor-field-value-text">
+                            {draft.size.trim() || '—'}
+                          </span>
+                        ),
+                        children: (
+                          <input
+                            className="input-cell"
+                            value={draft.size}
+                            onChange={(e) =>
+                              setDraft({ ...draft, size: e.target.value })
+                            }
+                            placeholder="6 oz, 330 ml…"
+                          />
+                        ),
+                      })}
+                    </div>
+                  </section>
+
+                  <datalist id="product-sale-unit-suggestions">
+                    <option value="und" />
+                    <option value="porción" />
+                    <option value="oz" />
+                    <option value="ml" />
+                    <option value="litro" />
+                  </datalist>
+
+                  <section className="product-editor-subsection">
+                    <header className="product-editor-subsection__head">
+                      <h4 className="product-editor-subsection__title">
+                        Texto e imagen
+                      </h4>
+                    </header>
+                    <div className="product-editor-subsection__body">
                   {renderProductFieldRow({
                     fieldKey: 'type',
                     label: 'Tipo (API)',
+                    inAdvancedPopup: true,
                     canLock: !creating,
                     disabled: saving,
                     display: (
@@ -1278,6 +1717,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                   {renderProductFieldRow({
                     fieldKey: 'description',
                     label: 'Descripción',
+                    inAdvancedPopup: true,
                     canLock: !creating,
                     disabled: saving,
                     display: (
@@ -1297,29 +1737,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     ),
                   })}
                   {renderProductFieldRow({
-                    fieldKey: 'size',
-                    label: 'Tamaño / presentación',
-                    canLock: !creating,
-                    disabled: saving,
-                    display: (
-                      <span className="product-editor-field-value-text">
-                        {draft.size.trim() || '—'}
-                      </span>
-                    ),
-                    children: (
-                      <input
-                        className="input-cell"
-                        value={draft.size}
-                        onChange={(e) =>
-                          setDraft({ ...draft, size: e.target.value })
-                        }
-                        placeholder="Opcional"
-                      />
-                    ),
-                  })}
-                  {renderProductFieldRow({
                     fieldKey: 'imageUrl',
                     label: 'URL de imagen',
+                    inAdvancedPopup: true,
                     canLock: !creating,
                     disabled: saving,
                     display: (
@@ -1339,18 +1759,22 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                       />
                     ),
                   })}
-                </div>
-              </details>
+                    </div>
+                  </section>
 
-              {!creating && selectedProductDetail ? (
-                <details className="product-editor-details">
-                  <summary>Revisión y auditoría</summary>
-                  <div className="product-editor-details__body">
-                    <div className="product-editor-readonly-block">
+                  {!creating && selectedProductDetail ? (
+                    <section className="product-editor-subsection">
+                      <header className="product-editor-subsection__head">
+                        <h4 className="product-editor-subsection__title">
+                          Revisión y auditoría
+                        </h4>
+                      </header>
+                      <div className="product-editor-subsection__body">
+                    <div className="product-editor-readonly-block product-editor-readonly-block--audit">
                       <span className="product-editor-field-row__label">
                         Último cambio en sistema
                       </span>
-                      <p className="mono muted small">
+                      <p className="product-editor-readonly-block__value mono">
                         {formatSystemDateTime(
                           selectedProductDetail.updatedAt,
                         )}
@@ -1359,6 +1783,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     {renderProductFieldRow({
                       fieldKey: 'trace',
                       label: 'Marca de revisión',
+                      inAdvancedPopup: true,
                       canLock: true,
                       disabled: saving,
                       display: (
@@ -1430,58 +1855,103 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     >
                       Quitar marca de revisión
                     </button>
+                      </div>
+                    </section>
+                  ) : null}
                   </div>
-                </details>
-              ) : null}
+                </div>
+                <footer
+                  className="product-editor-footer product-submodal-footer"
+                  role="toolbar"
+                >
+                  <button
+                    type="button"
+                    className="product-editor-btn product-editor-btn--primary"
+                    onClick={() => setAdvancedPopupOpen(false)}
+                  >
+                    Listo
+                  </button>
+                </footer>
+              </section>
+            </div>
+          ) : null}
 
-              {!creating && selectedId ? (
-                <details className="product-editor-details">
-                  <summary>Historial, compras y precios</summary>
-                  <div className="product-editor-details__body product-editor-history-body">
+          {historyPopupOpen && !creating && selectedId ? (
+            <div
+              className="modal-backdrop modal-backdrop--product-submodal"
+              role="presentation"
+              onMouseDown={(e) => {
+                if (e.target === e.currentTarget) setHistoryPopupOpen(false)
+              }}
+            >
+              <section
+                className="modal modal--product-submodal modal--product-history-popup"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="product-history-popup-title"
+              >
+                <header className="modal-head modal-head--product-submodal modal-head--product-submodal--history">
+                  <div className="modal-head-title product-submodal-head__copy">
+                    <h2 id="product-history-popup-title">Historial</h2>
+                    <p className="product-submodal-head__product">
+                      {draft.name?.trim() || 'Sin nombre'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="product-editor-close"
+                    onClick={() => setHistoryPopupOpen(false)}
+                    aria-label="Cerrar historial"
+                  >
+                    <span aria-hidden>×</span>
+                  </button>
+                </header>
+                <div className="modal-body modal-body--product-submodal modal-body--product-submodal--history">
+                  <div className="product-editor-panel-scroll product-editor-panel-scroll--popup product-editor-panel-scroll--history">
                     {historyLoading ? (
-                      <p className="muted small">Cargando historial…</p>
+                      <p className="product-editor-panel-empty muted small">
+                        Cargando historial…
+                      </p>
                     ) : historyError ? (
-                      <p className="error" role="alert">
+                      <p className="error product-editor-panel-empty" role="alert">
                         {historyError}
                       </p>
                     ) : productHistory === null ? (
-                      <p className="muted small">
-                        Este servidor aún no expone{' '}
-                        <span className="mono">GET /products/:id/history</span>.
-                        Ver contrato en{' '}
-                        <span className="mono">backend/README.md</span>.
-                      </p>
+                      <div className="product-editor-panel-empty product-history-unavailable">
+                        <p className="product-history-unavailable__title">
+                          Historial no disponible
+                        </p>
+                        <p className="muted small">
+                          El servidor no respondió al historial del producto.
+                          Reiniciá la API o actualizá el backend.
+                        </p>
+                      </div>
                     ) : (
                       <>
                         {productHistory.summary ? (
-                          <p className="muted small">
+                          <p className="product-history-intro muted small">
                             {productHistory.summary}
                           </p>
                         ) : null}
-                        <p className="small">
-                          <strong>
-                            {productHistory.lotsCount ??
-                              productHistory.lots.length}
-                          </strong>{' '}
-                          lote
-                          {(productHistory.lotsCount ??
-                            productHistory.lots.length) !== 1
-                            ? 's'
-                            : ''}{' '}
-                          relacionado
-                          {(productHistory.lotsCount ??
-                            productHistory.lots.length) !== 1
-                            ? 's'
-                            : ''}
-                          .
-                        </p>
+
+                        <section className="product-editor-subsection product-editor-subsection--history">
+                          <header className="product-editor-subsection__head">
+                            <h4 className="product-editor-subsection__title">
+                              Lotes de compra
+                            </h4>
+                            <span className="product-editor-subsection__badge">
+                              {productHistory.lotsCount ??
+                                productHistory.lots.length}
+                            </span>
+                          </header>
+                          <div className="product-editor-subsection__body">
                         {productHistory.lots.length === 0 ? (
-                          <p className="muted small">
+                          <p className="muted small product-editor-panel-empty">
                             Sin lotes enlazados (receta o compras).
                           </p>
                         ) : (
-                          <div className="data-table-wrap data-table-elevated product-history-lots-table product-history-lots-table--compact">
-                            <table className="data-table data-table-striped">
+                          <div className="product-history-table-wrap">
+                            <table className="product-history-table">
                               <thead>
                                 <tr>
                                   <th>Lote</th>
@@ -1511,7 +1981,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                                         : '—'}
                                     </td>
                                     <td>
-                                      {lot.id ? (
+                                      {lot.id && !SALES_FLOOR_ONLY ? (
                                         <button
                                           type="button"
                                           className="btn-secondary btn-compact"
@@ -1521,7 +1991,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                                         >
                                           Compra
                                         </button>
-                                      ) : null}
+                                      ) : (
+                                        '—'
+                                      )}
                                     </td>
                                   </tr>
                                 ))}
@@ -1529,132 +2001,95 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                             </table>
                           </div>
                         )}
+                          </div>
+                        </section>
+
                         {productHistory.salePriceHistory &&
                         productHistory.salePriceHistory.length > 0 ? (
-                          <div className="product-history-prices">
-                            <h4 className="muted small product-history-prices__title">
-                              Precio de venta (historial)
-                            </h4>
-                            <ul className="product-history-prices__list">
+                          <section className="product-editor-subsection product-editor-subsection--history">
+                            <header className="product-editor-subsection__head">
+                              <h4 className="product-editor-subsection__title">
+                                Precios de venta
+                              </h4>
+                              <span className="product-editor-subsection__badge">
+                                {productHistory.salePriceHistory.length}
+                              </span>
+                            </header>
+                            <ul className="product-history-timeline">
                               {productHistory.salePriceHistory.map((pt, i) => (
-                                <li key={`${pt.effectiveAt}-${i}`}>
-                                  <span className="mono muted small">
+                                <li
+                                  key={`${pt.effectiveAt}-${i}`}
+                                  className="product-history-timeline__item"
+                                >
+                                  <time className="product-history-timeline__when mono muted small">
                                     {formatSystemDateTime(pt.effectiveAt)}
-                                  </span>{' '}
-                                  <strong className="mono">
+                                  </time>
+                                  <span className="product-history-timeline__price mono">
                                     {formatCOP(pt.price)}
-                                  </strong>
-                                  {pt.kind ? (
-                                    <span className="muted small">
-                                      {' '}
-                                      ({pt.kind})
+                                  </span>
+                                  {(pt.kind || pt.note) && (
+                                    <span className="product-history-timeline__meta muted small">
+                                      {[pt.kind, pt.note].filter(Boolean).join(' · ')}
                                     </span>
-                                  ) : null}
-                                  {pt.note ? (
-                                    <span className="muted small">
-                                      {' '}
-                                      — {pt.note}
-                                    </span>
-                                  ) : null}
+                                  )}
                                 </li>
                               ))}
                             </ul>
-                          </div>
+                          </section>
                         ) : null}
+
                         {productHistory.events &&
                         productHistory.events.length > 0 ? (
-                          <div className="product-history-events">
-                            <h4 className="muted small">Eventos</h4>
-                            <ul className="product-history-events__list">
+                          <section className="product-editor-subsection product-editor-subsection--history">
+                            <header className="product-editor-subsection__head">
+                              <h4 className="product-editor-subsection__title">
+                                Eventos
+                              </h4>
+                              <span className="product-editor-subsection__badge">
+                                {productHistory.events.length}
+                              </span>
+                            </header>
+                            <ul className="product-history-timeline product-history-timeline--events">
                               {productHistory.events.map((ev, i) => (
-                                <li key={`${ev.at}-${i}`}>
-                                  <span className="mono muted small">
+                                <li
+                                  key={`${ev.at}-${i}`}
+                                  className="product-history-timeline__item"
+                                >
+                                  <time className="product-history-timeline__when mono muted small">
                                     {formatSystemDateTime(ev.at)}
-                                  </span>{' '}
-                                  {ev.label}
+                                  </time>
+                                  <span className="product-history-timeline__label">
+                                    {ev.label}
+                                  </span>
                                   {ev.detail ? (
-                                    <span className="muted small">
-                                      {' '}
-                                      — {ev.detail}
+                                    <span className="product-history-timeline__meta muted small">
+                                      {ev.detail}
                                     </span>
                                   ) : null}
                                 </li>
                               ))}
                             </ul>
-                          </div>
+                          </section>
                         ) : null}
                       </>
                     )}
                   </div>
-                </details>
-              ) : null}
-
-              {saveError ? (
-                <p className="error" role="alert">
-                  {saveError}
-                </p>
-              ) : null}
-            </div>
-
-            <div
-              className={`product-editor-save-popup${saveConfirmPending && !creating ? ' product-editor-save-popup--step2' : ''}`}
-              role="toolbar"
-              aria-label="Acciones de guardado"
-            >
-              {saveConfirmPending && !creating ? (
-                <p
-                  className="product-editor-save-popup__hint"
-                  role="status"
+                </div>
+                <footer
+                  className="product-editor-footer product-submodal-footer"
+                  role="toolbar"
                 >
-                  <span className="product-editor-save-popup__hint-badge" aria-hidden>
-                    ②
-                  </span>
-                  Revisá los cambios. Un segundo toque en{' '}
-                  <strong>Confirmar y guardar</strong> los envía al servidor.
-                </p>
-              ) : null}
-              <div className="product-editor-save-popup__actions">
-                <button
-                  type="button"
-                  className={`btn-primary product-editor-save-popup__primary${saveConfirmPending && !creating ? ' product-editor-save-popup__primary--confirm' : ''}`}
-                  disabled={
-                    saving ||
-                    categories.length === 0 ||
-                    (!creating && !isDraftDirty && !saveConfirmPending)
-                  }
-                  onClick={() => void handleSaveOrConfirm()}
-                >
-                  {saving
-                    ? 'Guardando…'
-                    : creating
-                      ? 'Crear'
-                      : saveConfirmPending
-                        ? 'Confirmar y guardar'
-                        : 'Guardar'}
-                </button>
-                {saveConfirmPending && !creating ? (
                   <button
                     type="button"
-                    className="btn-ghost btn-compact product-editor-save-popup__cancel"
-                    disabled={saving}
-                    onClick={() => setSaveConfirmPending(false)}
+                    className="product-editor-btn product-editor-btn--primary"
+                    onClick={() => setHistoryPopupOpen(false)}
                   >
-                    Volver a editar
+                    Cerrar
                   </button>
-                ) : null}
-                {!creating && !saveConfirmPending ? (
-                  <button
-                    type="button"
-                    className="btn-danger btn-compact product-editor-save-popup__secondary"
-                    disabled={saving}
-                    onClick={() => void remove()}
-                  >
-                    Archivar
-                  </button>
-                ) : null}
-              </div>
+                </footer>
+              </section>
             </div>
-          </section>
+          ) : null}
         </div>
       )}
     </div>

@@ -281,32 +281,23 @@ export function CostsView({ baseUrl }: { baseUrl: string }) {
 
         <MobileAwareFilterBar
           hasActiveFilters={costsFiltersActive}
-          composeMobileToolbar={
-            isMobileFilters
-              ? ({ filterToggle }) => (
-                  <FloatingGearFab
-                    navAriaLabel="Costos por producto"
-                    menuToggleTitleClosed="Configuración del listado"
-                    menuToggleTitleOpen="Cerrar menú"
-                    ariaLabelMenuClosed="Abrir menú: buscar, filtros y actualizar costos"
-                    ariaLabelMenuOpen="Cerrar menú de costos"
-                    filterToggle={filterToggle}
-                  >
-                    <FloatingGearFabDockRefresh
-                      title="Actualizar"
-                      ariaLabel="Actualizar costos"
-                      onClick={load}
-                      disabled={loading}
-                    />
-                    <SectionSummaryDeck
-                      section="costs"
-                      items={costsSummaryItems}
-                      loading={loading}
-                      suspendDetailWhileLoading
-                    />
-                  </FloatingGearFab>
-                )
-              : undefined
+          trailing={
+            isMobileFilters ? (
+              <div className="mobile-list-toolbar__actions">
+                <SectionSummaryDeck
+                  section="costs"
+                  items={costsSummaryItems}
+                  loading={loading}
+                  suspendDetailWhileLoading
+                />
+                <FloatingGearFabDockRefresh
+                  title="Actualizar"
+                  ariaLabel="Actualizar costos"
+                  onClick={load}
+                  disabled={loading}
+                />
+              </div>
+            ) : undefined
           }
         >
         <div className="inventory-filter-bar app-toolbar-zone">

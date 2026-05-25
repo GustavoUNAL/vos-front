@@ -1,3 +1,4 @@
+import { SALES_FLOOR_ONLY } from '../appScope'
 import type { NavGroupId } from '../navTypes'
 
 export type HubTargetView =
@@ -160,90 +161,117 @@ export function NavigationHub({
   purchasesHint: string
   onNavigate: (view: HubTargetView) => void
 }) {
-  const sections: HubSection[] = [
-    {
-      id: 'catalog',
-      title: 'Productos a la venta',
-      hint: 'Carta, recetas y fichas',
-      items: [
+  const sections: HubSection[] = SALES_FLOOR_ONLY
+    ? [
         {
-          view: 'products',
-          label: 'Productos a la venta',
-          hint: 'Carta y precios',
+          id: 'catalog',
+          title: 'Productos a la venta',
+          hint: 'Carta, precios, categorías y visibilidad',
+          items: [
+            {
+              view: 'products',
+              label: 'Productos a la venta',
+              hint: 'Configuración de la carta',
+            },
+          ],
         },
         {
-          view: 'recipes',
-          label: 'Recetas',
-          hint: 'Fichas técnicas',
+          id: 'sales',
+          title: 'Ventas',
+          hint: 'Tickets, cobros e historial',
+          items: [
+            {
+              view: 'sales',
+              label: 'Ventas',
+              hint: 'Registrar y consultar ventas',
+            },
+          ],
         },
-      ],
-    },
-    {
-      id: 'stock',
-      title: 'Inventario',
-      hint:
-        [inventoryHint, purchasesHint].filter(Boolean).join(' · ') ||
-        'Insumos en existencia y compras por lote',
-      items: [
+      ]
+    : [
         {
-          view: 'inventory',
-          label: 'Productos',
-          hint: 'Insumos y existencias por ítem',
-        },
-        {
-          view: 'purchases',
-          label: 'Compras',
-          hint: 'Lotes de compra y proveedores',
-        },
-      ],
-    },
-    {
-      id: 'sales',
-      title: 'Ventas',
-      hint: 'Ingresos del día',
-      items: [
-        {
-          view: 'sales',
-          label: 'Ventas',
-          hint: 'Tickets y cobros',
+          id: 'catalog',
+          title: 'Productos a la venta',
+          hint: 'Carta, recetas y fichas',
+          items: [
+            {
+              view: 'products',
+              label: 'Productos a la venta',
+              hint: 'Carta y precios',
+            },
+            {
+              view: 'recipes',
+              label: 'Recetas',
+              hint: 'Fichas técnicas',
+            },
+          ],
         },
         {
-          view: 'pos',
-          label: 'POS · Mesas',
-          hint: 'Salón, pedidos y cobro en vivo',
+          id: 'stock',
+          title: 'Inventario',
+          hint:
+            [inventoryHint, purchasesHint].filter(Boolean).join(' · ') ||
+            'Insumos en existencia y compras por lote',
+          items: [
+            {
+              view: 'inventory',
+              label: 'Productos',
+              hint: 'Insumos y existencias por ítem',
+            },
+            {
+              view: 'purchases',
+              label: 'Compras',
+              hint: 'Lotes de compra y proveedores',
+            },
+          ],
         },
-      ],
-    },
-    {
-      id: 'finance',
-      title: 'Finanzas',
-      hint: 'Costos y gastos operativos',
-      items: [
         {
-          view: 'costs',
-          label: 'Costos',
-          hint: 'Costos por producto',
+          id: 'sales',
+          title: 'Ventas',
+          hint: 'Ingresos del día',
+          items: [
+            {
+              view: 'sales',
+              label: 'Ventas',
+              hint: 'Tickets y cobros',
+            },
+            {
+              view: 'pos',
+              label: 'POS · Mesas',
+              hint: 'Salón, pedidos y cobro en vivo',
+            },
+          ],
         },
         {
-          view: 'gastos',
-          label: 'Gastos',
-          hint: 'Fijos y variables',
+          id: 'finance',
+          title: 'Finanzas',
+          hint: 'Costos y gastos operativos',
+          items: [
+            {
+              view: 'costs',
+              label: 'Costos',
+              hint: 'Costos por producto',
+            },
+            {
+              view: 'gastos',
+              label: 'Gastos',
+              hint: 'Fijos y variables',
+            },
+          ],
         },
-      ],
-    },
-    {
-      id: 'data',
-      title: 'Datos',
-      hint: 'Consultas de solo lectura',
-      items: [
         {
-          view: 'explorer',
-          label: 'Explorador DB',
-          hint: 'Tablas en lectura',
+          id: 'data',
+          title: 'Datos',
+          hint: 'Consultas de solo lectura',
+          items: [
+            {
+              view: 'explorer',
+              label: 'Explorador DB',
+              hint: 'Tablas en lectura',
+            },
+          ],
         },
-      ],
-    },
-  ]
+      ]
 
   return (
     <div className="nav-hub nav-hub--dashboard">
