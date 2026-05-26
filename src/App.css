@@ -10429,3 +10429,253 @@ html.app--mobile-sheet-open body {
     max-height: min(220px, 40vh);
   }
 }
+
+/* ============================================================
+   Pulido responsive del módulo de ventas — móvil
+   Objetivo: maximizar ancho útil en teléfonos sin scroll horizontal,
+   tipografía y paddings compactos sin perder jerarquía.
+   ============================================================ */
+
+@media (max-width: 560px) {
+  /* Listado de ventas: aprovechar todo el ancho del card */
+  .sales-table-wrap,
+  .data-table-wrap.sales-table-wrap {
+    margin-left: -0.4rem;
+    margin-right: -0.4rem;
+    border-radius: 0;
+  }
+
+  .data-table--sales-list thead th,
+  .data-table--sales-list tbody td {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  /* Bloques internos: menos padding lateral en el editor */
+  .sales-editor-section--products,
+  .sales-editor-section--invoice {
+    padding: 0.6rem 0.55rem 0.7rem;
+    border-radius: 12px;
+  }
+
+  /* Total bar más compacta, sin perder jerarquía */
+  .sales-editor-total-bar {
+    padding: 0.55rem 0.7rem;
+    gap: 0.35rem 0.6rem;
+  }
+
+  .sales-editor-total-bar__label {
+    font-size: 0.62rem;
+  }
+
+  .sales-editor-total-bar__amount {
+    font-size: 1.15rem;
+  }
+
+  /* Factura (ticket) — colapsa columnas redundantes y ajusta inputs */
+  .sales-invoice__header {
+    padding: 0.85rem 0.85rem 0.7rem;
+    gap: 0.55rem 0.85rem;
+  }
+
+  .sales-invoice__title {
+    font-size: clamp(1.25rem, 5.4vw, 1.55rem);
+  }
+
+  .sales-invoice__add {
+    padding: 0.55rem 0.7rem 0.45rem;
+  }
+
+  .sales-invoice__search {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .sales-invoice__table thead th,
+  .sales-invoice__table tbody td {
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+  }
+
+  .sales-invoice__col-desc {
+    min-width: 0;
+  }
+
+  .sales-invoice__col-qty {
+    width: 3.4rem;
+  }
+
+  .sales-invoice__col-price {
+    width: 5.1rem;
+  }
+
+  .sales-invoice__col-total {
+    width: 5.4rem;
+  }
+
+  .sales-invoice__col-act {
+    width: 1.85rem;
+  }
+
+  .sales-invoice__input--name {
+    font-size: 0.85rem;
+  }
+
+  .sales-invoice__input--qty,
+  .sales-invoice__input--price {
+    font-size: 0.82rem;
+  }
+
+  .sales-invoice__line-meta {
+    font-size: 0.62rem;
+  }
+
+  .sales-invoice__footer {
+    padding: 0.75rem 0.85rem 0.9rem;
+  }
+
+  .sales-invoice__total-row {
+    font-size: 0.82rem;
+    gap: 0.65rem;
+  }
+
+  .sales-invoice__total-row--grand {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.95rem;
+  }
+
+  .sales-invoice__total-row--grand strong {
+    font-size: 1.2rem;
+  }
+
+  /* Reducir min-widths que fuerzan scroll horizontal */
+  .sales-lines-table--simple {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sales-lines-table--core {
+    min-width: 38rem;
+  }
+
+  .sales-lines-table-wrap--advanced .sales-lines-table--advanced {
+    min-width: 40rem;
+  }
+}
+
+/* Teléfonos angostos: ticket en formato compacto. Esconde "Cant." numérica
+   en thead/td superflua dejando que el nombre fluya, y reduce más paddings. */
+@media (max-width: 420px) {
+  .modal-body--sales-editor {
+    padding: 0.5rem 0.5rem 0.4rem;
+  }
+
+  .sales-editor-section--products,
+  .sales-editor-section--invoice {
+    padding: 0.55rem 0.45rem 0.65rem;
+    border-radius: 10px;
+  }
+
+  .sales-invoice {
+    border-radius: 10px;
+  }
+
+  .sales-invoice__header {
+    padding: 0.7rem 0.7rem 0.6rem;
+  }
+
+  .sales-invoice__chips {
+    gap: 0.3rem;
+  }
+
+  .sales-invoice__chip {
+    padding: 0.28rem 0.42rem;
+    font-size: 0.7rem;
+    max-width: none;
+    flex: 1 1 calc(50% - 0.3rem);
+  }
+
+  .sales-invoice__chip-label {
+    font-size: 0.54rem;
+  }
+
+  .sales-invoice__table thead th,
+  .sales-invoice__table tbody td {
+    padding: 0.5rem 0.42rem;
+  }
+
+  .sales-invoice__col-qty {
+    width: 2.9rem;
+  }
+
+  .sales-invoice__col-price {
+    width: 4.4rem;
+  }
+
+  .sales-invoice__col-total {
+    width: 4.8rem;
+  }
+
+  .sales-invoice__input--name {
+    font-size: 0.84rem;
+  }
+
+  .sales-invoice__input--qty,
+  .sales-invoice__input--price {
+    font-size: 0.78rem;
+  }
+
+  .sales-invoice__remove {
+    width: 1.7rem;
+    height: 1.7rem;
+    min-width: 1.7rem;
+    font-size: 1rem;
+  }
+
+  .sales-invoice__footer {
+    padding: 0.65rem 0.7rem 0.85rem;
+  }
+
+  .sales-editor-total-bar {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .sales-editor-total-bar__amount {
+    font-size: 1.05rem;
+  }
+
+  /* Botones del footer apilados en una sola columna ya está cubierto en 420px */
+  .sales-editor-btn {
+    width: 100%;
+    min-height: 2.7rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* Pantallas ultra-pequeñas (≤360px): reduce el ticket a lo esencial */
+@media (max-width: 360px) {
+  .sales-invoice__col-qty {
+    width: 2.6rem;
+  }
+
+  .sales-invoice__col-price {
+    width: 4rem;
+  }
+
+  .sales-invoice__col-total {
+    width: 4.4rem;
+  }
+
+  .sales-invoice__table thead th,
+  .sales-invoice__table tbody td {
+    padding: 0.45rem 0.35rem;
+  }
+
+  .sales-invoice__title {
+    font-size: 1.2rem;
+  }
+
+  .sales-invoice__chip {
+    flex: 1 1 100%;
+  }
+}

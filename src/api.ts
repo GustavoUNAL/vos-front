@@ -1622,6 +1622,30 @@ export async function fetchSale(base: string, id: string): Promise<SaleDetail> {
   return res.json() as Promise<SaleDetail>
 }
 
+export type SalesCalendarDay = {
+  date: string
+  count: number
+  totalCOP: string
+}
+
+export type SalesCalendarResponse = {
+  year: number
+  month: number
+  days: SalesCalendarDay[]
+  totals: { count: number; totalCOP: string }
+}
+
+export async function fetchSalesCalendar(
+  base: string,
+  year: number,
+  month: number,
+): Promise<SalesCalendarResponse> {
+  const q = new URLSearchParams({ year: String(year), month: String(month) })
+  const res = await apiFetch(`${base}/sales/calendar?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<SalesCalendarResponse>
+}
+
 export async function createSale(
   base: string,
   payload: CreateSalePayload,

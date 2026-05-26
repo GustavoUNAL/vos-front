@@ -4,10 +4,12 @@ import {
   fetchProducts,
   fetchSale,
   fetchSales,
+  fetchSalesCalendar,
   formatPurchaseLotDate,
   patchSale,
   replaceSaleLines,
   type ProductRow,
+  type SalesCalendarResponse,
   saleListRowLineCount,
   saleRowTotalNumeric,
   type SaleDetail,
@@ -287,6 +289,17 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
 
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => new Date().getMonth() + 1,
+  )
+  const [calendarData, setCalendarData] = useState<SalesCalendarResponse | null>(
+    null,
+  )
+  const [calendarLoading, setCalendarLoading] = useState(false)
+  const [calendarError, setCalendarError] = useState<string | null>(null)
+
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [detail, setDetail] = useState<SaleDetail | null>(null)
@@ -375,6 +388,26 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       cancelled = true
     }
   }, [baseUrl, page, salesListQuery])
+
+  useEffect(() => {
+    if (viewMode !== 'calendar') return
+    let cancelled = false
+    setCalendarLoading(true)
+    setCalendarError(null)
+    fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
+      .then((res) => {
+        if (!cancelled) setCalendarData(res)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setCalendarError(e.message)
+      })
+      .finally(() => {
+        if (!cancelled) setCalendarLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [baseUrl, viewMode, calendarYear, calendarMonth])
 
   useEffect(() => {
     if (!selectedId && !creating) return
@@ -1025,6 +1058,37 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           <p className="empty-hint">No hay ventas en esta página.</p>
         )}
       </div>
+
+      {viewMode === 'calendar' ? (
+        <SalesCalendarView
+          year={calendarYear}
+          month={calendarMonth}
+          data={calendarData}
+          loading={calendarLoading}
+          error={calendarError}
+          onPrevMonth={() => {
+            const prev = new Date(calendarYear, calendarMonth - 2, 1)
+            setCalendarYear(prev.getFullYear())
+            setCalendarMonth(prev.getMonth() + 1)
+          }}
+          onNextMonth={() => {
+            const next = new Date(calendarYear, calendarMonth, 1)
+            setCalendarYear(next.getFullYear())
+            setCalendarMonth(next.getMonth() + 1)
+          }}
+          onToday={() => {
+            const now = new Date()
+            setCalendarYear(now.getFullYear())
+            setCalendarMonth(now.getMonth() + 1)
+          }}
+          onDayClick={(date) => {
+            setFilterDateFrom(date)
+            setFilterDateTo(date)
+            setPage(1)
+            setViewMode('list')
+          }}
+        />
+      ) : null}
 
       {panelOpen && (creating || selectedId) && (
         <div
