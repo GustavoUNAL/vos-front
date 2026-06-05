@@ -4,9 +4,19 @@
  * Para volver al menú completo: VITE_SALES_FLOOR_ONLY=false en .env.local
  */
 const envFlag = import.meta.env.VITE_SALES_FLOOR_ONLY as string | undefined
+const platformFlag = import.meta.env.VITE_PLATFORM_MODE as string | undefined
+
+/** VOS AI multi-tenant: catálogo de productos por empresa (módulos vía API). */
+export const PLATFORM_MODE =
+  platformFlag !== '0' && platformFlag !== 'false' && platformFlag !== 'off'
+
+export const PLATFORM_NAV_GROUPS = ['catalog'] as const
 
 export const SALES_FLOOR_ONLY =
-  envFlag !== '0' && envFlag !== 'false' && envFlag !== 'off'
+  !PLATFORM_MODE &&
+  envFlag !== '0' &&
+  envFlag !== 'false' &&
+  envFlag !== 'off'
 
 export const SALES_FLOOR_VIEWS = ['products', 'sales'] as const
 export type SalesFloorView = (typeof SALES_FLOOR_VIEWS)[number]

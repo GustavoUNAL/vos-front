@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react'
 import {
   Children,
   createContext,
@@ -10,6 +11,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { Button } from './ui/button'
 
 const GearFabCloseMenuContext = createContext<() => void>(() => {})
 
@@ -30,9 +32,11 @@ export function FloatingGearFabDockAdd({
 }) {
   const closeMenu = useGearFabCloseMenu()
   return (
-    <button
+    <Button
       type="button"
-      className="btn-icon-add-product btn-catalog-dock-add"
+      variant="primary"
+      size="icon-sm"
+      className="btn-catalog-dock-add shrink-0"
       title={title}
       aria-label={ariaLabel}
       onClick={() => {
@@ -40,8 +44,8 @@ export function FloatingGearFabDockAdd({
         onClick()
       }}
     >
-      <span className="btn-icon-add-product__glyph" aria-hidden />
-    </button>
+      <Plus className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.25} aria-hidden />
+    </Button>
   )
 }
 

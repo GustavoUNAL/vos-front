@@ -831,7 +831,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           hasActiveFilters={filtersBarActive}
           trailing={
             isMobile ? (
-              <div className="mobile-list-toolbar__actions">
+              <div className="vos-toolbar__actions mobile-list-toolbar__actions">
                 <ProductSummaryCard
                   summary={catalogSummary}
                   categories={categories}

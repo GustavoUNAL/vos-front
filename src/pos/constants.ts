@@ -19,7 +19,7 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
 /** Mesas iniciales del salón (se pueden agregar más con + Mesa). */
 export const DEMO_TABLE_COUNT = 3
 
-export const POS_STORAGE_KEY = 'arandano_pos_state_v1'
+export const POS_STORAGE_KEY = 'vos_pos_state_v1'
 
 export const POS_WS_PATH = '/pos/ws'
 

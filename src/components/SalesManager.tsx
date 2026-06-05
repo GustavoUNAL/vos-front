@@ -28,6 +28,31 @@ import { type SectionSummaryItem } from './SectionSummaryBar'
 const LIMIT = 15
 const SALE_SOURCES = ['MANUAL', 'CART', 'AI'] as const
 
+function SalesCalendarView({
+  data,
+  loading,
+  error,
+}: {
+  year: number
+  month: number
+  data: SalesCalendarResponse | null
+  loading: boolean
+  error: string | null
+  onPrevMonth: () => void
+  onNextMonth: () => void
+  onToday: () => void
+  onDayClick: (date: string) => void
+}) {
+  if (loading) return <p className="muted">Cargando calendario…</p>
+  if (error) return <p className="error-text">{error}</p>
+  return (
+    <p className="empty-hint">
+      Vista calendario en desarrollo
+      {data?.days?.length ? ` (${data.days.length} días con datos)` : ''}.
+    </p>
+  )
+}
+
 function paginationDots(current: number, total: number): number[] {
   if (total <= 1) return []
   const out: number[] = []

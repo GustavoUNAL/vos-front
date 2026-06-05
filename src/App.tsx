@@ -5,6 +5,7 @@ import {
   getAccessToken,
   getApiBase,
   setAccessToken,
+  setCompanyId,
   type AuthUser,
 } from './api'
 import { ProductsManager } from './components/ProductsManager'
@@ -17,6 +18,8 @@ import { RecipesView } from './components/RecipesView'
 import { TableExplorer } from './components/TableExplorer'
 import { PosApp } from './pos/PosApp'
 import {
+  PLATFORM_MODE,
+  PLATFORM_NAV_GROUPS,
   SALES_FLOOR_ONLY,
   SALES_FLOOR_DEFAULT_VIEW,
   SALES_FLOOR_NAV_GROUPS,
@@ -25,8 +28,8 @@ import {
 import { useNavigation } from './NavigationContext'
 import { NavigationHub, type HubTargetView } from './components/NavigationHub'
 import { LoginView } from './components/LoginView'
+import { CompanyBrand } from './components/CompanyBrand'
 import {
-  APP_BRAND_TITLE,
   MobileAppChrome,
   type MobileChromeView,
 } from './components/MobileAppChrome'
@@ -210,9 +213,11 @@ function SidebarCollapsedRail({
   view: View
   onPick: (g: NavGroupId) => void
 }) {
-  const groups: NavGroupId[] = SALES_FLOOR_ONLY
-    ? [...SALES_FLOOR_NAV_GROUPS]
-    : ['catalog', 'stock', 'purchases', 'sales', 'finance', 'data']
+  const groups: NavGroupId[] = PLATFORM_MODE
+    ? [...PLATFORM_NAV_GROUPS]
+    : SALES_FLOOR_ONLY
+      ? [...SALES_FLOOR_NAV_GROUPS]
+      : ['catalog', 'stock', 'purchases', 'sales', 'finance', 'data']
   return (
     <nav
       id="app-sidebar-collapsed-rail"
@@ -269,17 +274,21 @@ export default function App() {
   const [view, setView] = useState<View>(() => {
     try {
       const h = getViewFromHash()
+      if (PLATFORM_MODE) {
+        return h === 'products' ? 'products' : 'products'
+      }
       if (SALES_FLOOR_ONLY) {
         return resolveSalesFloorView(h) as View
       }
       return h ?? 'menu'
     } catch {
+      if (PLATFORM_MODE) return 'products'
       return SALES_FLOOR_ONLY ? SALES_FLOOR_DEFAULT_VIEW : 'menu'
     }
   })
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
-      const t = window.localStorage.getItem('arandano_theme')
+      const t = window.localStorage.getItem('vos_theme')
       return t === 'light' ? 'light' : 'dark'
     } catch {
       return 'dark'
@@ -294,7 +303,7 @@ export default function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      const v = window.localStorage.getItem('arandano_sidebar_collapsed')
+      const v = window.localStorage.getItem('vos_sidebar_collapsed')
       if (v === '0') return false
       if (v === '1') return true
       return true
@@ -351,7 +360,7 @@ export default function App() {
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        'arandano_sidebar_collapsed',
+        'vos_sidebar_collapsed',
         sidebarCollapsed ? '1' : '0',
       )
     } catch {
@@ -362,7 +371,7 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     try {
-      window.localStorage.setItem('arandano_theme', theme)
+      window.localStorage.setItem('vos_theme', theme)
     } catch {
       /* ignore */
     }
@@ -398,6 +407,7 @@ export default function App() {
 
   useEffect(() => {
     const onLogout = () => {
+      setCompanyId(null)
       setUser(null)
       setAuthError('Sesión expirada. Iniciá sesión nuevamente.')
     }
@@ -409,6 +419,10 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       const v = getViewFromHash()
+      if (PLATFORM_MODE) {
+        setView(v === 'products' || v === 'menu' ? v : 'products')
+        return
+      }
       if (SALES_FLOOR_ONLY) {
         setView(resolveSalesFloorView(v) as View)
         return
@@ -448,7 +462,7 @@ export default function App() {
 
   return (
     <div
-      className={`app-shell${isMobileNav ? ' app-shell--mobile-dock' : ''}`}
+      className={`app-shell${isMobileNav ? ' app-shell--mobile-dock' : ''}${isMobileNav && PLATFORM_MODE ? ' app-shell--mobile-compact' : ''}`}
     >
       <a href="#main-content" className="skip-to-main">
         Saltar al contenido
@@ -461,7 +475,7 @@ export default function App() {
       {backendDown && (
         <div className="app-banner app-banner--api-down" role="alert">
           <span className="banner-warn">
-            API apagado (puerto 3000). Ventas y productos a la venta necesitan arandano-api.
+            API apagado (puerto 3000). Ventas y productos a la venta necesitan vos-api.
           </span>
           <button type="button" className="btn btn-secondary btn-sm" onClick={retryApiProbe}>
             Reintentar conexión
@@ -489,7 +503,7 @@ export default function App() {
               onSheetOpenChange={setMobileSheetOpen}
             />
           ) : null}
-          {view === 'menu' && !SALES_FLOOR_ONLY && (
+          {view === 'menu' && !SALES_FLOOR_ONLY && !PLATFORM_MODE && (
             <NavigationHub
               inventoryHint={
                 inventorySubtitle ??
@@ -508,24 +522,26 @@ export default function App() {
             />
           )}
           {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
-          {!SALES_FLOOR_ONLY && view === 'recipes' && (
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'recipes' && (
             <RecipesView baseUrl={baseUrl} />
           )}
-          {!SALES_FLOOR_ONLY && view === 'inventory' && (
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'inventory' && (
             <InventoryManager baseUrl={baseUrl} />
           )}
-          {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
-          {!SALES_FLOOR_ONLY && view === 'pos' && <PosApp />}
-          {!SALES_FLOOR_ONLY && view === 'purchases' && (
+          {view === 'sales' && !PLATFORM_MODE && (
+            <SalesManager baseUrl={baseUrl} />
+          )}
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'pos' && <PosApp />}
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'purchases' && (
             <PurchaseLotsView baseUrl={baseUrl} />
           )}
-          {!SALES_FLOOR_ONLY && view === 'costs' && (
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'costs' && (
             <CostsView baseUrl={baseUrl} />
           )}
-          {!SALES_FLOOR_ONLY && view === 'gastos' && (
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'gastos' && (
             <GastosView baseUrl={baseUrl} />
           )}
-          {!SALES_FLOOR_ONLY && view === 'explorer' && (
+          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'explorer' && (
             <TableExplorer baseUrl={baseUrl} />
           )}
         </main>
@@ -542,25 +558,31 @@ export default function App() {
                 type="button"
                 className="app-sidebar__logo-btn"
                 onClick={() =>
-                  setView(SALES_FLOOR_ONLY ? SALES_FLOOR_DEFAULT_VIEW : 'menu')
+                  setView(
+                    PLATFORM_MODE || SALES_FLOOR_ONLY
+                      ? 'products'
+                      : 'menu',
+                  )
                 }
-                title={SALES_FLOOR_ONLY ? 'Productos a la venta' : 'Inicio'}
+                title={
+                  PLATFORM_MODE || SALES_FLOOR_ONLY
+                    ? 'Productos'
+                    : 'Inicio'
+                }
                 aria-label={
-                  SALES_FLOOR_ONLY ? 'Ir a productos a la venta' : 'Ir al inicio'
+                  PLATFORM_MODE || SALES_FLOOR_ONLY
+                    ? 'Ir a productos'
+                    : 'Ir al inicio'
                 }
               >
-                <img
-                  className="app-logo"
-                  src="/logo.png"
-                  width={40}
-                  height={40}
-                  alt=""
-                  decoding="async"
-                />
+                {user?.companyName ? (
+                  <CompanyBrand
+                    name={user.companyName}
+                    size="sm"
+                    className="app-sidebar__company-brand"
+                  />
+                ) : null}
               </button>
-              <div className="app-sidebar__brand-text">
-                <span className="app-sidebar__brand-name">{APP_BRAND_TITLE}</span>
-              </div>
             </div>
             <button
               type="button"
@@ -595,6 +617,7 @@ export default function App() {
                   className="btn-secondary btn-compact"
                   onClick={() => {
                     setAccessToken(null)
+                    setCompanyId(null)
                     setUser(null)
                     setAuthError(null)
                   }}
@@ -619,7 +642,7 @@ export default function App() {
             aria-label="Secciones"
             hidden={sidebarCollapsed}
           >
-            {!SALES_FLOOR_ONLY && (
+            {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
               <div className="app-nav-home">
                 <ul className="app-nav-list">
                   <li>
@@ -642,9 +665,11 @@ export default function App() {
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Productos a la venta</span>
                   <span className="app-nav-group__hint">
-                    {SALES_FLOOR_ONLY
-                      ? 'Carta, precios y visibilidad'
-                      : 'Carta, recetas y fichas'}
+                    {PLATFORM_MODE
+                      ? 'Catálogo multi-empresa'
+                      : SALES_FLOOR_ONLY
+                        ? 'Carta, precios y visibilidad'
+                        : 'Carta, recetas y fichas'}
                   </span>
                 </span>
               </div>
@@ -661,7 +686,7 @@ export default function App() {
                     Productos a la venta
                   </button>
                 </li>
-                {!SALES_FLOOR_ONLY && (
+                {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
                   <li>
                     <button
                       type="button"
@@ -678,7 +703,7 @@ export default function App() {
               </ul>
             </div>
 
-            {!SALES_FLOOR_ONLY && (
+            {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--stock">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -720,6 +745,7 @@ export default function App() {
             </div>
             )}
 
+            {!PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--sales">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -756,8 +782,9 @@ export default function App() {
                 )}
               </ul>
             </div>
+            )}
 
-            {!SALES_FLOOR_ONLY && (
+            {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--finance">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -794,7 +821,7 @@ export default function App() {
             </div>
             )}
 
-            {!SALES_FLOOR_ONLY && (
+            {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--data">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"

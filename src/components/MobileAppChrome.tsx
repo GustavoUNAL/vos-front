@@ -1,8 +1,9 @@
+import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useEffect } from 'react'
 import type { AuthUser } from '../api'
-import { SALES_FLOOR_ONLY } from '../appScope'
-
-export const APP_BRAND_TITLE = 'Arándano Café Bar APP'
+import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
+import { cn } from '../lib/utils'
+import { Button } from './ui/button'
 
 export type MobileChromeView =
   | 'menu'
@@ -18,7 +19,7 @@ export type MobileChromeView =
 
 const SCREEN_TITLE: Record<MobileChromeView, string> = {
   menu: 'Inicio',
-  products: 'Productos',
+  products: 'Productos a la venta',
   recipes: 'Recetas',
   inventory: 'Inventario',
   sales: 'Ventas',
@@ -49,7 +50,7 @@ const DOCK_TABS_FULL: DockTab[] = [
 ]
 
 function MobileDockIcon({ id }: { id: DockTabId }) {
-  const c = 'app-mobile-dock__svg'
+  const c = 'h-[1.15rem] w-[1.15rem]'
   switch (id) {
     case 'products':
       return (
@@ -98,28 +99,6 @@ function MobileDockIcon({ id }: { id: DockTabId }) {
   }
 }
 
-function ThemeDockIcon({ theme }: { theme: 'dark' | 'light' }) {
-  const c = 'app-mobile-dock__svg'
-  if (theme === 'light') {
-    return (
-      <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path
-          d="M12 3a1 1 0 0 1 1 1v1.2a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 14.8a5.2 5.2 0 1 0 0-10.4 5.2 5.2 0 0 0 0 10.4ZM4.6 5.4a1 1 0 0 1 1.4 0l.85.85a1 1 0 0 1-1.4 1.42l-.86-.86a1 1 0 0 1 0-1.41Zm12.5 12.5a1 1 0 0 1 1.4 0l.85.85a1 1 0 1 1-1.4 1.42l-.86-.86a1 1 0 0 1 0-1.41ZM3 12a1 1 0 0 1 1-1h1.2a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm15.8 0a1 1 0 0 1 1-1H20a1 1 0 1 1 0 2h-1.2a1 1 0 0 1-1-1ZM6.45 17.55a1 1 0 0 1 1.41 0l.86.86a1 1 0 0 1-1.41 1.41l-.86-.86a1 1 0 0 1 0-1.41Zm10.24-10.24a1 1 0 0 1 1.41 0l.86.86a1 1 0 0 1-1.41 1.41l-.86-.86a1 1 0 0 1 0-1.41Z"
-          fill="currentColor"
-        />
-      </svg>
-    )
-  }
-  return (
-    <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M14.2 3.8a7.2 7.2 0 1 0 2.4 13.9 5.8 5.8 0 1 1-2.4-13.9Z"
-        fill="currentColor"
-      />
-    </svg>
-  )
-}
-
 type SheetLink = {
   view: MobileChromeView
   label: string
@@ -144,9 +123,15 @@ export function MobileAppChrome({
   sheetOpen: boolean
   onSheetOpenChange: (open: boolean) => void
 }) {
-  const dockTabs = SALES_FLOOR_ONLY ? DOCK_TABS_SALES : DOCK_TABS_FULL
+  const compactChrome = PLATFORM_MODE || SALES_FLOOR_ONLY
+  const dockTabs = PLATFORM_MODE
+    ? []
+    : SALES_FLOOR_ONLY
+      ? DOCK_TABS_SALES
+      : DOCK_TABS_FULL
+  const showDock = dockTabs.length > 0
 
-  const sheetLinks: SheetLink[] = SALES_FLOOR_ONLY
+  const sheetLinks: SheetLink[] = compactChrome
     ? []
     : [
         { view: 'menu', label: 'Inicio' },
@@ -158,7 +143,12 @@ export function MobileAppChrome({
         { view: 'explorer', label: 'Explorador DB' },
       ]
 
+  const userInitial = user?.name?.trim().charAt(0).toUpperCase() ?? ''
   const showMenuButton = sheetLinks.length > 0 || Boolean(user)
+  const showAvatarButton = !compactChrome && showMenuButton && Boolean(userInitial)
+  const headerTitle = PLATFORM_MODE
+    ? 'Productos a la venta'
+    : SCREEN_TITLE[view]
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -185,86 +175,90 @@ export function MobileAppChrome({
   }
 
   const themeLabel = theme === 'light' ? 'Oscuro' : 'Claro'
-
-  const userInitial = user?.name?.trim().charAt(0).toUpperCase() ?? ''
+  const ThemeIcon = theme === 'light' ? Moon : Sun
 
   return (
     <>
-      <header className="app-mobile-header">
-        <div className="app-mobile-header__bar">
+      <header className="vos-mobile-header">
+        <div
+          className={cn(
+            'vos-mobile-header__bar',
+            !compactChrome && showAvatarButton && 'vos-mobile-header__bar--with-trailing',
+          )}
+        >
           {showMenuButton ? (
-            <button
+            <Button
               type="button"
-              className={`app-mobile-header__menu${sheetOpen ? ' app-mobile-header__menu--open' : ''}`}
+              variant={sheetOpen ? 'accent' : 'ghost'}
+              size="icon-sm"
               aria-expanded={sheetOpen}
               aria-haspopup="dialog"
               aria-label="Menú y cuenta"
               onClick={() => onSheetOpenChange(!sheetOpen)}
             >
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M5 7h14M5 12h14M5 17h10"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
+              <Menu className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+            </Button>
           ) : (
-            <span className="app-mobile-header__slot" aria-hidden />
+            <span className="w-10" aria-hidden />
           )}
 
-          <div className="app-mobile-header__center">
-            <h1 className="app-mobile-header__title">{SCREEN_TITLE[view]}</h1>
-          </div>
+          <h1 className="vos-mobile-header__title">{headerTitle}</h1>
 
-          {showMenuButton && userInitial ? (
-            <button
-              type="button"
-              className={`app-mobile-header__avatar${sheetOpen ? ' app-mobile-header__avatar--open' : ''}`}
-              aria-label={`Cuenta: ${user?.name}`}
-              onClick={() => onSheetOpenChange(!sheetOpen)}
-            >
-              {userInitial}
-            </button>
-          ) : (
-            <span className="app-mobile-header__slot" aria-hidden />
-          )}
+          {!compactChrome ? (
+            showAvatarButton ? (
+              <Button
+                type="button"
+                variant={sheetOpen ? 'accent' : 'secondary'}
+                size="icon-sm"
+                aria-label={`Cuenta: ${user?.name}`}
+                onClick={() => onSheetOpenChange(!sheetOpen)}
+              >
+                {userInitial}
+              </Button>
+            ) : (
+              <span className="w-10" aria-hidden />
+            )
+          ) : null}
         </div>
       </header>
 
-      <nav className="app-mobile-dock" aria-label="Módulos principales">
-        <div className="app-mobile-dock__fade" aria-hidden />
-        <div className="app-mobile-dock__inner">
-          {dockTabs.map((tab) => {
-            const active = view === tab.view
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={`app-mobile-dock__tab${active ? ' app-mobile-dock__tab--active' : ''}`}
-                aria-current={active ? 'page' : undefined}
-                aria-label={tab.label}
-                onClick={() => onNavigate(tab.view)}
-              >
-                <span className="app-mobile-dock__icon-wrap">
+      {showDock ? (
+        <nav className="app-mobile-dock" aria-label="Módulos principales">
+          <div className="app-mobile-dock__fade" aria-hidden />
+          <div className="app-mobile-dock__inner">
+            {dockTabs.map((tab) => {
+              const active = view === tab.view
+              return (
+                <Button
+                  key={tab.id}
+                  type="button"
+                  variant={active ? 'accent' : 'ghost'}
+                  size="icon"
+                  className={cn(
+                    'app-mobile-dock__tab',
+                    active && 'app-mobile-dock__tab--active',
+                  )}
+                  aria-current={active ? 'page' : undefined}
+                  aria-label={tab.label}
+                  onClick={() => onNavigate(tab.view)}
+                >
                   <MobileDockIcon id={tab.id} />
-                </span>
-              </button>
-            )
-          })}
-          <button
-            type="button"
-            className="app-mobile-dock__tab app-mobile-dock__tab--theme"
-            aria-label={`Cambiar a tema ${themeLabel.toLowerCase()}`}
-            onClick={onToggleTheme}
-          >
-            <span className="app-mobile-dock__icon-wrap">
-              <ThemeDockIcon theme={theme} />
-            </span>
-          </button>
-        </div>
-      </nav>
+                </Button>
+              )
+            })}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="app-mobile-dock__tab app-mobile-dock__tab--theme"
+              aria-label={`Cambiar a tema ${themeLabel.toLowerCase()}`}
+              onClick={onToggleTheme}
+            >
+              <ThemeIcon className="h-[1.15rem] w-[1.15rem]" strokeWidth={2} aria-hidden />
+            </Button>
+          </div>
+        </nav>
+      ) : null}
 
       {sheetOpen ? (
         <div
@@ -275,56 +269,80 @@ export function MobileAppChrome({
           }}
         >
           <section
-            className="app-mobile-sheet"
+            className="vos-sheet"
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-sheet-title"
           >
-            <header className="app-mobile-sheet__head">
-              <h2 id="mobile-sheet-title" className="app-mobile-sheet__title">
+            <header className="vos-sheet__head">
+              <h2 id="mobile-sheet-title" className="vos-sheet__title">
                 Menú
               </h2>
-              <button
+              <Button
                 type="button"
-                className="app-mobile-sheet__close"
+                variant="secondary"
+                size="icon-sm"
                 onClick={() => onSheetOpenChange(false)}
                 aria-label="Cerrar"
               >
-                ×
-              </button>
+                <X className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+              </Button>
             </header>
-            <div className="app-mobile-sheet__body">
+            <div className="vos-sheet__body">
               {sheetLinks.length > 0 ? (
-                <ul className="app-mobile-sheet__nav">
+                <ul className="m-0 flex list-none flex-col gap-2 p-0">
                   {sheetLinks.map((link) => (
                     <li key={link.view}>
-                      <button
+                      <Button
                         type="button"
-                        className={view === link.view ? 'active' : ''}
+                        variant={view === link.view ? 'accent' : 'secondary'}
+                        size="md"
+                        block
+                        className="justify-start"
                         onClick={() => pickView(link.view)}
                       >
                         {link.label}
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
               ) : null}
               {user ? (
-                <div className="app-mobile-sheet__user">
-                  <p className="app-mobile-sheet__user-name">
+                <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-3">
+                  {user.companyName ? (
+                    <p className="vos-sheet__company">{user.companyName}</p>
+                  ) : null}
+                  <p className="vos-sheet__user">
                     {user.name}
-                    <span className="muted small"> · {user.role}</span>
+                    <span className="text-[color-mix(in_srgb,var(--muted)_80%,transparent)]">
+                      {' '}
+                      · {user.role}
+                    </span>
                   </p>
-                  <button
+                  {compactChrome ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      block
+                      onClick={onToggleTheme}
+                    >
+                      <ThemeIcon className="h-4 w-4" strokeWidth={2} aria-hidden />
+                      Tema {themeLabel.toLowerCase()}
+                    </Button>
+                  ) : null}
+                  <Button
                     type="button"
-                    className="btn-secondary btn-compact"
+                    variant="secondary"
+                    size="md"
+                    block
                     onClick={() => {
                       onSheetOpenChange(false)
                       onLogout()
                     }}
                   >
                     Salir
-                  </button>
+                  </Button>
                 </div>
               ) : null}
             </div>

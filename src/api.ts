@@ -1,12 +1,36 @@
 import { isBackendDown } from './backendHealth'
 
-const STORAGE_KEY = 'arandano_api_base'
-const TOKEN_KEY = 'arandano_access_token'
+const STORAGE_KEY = 'vos_api_base'
+const TOKEN_KEY = 'vos_access_token'
+const COMPANY_KEY = 'vos_company_id'
+
+export function getCompanyId(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const id = window.localStorage.getItem(COMPANY_KEY)
+    return id?.trim() ? id.trim() : null
+  } catch {
+    return null
+  }
+}
+
+export function setCompanyId(companyId: string | null): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (!companyId?.trim()) {
+      window.localStorage.removeItem(COMPANY_KEY)
+    } else {
+      window.localStorage.setItem(COMPANY_KEY, companyId.trim())
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 export class ApiUnreachableError extends Error {
   constructor() {
     super(
-      'No se pudo conectar con el API. Levantá arandano-api en el puerto 3000 (npm run start:dev).',
+      'No se pudo conectar con el API. Levantá vos-api en el puerto 3000 (npm run start:dev).',
     )
     this.name = 'ApiUnreachableError'
   }
@@ -223,7 +247,7 @@ async function fetchCategoriesViaExplorer(
   typeFilter: 'PRODUCT' | 'INVENTORY',
 ): Promise<CategoryRef[]> {
   /**
-   * Slug del explorador debe coincidir con lo que registra arandano-api (p. ej. `categories`).
+   * Slug del explorador debe coincidir con lo que registra vos-api (p. ej. `categories`).
    * No usar `category` en singular: suele responder "Unknown table: category".
    */
   const rows = await fetchAllExplorerTableRows(base, 'categories')
@@ -283,7 +307,7 @@ export type UpdateProductPayload = Partial<CreateProductPayload> & {
   traceModifiedAt?: string | null
 }
 
-/** Cuerpo típico de error Nest / arandano-api (`message`, `hint`, `path`, `statusCode`). */
+/** Cuerpo típico de error Nest / vos-api (`message`, `hint`, `path`, `statusCode`). */
 export type ApiErrorBody = {
   statusCode?: number
   message?: string | string[]
@@ -329,15 +353,17 @@ async function apiFetch(
     return new Response(
       JSON.stringify({
         message: 'API no disponible',
-        hint: 'Iniciá el backend: cd arandano-api && npm run start:dev',
+        hint: 'Iniciá el backend: cd vos-api && npm run start:dev',
       }),
       { status: 503, statusText: 'Service Unavailable' },
     )
   }
   const auth = init?.auth !== false
   const token = auth ? getAccessToken() : null
+  const companyId = auth ? getCompanyId() : null
   const headers = new Headers(init?.headers ?? undefined)
   if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (companyId) headers.set('X-Company-Id', companyId)
   const res = await fetch(url, { ...init, headers })
   /** Token rechazado por el API → limpiar sesión y avisar a la app para volver al login. */
   if (auth && token && res.status === 401) {
@@ -350,8 +376,29 @@ async function apiFetch(
 }
 
 export type LoginPayload = { email: string; password: string }
-export type AuthUser = { sub: string; email: string; name: string; role: string }
+export type CompanySummary = {
+  id: string
+  name: string
+  role: string
+  modules: string[]
+}
+
+export type AuthUser = {
+  sub: string
+  email: string
+  name: string
+  role: string
+  companyId: string
+  companyName: string
+  permissions?: string[]
+  companies: CompanySummary[]
+}
+
 export type LoginResponse = { accessToken: string; user: AuthUser }
+
+function syncCompanyFromUser(user: AuthUser): void {
+  if (user.companyId) setCompanyId(user.companyId)
+}
 
 export async function login(
   base: string,
@@ -366,13 +413,32 @@ export async function login(
   if (!res.ok) throw new Error(await parseJsonError(res))
   const out = (await res.json()) as LoginResponse
   setAccessToken(out.accessToken)
+  syncCompanyFromUser(out.user)
   return out
 }
 
 export async function fetchMe(base: string): Promise<AuthUser> {
   const res = await apiFetch(`${base}/auth/me`)
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<AuthUser>
+  const user = (await res.json()) as AuthUser
+  syncCompanyFromUser(user)
+  return user
+}
+
+export async function switchCompany(
+  base: string,
+  companyId: string,
+): Promise<LoginResponse> {
+  const res = await apiFetch(`${base}/auth/switch-company`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ companyId }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const out = (await res.json()) as LoginResponse
+  setAccessToken(out.accessToken)
+  syncCompanyFromUser(out.user)
+  return out
 }
 
 export type ProductListSort = 'name' | 'price_asc' | 'price_desc'
@@ -1905,9 +1971,35 @@ export async function patchPurchaseLot(
 }
 
 /** Categorías para productos (`type === PRODUCT`): explorador paginado (limit≤100); respaldo GET /categories. */
+async function fetchProductCategoriesTenant(
+  base: string,
+): Promise<CategoryRef[] | null> {
+  for (const path of ['/product-categories', '/categories']) {
+    const res = await apiFetch(`${base}${path}`)
+    if (res.status === 404 || res.status === 405) continue
+    if (!res.ok) throw new Error(await parseJsonError(res))
+    const body = await res.json()
+    if (Array.isArray(body)) {
+      return body.map((c: Record<string, unknown>) => ({
+        id: String(c.id),
+        name: String(c.name),
+        type: String(c.type ?? 'PRODUCT'),
+        slug: typeof c.slug === 'string' ? c.slug : undefined,
+        parentId:
+          c.parentId === null || c.parentId === undefined
+            ? null
+            : String(c.parentId),
+      }))
+    }
+  }
+  return null
+}
+
 export async function fetchProductCategories(
   base: string,
 ): Promise<CategoryRef[]> {
+  const tenant = await fetchProductCategoriesTenant(base)
+  if (tenant !== null) return tenant
   try {
     return await fetchCategoriesViaExplorer(base, 'PRODUCT')
   } catch (first) {

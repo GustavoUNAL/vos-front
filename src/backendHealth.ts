@@ -17,7 +17,7 @@ export function isBackendUp(): boolean {
   return status === 'up'
 }
 
-/** Fuerza un nuevo probe (p. ej. tras levantar arandano-api). */
+/** Fuerza un nuevo probe (p. ej. tras levantar vos-api). */
 export function resetBackendProbe(): void {
   status = 'unknown'
   probePromise = null

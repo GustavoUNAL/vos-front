@@ -1,3 +1,4 @@
+import { Search } from 'lucide-react'
 import {
   useEffect,
   useId,
@@ -6,6 +7,8 @@ import {
   type ReactNode,
 } from 'react'
 import { useMatchMedia } from '../hooks/useMatchMedia'
+import { cn } from '../lib/utils'
+import { Button } from './ui/button'
 
 /** Misma base que en App.css (@media max-width 720px) */
 export const MOBILE_FILTER_BREAKPOINT = '(max-width: 720px)'
@@ -47,9 +50,11 @@ export function MobileAwareFilterBar({
   }
 
   const filterToggle = (
-    <button
+    <Button
       type="button"
-      className={`btn-mobile-filters${composeMobileToolbar ? ' btn-catalog-dock-tool' : ''}${hasActiveFilters ? ' btn-mobile-filters--active' : ''}${open ? ' btn-mobile-filters--open' : ''}`}
+      variant={open || hasActiveFilters ? 'accent' : 'secondary'}
+      size="icon-sm"
+      className={cn('relative shrink-0', composeMobileToolbar && 'shrink-0')}
       aria-expanded={open}
       aria-controls={panelId}
       aria-label={
@@ -57,31 +62,38 @@ export function MobileAwareFilterBar({
       }
       onClick={() => setOpen((v) => !v)}
     >
-      <span className="icon-mobile-search" aria-hidden />
-      <span className="btn-mobile-filters__label">Buscar</span>
+      <Search className="h-[1rem] w-[1rem]" strokeWidth={2} aria-hidden />
       {hasActiveFilters && !open ? (
-        <span className="btn-mobile-filters__dot" title="Hay filtros aplicados" />
+        <span
+          className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)]"
+          title="Hay filtros aplicados"
+        />
       ) : null}
-    </button>
+    </Button>
   )
 
   return (
     <div
-      className={`mobile-filter-sheet${composeMobileToolbar ? ' mobile-filter-sheet--dock-compose' : ''}`}
+      className={cn(
+        'mobile-filter-sheet',
+        composeMobileToolbar && 'mobile-filter-sheet--dock-compose',
+      )}
     >
       {composeMobileToolbar ? (
         composeMobileToolbar({ filterToggle })
       ) : (
-        <div className="mobile-filter-sheet__trigger">
+        <div className="vos-toolbar mobile-filter-sheet__trigger">
           {filterToggle}
           {trailing ? (
-            <div className="mobile-filter-sheet__trailing">{trailing}</div>
+            <div className="vos-toolbar__actions mobile-filter-sheet__trailing">
+              {trailing}
+            </div>
           ) : null}
         </div>
       )}
       <div
         id={panelId}
-        className={`mobile-filter-sheet__panel${open ? ' is-open' : ''}`}
+        className={cn('mobile-filter-sheet__panel vos-filter-panel', open && 'is-open')}
         hidden={!open}
       >
         {children}

@@ -1,5 +1,5 @@
 {
-  "name": "arandano-front",
+  "name": "vos-front",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,8 +11,14 @@
     "db:migrate": "npm run db:migrate --prefix backend"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.17.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

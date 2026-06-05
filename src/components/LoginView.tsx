@@ -1,5 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { login, type AuthUser } from '../api'
+import { BrandMark } from './BrandMark'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
 
 type Props = {
   baseUrl: string
@@ -34,20 +38,29 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
   }
 
   return (
-    <div className="login-shell">
-      <form className="login-card" onSubmit={handleSubmit} aria-labelledby="login-title">
-        <h1 id="login-title" className="login-title">Arándano</h1>
-        <p className="login-subtitle">Iniciá sesión para continuar.</p>
+    <div className="login-shell min-h-screen flex items-center justify-center p-6">
+      <form
+        className="vos-card"
+        onSubmit={handleSubmit}
+        aria-labelledby="login-title"
+      >
+        <header className="flex flex-col items-center gap-3 pb-1">
+          <BrandMark size="lg" showTagline />
+        </header>
 
-        {initialMessage && (
-          <div className="login-banner" role="status">
+        <p className="m-0 text-center text-sm text-[color-mix(in_srgb,var(--muted)_90%,var(--heading))]">
+          Iniciá sesión para continuar.
+        </p>
+
+        {initialMessage ? (
+          <div className="vos-alert vos-alert--info" role="status">
             {initialMessage}
           </div>
-        )}
+        ) : null}
 
-        <label className="login-field">
+        <Label>
           <span>Email</span>
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -55,34 +68,32 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
             required
             autoFocus
             disabled={submitting}
+            placeholder="tu@email.com"
           />
-        </label>
+        </Label>
 
-        <label className="login-field">
+        <Label>
           <span>Contraseña</span>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
             disabled={submitting}
+            placeholder="••••••••"
           />
-        </label>
+        </Label>
 
-        {error && (
-          <div className="login-error" role="alert">
+        {error ? (
+          <div className="vos-alert vos-alert--error" role="alert">
             {error}
           </div>
-        )}
+        ) : null}
 
-        <button
-          type="submit"
-          className="btn-primary login-submit"
-          disabled={submitting}
-        >
+        <Button type="submit" size="lg" block disabled={submitting}>
           {submitting ? 'Ingresando…' : 'Entrar'}
-        </button>
+        </Button>
       </form>
     </div>
   )

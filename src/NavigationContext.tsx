@@ -49,7 +49,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       if (!up) {
         setNavigation(null)
         setError(
-          'API apagado o inaccesible. Levantá arandano-api en http://localhost:3000 y recargá.',
+          'API apagado o inaccesible. Levantá vos-api en http://localhost:3000 y recargá.',
         )
         setLoading(false)
         setApiReady(true)

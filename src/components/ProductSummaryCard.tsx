@@ -1,6 +1,8 @@
+import { BarChart3 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CategoryRef, ProductsCatalogSummary } from '../api'
+import { Button } from './ui/button'
 
 function formatCOP(n: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -54,17 +56,19 @@ export function ProductSummaryCard({
       )}
 
       {summary && (
-        <button
+        <Button
           type="button"
-          className="btn-summary-detail"
+          variant="secondary"
+          size="icon-sm"
+          className="btn-summary-detail shrink-0"
           aria-expanded={detailOpen}
           aria-controls={detailDialogId}
           aria-label="Ver resumen de productos a la venta"
           title="Ver resumen"
           onClick={() => setDetailOpen(true)}
         >
-          <span className="btn-summary-detail__icon" aria-hidden />
-        </button>
+          <BarChart3 className="h-[1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+        </Button>
       )}
 
       {summary &&

@@ -39,7 +39,7 @@ export function PosOrderView({ baseUrl }: Props) {
   } = usePosCatalog(baseUrl)
 
   const catalogHint = usingDemoCatalog
-    ? 'Carta de demostración (sin API). Cuando levantes arandano-api verás tus productos reales.'
+    ? 'Carta de demostración (sin API). Cuando levantes vos-api verás tus productos reales.'
     : null
 
   const [search, setSearch] = useState('')

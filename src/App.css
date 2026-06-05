@@ -457,15 +457,6 @@
   min-width: 0;
 }
 
-.app-sidebar__brand-name {
-  margin: 0;
-  font-size: clamp(0.88rem, 2.4vw, 1.05rem);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--heading);
-  line-height: 1.3;
-  display: block;
-}
 
 .app-sidebar__meta {
   display: flex;
@@ -1236,6 +1227,151 @@
   padding: 0.15rem 0.45rem;
 }
 
+/* ——— Brand ——— */
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.brand-mark__logo {
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px var(--berry-glow, rgba(122, 78, 170, 0.35));
+}
+
+.brand-mark--sm .brand-mark__logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.brand-mark--md .brand-mark__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.brand-mark--lg .brand-mark__logo {
+  width: 56px;
+  height: 56px;
+}
+
+.brand-mark__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.brand-mark__name {
+  display: inline-flex;
+  align-items: baseline;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.brand-mark--sm .brand-mark__name {
+  font-size: 1.35rem;
+}
+
+.brand-mark--md .brand-mark__name {
+  font-size: 1.65rem;
+}
+
+.brand-mark--lg .brand-mark__name {
+  font-size: 2.75rem;
+}
+
+.brand-mark__vos {
+  color: var(--heading, #f4f0f8);
+}
+
+.brand-mark__dot {
+  color: var(--muted, #9a8fa8);
+  font-weight: 700;
+}
+
+.brand-mark__ai {
+  background: linear-gradient(135deg, #b07cff 0%, #6e9fff 55%, #5ce0c8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-mark__tagline {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted, #9a8fa8);
+}
+
+.brand-mark--lg .brand-mark__tagline {
+  font-size: 0.72rem;
+  margin-top: 0.35rem;
+}
+
+.app-sidebar__logo-btn .brand-mark {
+  pointer-events: none;
+}
+
+.app-sidebar--collapsed .brand-mark__text {
+  display: none;
+}
+
+.company-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.company-brand__logo {
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px var(--berry-glow, rgba(122, 78, 170, 0.3));
+}
+
+.company-brand--sm .company-brand__logo {
+  width: 36px;
+  height: 36px;
+}
+
+.company-brand--md .company-brand__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.company-brand__name {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--heading, #f4f0f8);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.company-brand--sm .company-brand__name {
+  font-size: 1.05rem;
+}
+
+.company-brand--md .company-brand__name {
+  font-size: 1.35rem;
+}
+
+.app-sidebar--collapsed .company-brand__name {
+  display: none;
+}
+
+.app-sidebar__logo-btn .company-brand {
+  pointer-events: none;
+}
+
 /* ——— Login ——— */
 .login-shell {
   min-height: 100vh;
@@ -1243,35 +1379,43 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: var(--bg, #0f0d12);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(122, 78, 170, 0.22), transparent),
+    var(--bg, #0f0d12);
 }
 
 .login-card {
   width: 100%;
-  max-width: 380px;
-  padding: 2rem 1.75rem;
+  max-width: 420px;
+  padding: 2.25rem 2rem 2rem;
   background: var(--panel, #1a1820);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-  border-radius: 16px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
   display: flex;
   flex-direction: column;
   gap: 1rem;
   font-family: var(--sans);
 }
 
-.login-title {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: 0.01em;
+.login-brand {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 0.25rem;
+}
+
+.login-brand .brand-mark {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.85rem;
 }
 
 .login-subtitle {
-  margin: 0 0 0.25rem;
+  margin: 0;
+  text-align: center;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .login-banner {
@@ -9946,6 +10090,38 @@ table.recipe-table {
     display: none;
   }
 
+  .app-shell--mobile-compact .app-main {
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--mobile-compact .page-pane--floating-gear-dock {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--mobile-compact .mobile-filter-sheet {
+    margin-bottom: 0.2rem;
+  }
+
+  .app-shell--mobile-compact .catalog-by-category {
+    gap: 0.35rem;
+  }
+
+  .app-shell--mobile-compact .catalog-category-block__summary {
+    padding: 0.42rem 0.5rem;
+  }
+
+  .app-mobile-sheet__company {
+    margin: 0 0 0.15rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--heading);
+    letter-spacing: -0.02em;
+  }
+
+  .app-mobile-sheet__theme {
+    width: 100%;
+  }
+
   .app-shell--mobile-dock .page-pane--floating-gear-dock {
     padding-bottom: calc(3.65rem + env(safe-area-inset-bottom, 0px));
   }
@@ -9976,18 +10152,30 @@ table.recipe-table {
     box-shadow: 0 1px 10px color-mix(in srgb, var(--shadow-soft) 25%, transparent);
   }
 
+  .app-mobile-header--compact {
+    padding-top: max(0.1rem, env(safe-area-inset-top, 0px));
+  }
+
   .app-mobile-header__bar {
     position: relative;
     display: grid;
     grid-template-columns: 2rem 1fr 2rem;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
     min-height: 2rem;
     padding: 0.28rem max(0.55rem, env(safe-area-inset-left, 0px)) 0.3rem
       max(0.55rem, env(safe-area-inset-right, 0px));
+  }
+
+  .app-mobile-header--compact .app-mobile-header__bar {
+    grid-template-columns: 2rem 1fr;
+    gap: 0.4rem;
+    min-height: 2.35rem;
+    padding: 0.22rem max(0.45rem, env(safe-area-inset-left, 0px)) 0.24rem
+      max(0.45rem, env(safe-area-inset-right, 0px));
   }
 
   .app-mobile-header__slot {
@@ -10009,11 +10197,16 @@ table.recipe-table {
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: center;
-    font-size: 0.92rem;
-    font-weight: 650;
-    letter-spacing: -0.015em;
-    line-height: 1.15;
-    color: color-mix(in srgb, var(--heading) 92%, var(--muted));
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--heading);
+  }
+
+  .app-mobile-header--compact .app-mobile-header__title {
+    font-size: 1rem;
+    font-weight: 750;
   }
 
   .app-mobile-header__menu,

@@ -275,7 +275,7 @@ export function NavigationHub({
 
   return (
     <div className="nav-hub nav-hub--dashboard">
-      <h1 className="sr-only">Arándano Café — inicio</h1>
+      <h1 className="sr-only">vos.ai — inicio</h1>
 
       <div className="nav-hub__sections">
         {sections.map((section) => (
