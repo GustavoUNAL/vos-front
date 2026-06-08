@@ -9,18 +9,8 @@ export function BrandMark({
   showTagline = false,
   className = '',
 }: BrandMarkProps) {
-  const logoPx = size === 'lg' ? 56 : size === 'md' ? 44 : 36
-
   return (
     <div className={`brand-mark brand-mark--${size}${className ? ` ${className}` : ''}`}>
-      <img
-        className="brand-mark__logo"
-        src="/logo.png"
-        width={logoPx}
-        height={logoPx}
-        alt=""
-        decoding="async"
-      />
       <div className="brand-mark__text">
         <span className="brand-mark__name" aria-label="vos punto ai">
           <span className="brand-mark__vos">vos</span>

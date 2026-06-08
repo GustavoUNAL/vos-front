@@ -1,5 +1,6 @@
 {
   "name": "vos-front",
+  "description": "vos.ai — SPA React + Vite",
   "private": true,
   "version": "0.0.0",
   "type": "module",

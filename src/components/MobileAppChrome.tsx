@@ -6,6 +6,7 @@ import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 
 export type MobileChromeView =
+  | 'home'
   | 'menu'
   | 'products'
   | 'recipes'
@@ -18,6 +19,7 @@ export type MobileChromeView =
   | 'explorer'
 
 const SCREEN_TITLE: Record<MobileChromeView, string> = {
+  home: 'Inicio',
   menu: 'Inicio',
   products: 'Productos a la venta',
   recipes: 'Recetas',
@@ -38,6 +40,13 @@ type DockTab = {
   view: MobileChromeView
 }
 
+const DOCK_TABS_PLATFORM: DockTab[] = [
+  { id: 'home', label: 'Inicio', view: 'home' },
+  { id: 'products', label: 'Productos', view: 'products' },
+  { id: 'sales', label: 'Ventas', view: 'sales' },
+  { id: 'purchases', label: 'Compras', view: 'purchases' },
+]
+
 const DOCK_TABS_SALES: DockTab[] = [
   { id: 'products', label: 'Productos', view: 'products' },
   { id: 'sales', label: 'Ventas', view: 'sales' },
@@ -52,6 +61,17 @@ const DOCK_TABS_FULL: DockTab[] = [
 function MobileDockIcon({ id }: { id: DockTabId }) {
   const c = 'h-[1.15rem] w-[1.15rem]'
   switch (id) {
+    case 'home':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
     case 'products':
       return (
         <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -94,6 +114,18 @@ function MobileDockIcon({ id }: { id: DockTabId }) {
           />
         </svg>
       )
+    case 'purchases':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M4 7h16M4 7l1.5 12h13L20 7M9 11v5M15 11v5M10 7V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
     default:
       return null
   }
@@ -125,7 +157,7 @@ export function MobileAppChrome({
 }) {
   const compactChrome = PLATFORM_MODE || SALES_FLOOR_ONLY
   const dockTabs = PLATFORM_MODE
-    ? []
+    ? DOCK_TABS_PLATFORM
     : SALES_FLOOR_ONLY
       ? DOCK_TABS_SALES
       : DOCK_TABS_FULL
@@ -146,9 +178,7 @@ export function MobileAppChrome({
   const userInitial = user?.name?.trim().charAt(0).toUpperCase() ?? ''
   const showMenuButton = sheetLinks.length > 0 || Boolean(user)
   const showAvatarButton = !compactChrome && showMenuButton && Boolean(userInitial)
-  const headerTitle = PLATFORM_MODE
-    ? 'Productos a la venta'
-    : SCREEN_TITLE[view]
+  const headerTitle = SCREEN_TITLE[view]
 
   useEffect(() => {
     if (!sheetOpen) return

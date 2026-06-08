@@ -24,34 +24,11 @@ import {
 import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
+import { MonthCalendar } from './MonthCalendar'
+import { consumePendingSalesDate } from '../lib/pending-view-filter'
 
 const LIMIT = 15
 const SALE_SOURCES = ['MANUAL', 'CART', 'AI'] as const
-
-function SalesCalendarView({
-  data,
-  loading,
-  error,
-}: {
-  year: number
-  month: number
-  data: SalesCalendarResponse | null
-  loading: boolean
-  error: string | null
-  onPrevMonth: () => void
-  onNextMonth: () => void
-  onToday: () => void
-  onDayClick: (date: string) => void
-}) {
-  if (loading) return <p className="muted">Cargando calendario…</p>
-  if (error) return <p className="error-text">{error}</p>
-  return (
-    <p className="empty-hint">
-      Vista calendario en desarrollo
-      {data?.days?.length ? ` (${data.days.length} días con datos)` : ''}.
-    </p>
-  )
-}
 
 function paginationDots(current: number, total: number): number[] {
   if (total <= 1) return []
@@ -314,7 +291,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
 
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
   const [calendarMonth, setCalendarMonth] = useState(
     () => new Date().getMonth() + 1,
@@ -324,6 +301,20 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   )
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [calendarError, setCalendarError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const date = consumePendingSalesDate()
+    if (!date) return
+    setFilterDateFrom(date)
+    setFilterDateTo(date)
+    setViewMode('list')
+    setPage(1)
+    const [y, m] = date.split('-').map(Number)
+    if (y && m) {
+      setCalendarYear(y)
+      setCalendarMonth(m)
+    }
+  }, [])
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -800,6 +791,42 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   return (
     <div className="products-layout">
       <div className="products-list-pane page-pane--floating-gear-dock">
+        <div className="page-intro page-intro--tight sales-page-intro">
+          <div className="sales-page-intro__head">
+            <div>
+              <h2 className="page-title">Ventas</h2>
+              <p className="muted small">
+                Registro de transacciones por día. Usá el calendario para ver el
+                detalle diario.
+              </p>
+            </div>
+            <div
+              className="view-toggle module-view-toggle"
+              role="tablist"
+              aria-label="Vista de ventas"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'calendar'}
+                className={viewMode === 'calendar' ? 'active' : ''}
+                onClick={() => setViewMode('calendar')}
+              >
+                Calendario
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'list'}
+                className={viewMode === 'list' ? 'active' : ''}
+                onClick={() => setViewMode('list')}
+              >
+                Lista
+              </button>
+            </div>
+          </div>
+        </div>
+
         <MobileAwareFilterBar
           hasActiveFilters={salesFiltersActive}
           trailing={
@@ -931,6 +958,39 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             {listError}
           </p>
         )}
+
+        {viewMode === 'calendar' ? (
+          <MonthCalendar
+            year={calendarYear}
+            month={calendarMonth}
+            days={calendarData?.days ?? []}
+            loading={calendarLoading}
+            error={calendarError}
+            countLabel="venta"
+            onPrevMonth={() => {
+              const prev = new Date(calendarYear, calendarMonth - 2, 1)
+              setCalendarYear(prev.getFullYear())
+              setCalendarMonth(prev.getMonth() + 1)
+            }}
+            onNextMonth={() => {
+              const next = new Date(calendarYear, calendarMonth, 1)
+              setCalendarYear(next.getFullYear())
+              setCalendarMonth(next.getMonth() + 1)
+            }}
+            onToday={() => {
+              const now = new Date()
+              setCalendarYear(now.getFullYear())
+              setCalendarMonth(now.getMonth() + 1)
+            }}
+            onDayClick={(date) => {
+              setFilterDateFrom(date)
+              setFilterDateTo(date)
+              setPage(1)
+              setViewMode('list')
+            }}
+          />
+        ) : (
+          <>
         {loading && <p className="muted">Cargando ventas…</p>}
 
         {!loading && list.length > 0 && (
@@ -1082,54 +1142,25 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
         {!loading && list.length === 0 && !listError && (
           <p className="empty-hint">No hay ventas en esta página.</p>
         )}
+          </>
+        )}
       </div>
-
-      {viewMode === 'calendar' ? (
-        <SalesCalendarView
-          year={calendarYear}
-          month={calendarMonth}
-          data={calendarData}
-          loading={calendarLoading}
-          error={calendarError}
-          onPrevMonth={() => {
-            const prev = new Date(calendarYear, calendarMonth - 2, 1)
-            setCalendarYear(prev.getFullYear())
-            setCalendarMonth(prev.getMonth() + 1)
-          }}
-          onNextMonth={() => {
-            const next = new Date(calendarYear, calendarMonth, 1)
-            setCalendarYear(next.getFullYear())
-            setCalendarMonth(next.getMonth() + 1)
-          }}
-          onToday={() => {
-            const now = new Date()
-            setCalendarYear(now.getFullYear())
-            setCalendarMonth(now.getMonth() + 1)
-          }}
-          onDayClick={(date) => {
-            setFilterDateFrom(date)
-            setFilterDateTo(date)
-            setPage(1)
-            setViewMode('list')
-          }}
-        />
-      ) : null}
 
       {panelOpen && (creating || selectedId) && (
         <div
-          className="modal-backdrop modal-backdrop--sales-editor"
+          className="modal-backdrop modal-backdrop--sales-editor modal-backdrop--config"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closePanel()
           }}
         >
           <section
-            className="modal modal--sales-editor"
+            className="modal modal--config modal--config-full modal--sales-editor"
             role="dialog"
             aria-modal="true"
             aria-labelledby="sales-editor-title"
           >
-            <header className="modal-head modal-head--sales-editor">
+            <header className="modal-head modal-head--config modal-head--sales-editor">
               <div className="modal-head-title product-editor-head__title">
                 <p className="product-editor-head__eyebrow">Ventas</p>
                 <h2 id="sales-editor-title">
@@ -1155,7 +1186,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
               </div>
             </header>
 
-            <div className="modal-body modal-body--sales-editor">
+            <div className="modal-body modal-body--config modal-body--sales-editor">
             {detailLoading && (
               <p className="muted">Cargando detalle…</p>
             )}
@@ -1863,7 +1894,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
 
             {header && (!detailLoading || creating) ? (
               <footer
-                className="product-editor-footer sales-editor-footer"
+                className="product-editor-footer modal-footer--config sales-editor-footer"
                 role="toolbar"
                 aria-label="Acciones de venta"
               >

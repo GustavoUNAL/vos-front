@@ -68,7 +68,7 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
             required
             autoFocus
             disabled={submitting}
-            placeholder="tu@email.com"
+            placeholder="admin@vos.ai"
           />
         </Label>
 

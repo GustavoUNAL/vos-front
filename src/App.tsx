@@ -9,6 +9,7 @@ import {
   type AuthUser,
 } from './api'
 import { ProductsManager } from './components/ProductsManager'
+import { HomeDashboard } from './components/HomeDashboard'
 import { SalesManager } from './components/SalesManager'
 import { InventoryManager } from './components/InventoryManager'
 import { CostsView } from './components/CostsView'
@@ -20,6 +21,7 @@ import { PosApp } from './pos/PosApp'
 import {
   PLATFORM_MODE,
   PLATFORM_NAV_GROUPS,
+  resolvePlatformView,
   SALES_FLOOR_ONLY,
   SALES_FLOOR_DEFAULT_VIEW,
   SALES_FLOOR_NAV_GROUPS,
@@ -28,15 +30,21 @@ import {
 import { useNavigation } from './NavigationContext'
 import { NavigationHub, type HubTargetView } from './components/NavigationHub'
 import { LoginView } from './components/LoginView'
+import { BrandMark } from './components/BrandMark'
 import { CompanyBrand } from './components/CompanyBrand'
 import {
   MobileAppChrome,
   type MobileChromeView,
 } from './components/MobileAppChrome'
 import type { NavGroupId } from './navTypes'
+import {
+  setPendingPurchasesDate,
+  setPendingSalesDate,
+} from './lib/pending-view-filter'
 import './App.css'
 
 type View =
+  | 'home'
   | 'menu'
   | 'products'
   | 'recipes'
@@ -49,6 +57,7 @@ type View =
   | 'explorer'
 
 const VIEW_HASH: Record<View, string> = {
+  home: '#/home',
   menu: '#/menu',
   products: '#/products',
   recipes: '#/recipes',
@@ -90,7 +99,7 @@ function ThemeSwitch({
   )
 }
 
-const VIEW_TO_GROUP: Record<Exclude<View, 'menu'>, NavGroupId> = {
+const VIEW_TO_GROUP: Partial<Record<View, NavGroupId>> = {
   products: 'catalog',
   recipes: 'catalog',
   inventory: 'stock',
@@ -103,8 +112,8 @@ const VIEW_TO_GROUP: Record<Exclude<View, 'menu'>, NavGroupId> = {
 }
 
 function activeNavGroup(view: View): NavGroupId | null {
-  if (view === 'menu') return null
-  return VIEW_TO_GROUP[view]
+  if (view === 'menu' || view === 'home') return null
+  return VIEW_TO_GROUP[view] ?? null
 }
 
 const COLLAPSED_GROUP_LABEL: Record<NavGroupId, string> = {
@@ -250,6 +259,7 @@ function getViewFromHash(): View | null {
   const pathOnly = raw.split('?')[0] ?? ''
   const parts = pathOnly.split('/').filter(Boolean)
   const first = parts[0] ?? ''
+  if (first === 'home') return 'home'
   if (first === 'products') return 'products'
   if (first === 'recipes') return 'recipes'
   if (first === 'inventory') return 'inventory'
@@ -275,14 +285,14 @@ export default function App() {
     try {
       const h = getViewFromHash()
       if (PLATFORM_MODE) {
-        return h === 'products' ? 'products' : 'products'
+        return resolvePlatformView(h) as View
       }
       if (SALES_FLOOR_ONLY) {
         return resolveSalesFloorView(h) as View
       }
       return h ?? 'menu'
     } catch {
-      if (PLATFORM_MODE) return 'products'
+      if (PLATFORM_MODE) return 'home'
       return SALES_FLOOR_ONLY ? SALES_FLOOR_DEFAULT_VIEW : 'menu'
     }
   })
@@ -420,7 +430,7 @@ export default function App() {
     const onHash = () => {
       const v = getViewFromHash()
       if (PLATFORM_MODE) {
-        setView(v === 'products' || v === 'menu' ? v : 'products')
+        setView(resolvePlatformView(v) as View)
         return
       }
       if (SALES_FLOOR_ONLY) {
@@ -521,6 +531,19 @@ export default function App() {
               }}
             />
           )}
+          {PLATFORM_MODE && view === 'home' && (
+            <HomeDashboard
+              baseUrl={baseUrl}
+              onOpenSales={(date) => {
+                setPendingSalesDate(date)
+                setView('sales')
+              }}
+              onOpenPurchases={(date) => {
+                setPendingPurchasesDate(date)
+                setView('purchases')
+              }}
+            />
+          )}
           {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'recipes' && (
             <RecipesView baseUrl={baseUrl} />
@@ -528,13 +551,10 @@ export default function App() {
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'inventory' && (
             <InventoryManager baseUrl={baseUrl} />
           )}
-          {view === 'sales' && !PLATFORM_MODE && (
-            <SalesManager baseUrl={baseUrl} />
-          )}
+          {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'pos' && <PosApp />}
-          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'purchases' && (
-            <PurchaseLotsView baseUrl={baseUrl} />
-          )}
+          {(PLATFORM_MODE || (!SALES_FLOOR_ONLY && !PLATFORM_MODE)) &&
+            view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'costs' && (
             <CostsView baseUrl={baseUrl} />
           )}
@@ -559,23 +579,31 @@ export default function App() {
                 className="app-sidebar__logo-btn"
                 onClick={() =>
                   setView(
-                    PLATFORM_MODE || SALES_FLOOR_ONLY
-                      ? 'products'
-                      : 'menu',
+                    PLATFORM_MODE
+                      ? 'home'
+                      : SALES_FLOOR_ONLY
+                        ? 'products'
+                        : 'menu',
                   )
                 }
                 title={
-                  PLATFORM_MODE || SALES_FLOOR_ONLY
-                    ? 'Productos'
-                    : 'Inicio'
+                  PLATFORM_MODE
+                    ? 'Inicio'
+                    : SALES_FLOOR_ONLY
+                      ? 'Productos'
+                      : 'Inicio'
                 }
                 aria-label={
-                  PLATFORM_MODE || SALES_FLOOR_ONLY
-                    ? 'Ir a productos'
-                    : 'Ir al inicio'
+                  PLATFORM_MODE
+                    ? 'Ir al inicio'
+                    : SALES_FLOOR_ONLY
+                      ? 'Ir a productos'
+                      : 'Ir al inicio'
                 }
               >
-                {user?.companyName ? (
+                {PLATFORM_MODE ? (
+                  <BrandMark size="sm" className="app-sidebar__company-brand" />
+                ) : user?.companyName ? (
                   <CompanyBrand
                     name={user.companyName}
                     size="sm"
@@ -650,6 +678,21 @@ export default function App() {
                       type="button"
                       className={view === 'menu' ? 'active' : ''}
                       onClick={() => setView('menu')}
+                    >
+                      Inicio
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            )}
+            {PLATFORM_MODE && (
+              <div className="app-nav-home">
+                <ul className="app-nav-list">
+                  <li>
+                    <button
+                      type="button"
+                      className={view === 'home' ? 'active' : ''}
+                      onClick={() => setView('home')}
                     >
                       Inicio
                     </button>
@@ -745,7 +788,6 @@ export default function App() {
             </div>
             )}
 
-            {!PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--sales">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"
@@ -753,7 +795,11 @@ export default function App() {
               >
                 <span className="app-nav-group__toggle-main">
                   <span className="app-nav-group__title">Ventas</span>
-                  <span className="app-nav-group__hint">Ingresos del día</span>
+                  <span className="app-nav-group__hint">
+                    {PLATFORM_MODE
+                      ? 'Transacciones diarias'
+                      : 'Ingresos del día'}
+                  </span>
                 </span>
               </div>
               <ul
@@ -769,7 +815,7 @@ export default function App() {
                     Ventas
                   </button>
                 </li>
-                {!SALES_FLOOR_ONLY && (
+                {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
                   <li>
                     <button
                       type="button"
@@ -780,6 +826,35 @@ export default function App() {
                     </button>
                   </li>
                 )}
+              </ul>
+            </div>
+
+            {PLATFORM_MODE && (
+            <div className="app-nav-group app-nav-group--purchases">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
+                id="nav-head-purchases"
+              >
+                <span className="app-nav-group__toggle-main">
+                  <span className="app-nav-group__title">Compras</span>
+                  <span className="app-nav-group__hint">
+                    Registro diario de compras
+                  </span>
+                </span>
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-purchases"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'purchases' ? 'active' : ''}
+                    onClick={() => setView('purchases')}
+                  >
+                    Compras
+                  </button>
+                </li>
               </ul>
             </div>
             )}

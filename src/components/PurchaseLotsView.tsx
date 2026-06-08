@@ -14,6 +14,7 @@ import {
   fetchInventoryItems,
   fetchPurchaseLot,
   fetchPurchaseLots,
+  fetchPurchaseLotsCalendar,
   formatPurchaseLotDate,
   formatSystemDateTime,
   isoInstantToDatetimeLocalValue,
@@ -25,6 +26,7 @@ import {
   type CategoryRef,
   type InventoryRow,
   type PurchaseLotRow,
+  type PurchaseCalendarResponse,
   type PutPurchaseLotLineItem,
   type PutPurchaseLotLinesPayload,
   type PurchaseLotsListMeta,
@@ -35,6 +37,9 @@ import {
   resolveLotLineInventoryBehavior,
 } from '../inventorySemantics'
 import { MobileAwareFilterBar } from './MobileAwareFilterBar'
+import { MonthCalendar } from './MonthCalendar'
+import { consumePendingPurchasesDate } from '../lib/pending-view-filter'
+import { CreateDailyPurchaseModal } from './CreateDailyPurchaseModal'
 
 type PurchaseLotInvoiceItem = NonNullable<PurchaseLotRow['items']>[number]
 
@@ -550,6 +555,34 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   >('date_desc')
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  const [listRefreshKey, setListRefreshKey] = useState(0)
+
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => new Date().getMonth() + 1,
+  )
+  const [calendarData, setCalendarData] = useState<PurchaseCalendarResponse | null>(
+    null,
+  )
+  const [calendarLoading, setCalendarLoading] = useState(false)
+  const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createInitialDate, setCreateInitialDate] = useState<string | undefined>()
+
+  useEffect(() => {
+    const date = consumePendingPurchasesDate()
+    if (!date) return
+    setFilterDateFrom(date)
+    setFilterDateTo(date)
+    setViewMode('list')
+    setPage(1)
+    const [y, m] = date.split('-').map(Number)
+    if (y && m) {
+      setCalendarYear(y)
+      setCalendarMonth(m)
+    }
+  }, [])
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** Fila de lista al abrir el panel (nombre/código para el encabezado). */
@@ -680,7 +713,27 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     return () => {
       controller.abort()
     }
-  }, [baseUrl, page, searchDebounced, filterDateFrom, filterDateTo])
+  }, [baseUrl, page, searchDebounced, filterDateFrom, filterDateTo, listRefreshKey])
+
+  useEffect(() => {
+    if (viewMode !== 'calendar') return
+    let cancelled = false
+    setCalendarLoading(true)
+    setCalendarError(null)
+    fetchPurchaseLotsCalendar(baseUrl, calendarYear, calendarMonth)
+      .then((res) => {
+        if (!cancelled) setCalendarData(res)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setCalendarError(e.message)
+      })
+      .finally(() => {
+        if (!cancelled) setCalendarLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [baseUrl, viewMode, calendarYear, calendarMonth])
 
   const openLot = useCallback(
     async (id: string, row?: PurchaseLotRow, updateHash = false) => {
@@ -3003,10 +3056,39 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     <div className="products-layout">
       <div className="products-list-pane products-list-pane--purchases page-pane--floating-gear-dock">
         <div className="page-intro page-intro--tight purchases-intro">
-          <h2 className="page-title">Compras</h2>
-          <p className="muted small purchases-intro__description">
-            Lotes de compra registrados. Tocá un lote para ver el detalle.
-          </p>
+          <div className="purchases-intro__head">
+            <div>
+              <h2 className="page-title">Compras</h2>
+              <p className="muted small purchases-intro__description">
+                Registro diario de compras por lote. Calendario para ver el detalle
+                de cada día.
+              </p>
+            </div>
+            <div
+              className="view-toggle module-view-toggle"
+              role="tablist"
+              aria-label="Vista de compras"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'calendar'}
+                className={viewMode === 'calendar' ? 'active' : ''}
+                onClick={() => setViewMode('calendar')}
+              >
+                Calendario
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'list'}
+                className={viewMode === 'list' ? 'active' : ''}
+                onClick={() => setViewMode('list')}
+              >
+                Lista
+              </button>
+            </div>
+          </div>
         </div>
 
         {meta?.purchaseLotLinesMigrationPending ? (
@@ -3094,10 +3176,52 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             >
               Limpiar
             </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                setCreateInitialDate(filterDateFrom || undefined)
+                setCreateOpen(true)
+              }}
+            >
+              Nueva compra
+            </button>
           </div>
         </div>
         </MobileAwareFilterBar>
 
+        {viewMode === 'calendar' ? (
+          <MonthCalendar
+            year={calendarYear}
+            month={calendarMonth}
+            days={calendarData?.days ?? []}
+            loading={calendarLoading}
+            error={calendarError}
+            countLabel="compra"
+            onPrevMonth={() => {
+              const prev = new Date(calendarYear, calendarMonth - 2, 1)
+              setCalendarYear(prev.getFullYear())
+              setCalendarMonth(prev.getMonth() + 1)
+            }}
+            onNextMonth={() => {
+              const next = new Date(calendarYear, calendarMonth, 1)
+              setCalendarYear(next.getFullYear())
+              setCalendarMonth(next.getMonth() + 1)
+            }}
+            onToday={() => {
+              const now = new Date()
+              setCalendarYear(now.getFullYear())
+              setCalendarMonth(now.getMonth() + 1)
+            }}
+            onDayClick={(date) => {
+              setFilterDateFrom(date)
+              setFilterDateTo(date)
+              setPage(1)
+              setViewMode('list')
+            }}
+          />
+        ) : (
+          <>
         {listError && (
           <p className="error" role="alert">
             {listError}
@@ -3306,8 +3430,21 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             No hay compras registradas o no coinciden con los filtros.
           </p>
         )}
+          </>
+        )}
       </div>
     </div>
+    {createOpen ? (
+      <CreateDailyPurchaseModal
+        baseUrl={baseUrl}
+        initialDate={createInitialDate}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(lotId) => {
+          setListRefreshKey((k) => k + 1)
+          void openLot(lotId, undefined, true)
+        }}
+      />
+    ) : null}
     </div>
   )
 }

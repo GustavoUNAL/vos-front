@@ -9,11 +9,12 @@ import {
 } from 'react'
 import {
   createProduct,
-  datetimeLocalValueToIsoUtcOrNull,
   deleteProduct,
+  fetchInventoryOptions,
   fetchProduct,
   fetchProductCategories,
   fetchProductHistory,
+  fetchProductSalesStats,
   fetchProducts,
   fetchProductsCatalogSummary,
   formatSystemDateTime,
@@ -21,11 +22,13 @@ import {
   parseProductRecipeFull,
   updateProduct,
   type CategoryRef,
+  type InventoryOption,
   type ProductHistoryResponse,
   type ProductListSort,
   type ProductRow,
 } from '../api'
 import { useMatchMedia } from '../hooks/useMatchMedia'
+import { ProductRecipePopup } from './ProductRecipePopup'
 import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
@@ -43,7 +46,15 @@ import {
   PRODUCT_TYPE_LABELS,
   PRODUCT_TYPE_SLUGS,
   productTypeLabel,
+  type ProductTypeSlug,
 } from '../productTypes'
+import { formatCOP as formatCOPMoney, parseMoney } from '../lib/money'
+import { computeRecipeUnitCostCOP } from '../lib/recipeUnitCost'
+import {
+  marginPercentOnPrice,
+  profitFromPriceAndCost,
+  unitCostToNumber,
+} from '../lib/productEconomics'
 
 const FETCH_PAGE_SIZE = 40
 const MAX_PRODUCT_PAGES = 25
@@ -63,9 +74,14 @@ function formatCOP(value: string | number): string {
   }).format(n)
 }
 
+type CostMode = 'manual' | 'recipe'
+
 type Draft = {
   name: string
+  sku: string
   price: string
+  unitCost: string
+  costMode: CostMode
   categoryId: string
   type: string
   description: string
@@ -76,26 +92,14 @@ type Draft = {
   traceModifiedLocal: string
 }
 
-function draftSnapshot(d: Draft): string {
-  return JSON.stringify({
-    name: d.name.trim(),
-    price: d.price.trim(),
-    categoryId: d.categoryId,
-    type: d.type.trim(),
-    description: d.description,
-    size: d.size.trim(),
-    saleUnit: d.saleUnit.trim(),
-    imageUrl: d.imageUrl.trim(),
-    active: d.active,
-    trace: d.traceModifiedLocal,
-  })
-}
-
 function emptyDraft(categories: CategoryRef[]): Draft {
   const first = categories[0]
   return {
     name: '',
+    sku: '',
     price: '',
+    unitCost: '',
+    costMode: 'manual',
     categoryId: first?.id ?? '',
     type: first ? inferProductTypeFromCategory(first) : PRODUCT_TYPE_SLUGS[0],
     description: '',
@@ -104,6 +108,46 @@ function emptyDraft(categories: CategoryRef[]): Draft {
     imageUrl: '',
     active: true,
     traceModifiedLocal: '',
+  }
+}
+
+function productTableMargin(p: ProductRow): string {
+  const price =
+    typeof p.price === 'number'
+      ? p.price
+      : parseFloat(String(p.price).replace(',', '.'))
+  const cost = unitCostToNumber(p.unitCost ?? p.cost ?? null)
+  const m = marginPercentOnPrice(
+    Number.isFinite(price) ? price : NaN,
+    cost,
+  )
+  if (m == null) return '—'
+  return `${m}%`
+}
+
+function productTableCost(p: ProductRow): string {
+  const cost = unitCostToNumber(p.unitCost ?? p.cost ?? null)
+  if (cost == null || cost <= 0) return '—'
+  return formatCOPMoney(cost)
+}
+
+function productTableProfit(p: ProductRow): string {
+  const price = priceToNumber(p.price)
+  const cost = unitCostToNumber(p.unitCost ?? p.cost ?? null)
+  const profit = profitFromPriceAndCost(price, cost)
+  if (profit == null) return '—'
+  return formatCOPMoney(profit)
+}
+
+function productTableUpdatedParts(
+  iso: string | null | undefined,
+): { date: string; time: string } | null {
+  if (!iso?.trim()) return null
+  const d = new Date(iso.trim())
+  if (Number.isNaN(d.getTime())) return null
+  return {
+    date: new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(d),
+    time: new Intl.DateTimeFormat('es-CO', { timeStyle: 'short' }).format(d),
   }
 }
 
@@ -156,6 +200,72 @@ function sortProductRows(rows: ProductRow[], sort: ProductListSort): ProductRow[
   return copy
 }
 
+function sortProductsBySales(
+  rows: ProductRow[],
+  unitsSoldByProductId: Map<string, number>,
+): ProductRow[] {
+  return [...rows].sort((a, b) => {
+    const soldA = unitsSoldByProductId.get(a.id) ?? 0
+    const soldB = unitsSoldByProductId.get(b.id) ?? 0
+    if (soldB !== soldA) return soldB - soldA
+    return a.name.localeCompare(b.name, 'es')
+  })
+}
+
+function resolveDraftType(d: Draft, categories: CategoryRef[]): ProductTypeSlug {
+  const normalized = normalizeProductType(d.type)
+  if (isProductTypeSlug(normalized)) return normalized
+  const cat = categories.find((c) => c.id === d.categoryId)
+  if (cat) return inferProductTypeFromCategory(cat)
+  return PRODUCT_TYPE_SLUGS[0]
+}
+
+/** Costo en borrador: vacío si es 0 o no declarado (no prellenar con cero). */
+function draftUnitCostFromProduct(p: ProductRow): string {
+  const n = unitCostToNumber(p.unitCost ?? p.cost ?? null)
+  if (n == null || n <= 0) return ''
+  return String(Math.round(n))
+}
+
+function resolveUnitCostForSave(
+  draft: Draft,
+  detailRecipe: unknown,
+  inventoryOptions: InventoryOption[],
+  selectedProductDetail: ProductRow | null,
+): number | undefined {
+  if (draft.unitCost.trim()) {
+    const fromInput = Math.round(parseMoney(draft.unitCost))
+    if (fromInput > 0) return fromInput
+  }
+  if (draft.costMode === 'recipe') {
+    const fromRecipe = computeRecipeUnitCostCOP(
+      parseProductRecipeFull(detailRecipe),
+      inventoryOptions,
+    )
+    if (fromRecipe != null && fromRecipe > 0) return fromRecipe
+  }
+  const stored = unitCostToNumber(
+    selectedProductDetail?.unitCost ?? selectedProductDetail?.cost ?? null,
+  )
+  if (stored != null && stored > 0) return Math.round(stored)
+  return undefined
+}
+
+function draftHasZeroOrMissingCost(
+  draft: Draft,
+  detailRecipe: unknown,
+  inventoryOptions: InventoryOption[],
+  selectedProductDetail: ProductRow | null,
+): boolean {
+  const resolved = resolveUnitCostForSave(
+    draft,
+    detailRecipe,
+    inventoryOptions,
+    selectedProductDetail,
+  )
+  return resolved == null || resolved <= 0
+}
+
 function rowToDraft(p: ProductRow, categories: CategoryRef[]): Draft {
   const cat = categories.find((c) => c.id === p.categoryId)
   const normalized = normalizeProductType(p.type)
@@ -165,9 +275,13 @@ function rowToDraft(p: ProductRow, categories: CategoryRef[]): Draft {
       : cat
         ? inferProductTypeFromCategory(cat)
         : PRODUCT_TYPE_SLUGS[0]
+
   return {
     name: p.name,
+    sku: p.sku?.trim() ?? '',
     price: String(priceToNumber(p.price)),
+    unitCost: draftUnitCostFromProduct(p),
+    costMode: p.costSource === 'RECIPE' ? 'recipe' : 'manual',
     categoryId: p.categoryId,
     type,
     description: p.description ?? '',
@@ -179,17 +293,44 @@ function rowToDraft(p: ProductRow, categories: CategoryRef[]): Draft {
   }
 }
 
-function validateProductDraft(d: Draft): string | null {
+function validateProductDraft(
+  d: Draft,
+  categories: CategoryRef[],
+  creating: boolean,
+): string | null {
   if (!d.name.trim()) return 'El nombre es obligatorio.'
+  if (creating) {
+    const skuTrim = d.sku.trim()
+    if (skuTrim && !/^\d{4}$/.test(skuTrim)) {
+      return 'El código debe ser exactamente 4 dígitos (ej. 1001).'
+    }
+  }
   const price = parseFloat(d.price.replace(',', '.'))
   if (!Number.isFinite(price) || price < 0) return 'Precio inválido.'
+  if (d.costMode === 'manual' && d.unitCost.trim()) {
+    const u = parseMoney(d.unitCost)
+    if (!Number.isFinite(u) || u < 0) return 'Costo unitario inválido.'
+  }
   if (!d.categoryId) return 'Elige una categoría.'
-  const typeTrim = d.type.trim()
-  if (!typeTrim) return 'Elige el tipo de producto.'
-  if (!isProductTypeSlug(typeTrim)) {
+  const typeResolved = resolveDraftType(d, categories)
+  if (!isProductTypeSlug(typeResolved)) {
     return `El tipo debe ser uno de: ${PRODUCT_TYPE_SLUGS.join(', ')} (p. ej. bar, comida, combos).`
   }
   return null
+}
+
+function draftEconomics(
+  d: Draft,
+  effectiveUnitCost: number | null,
+): {
+  profit: number | null
+  marginPct: number | null
+} {
+  const price = parseMoney(d.price)
+  return {
+    profit: profitFromPriceAndCost(price, effectiveUnitCost),
+    marginPct: marginPercentOnPrice(price, effectiveUnitCost),
+  }
 }
 
 export function ProductsManager({ baseUrl }: { baseUrl: string }) {
@@ -207,6 +348,10 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   >('all')
   const [filterType, setFilterType] = useState('')
   const [sortBy, setSortBy] = useState<ProductListSort>('name')
+  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid')
+  const [salesStatsByProductId, setSalesStatsByProductId] = useState(
+    () => new Map<string, { unitsSold: number; revenue: number }>(),
+  )
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
   const [catalogSummary, setCatalogSummary] = useState<Awaited<
@@ -228,19 +373,20 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     useState<ProductHistoryResponse | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
-  const [committedSnapshot, setCommittedSnapshot] = useState('')
-  const [productUnlockedFields, setProductUnlockedFields] = useState(
-    () => new Set<string>(),
-  )
   const [saveBannerVisible, setSaveBannerVisible] = useState(false)
+  const [savePulse, setSavePulse] = useState(false)
   const [saveAnimKey, setSaveAnimKey] = useState(0)
   const saveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savePulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** Edición: primer toque valida; el segundo envía al API. */
-  const [saveConfirmPending, setSaveConfirmPending] = useState(false)
+
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
-  const [advancedPopupOpen, setAdvancedPopupOpen] = useState(false)
+  const [zeroCostWarning, setZeroCostWarning] = useState<'close' | 'save' | null>(
+    null,
+  )
   const [historyPopupOpen, setHistoryPopupOpen] = useState(false)
+  const [recipePopupOpen, setRecipePopupOpen] = useState(false)
+  const [inventoryOptions, setInventoryOptions] = useState<InventoryOption[]>([])
 
   useEffect(() => {
     const t = window.setTimeout(() => setSearchDebounced(search), 320)
@@ -334,6 +480,25 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     return sections
   }, [allProducts, categories, sortBy])
 
+  const unitsSoldByProductId = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const [productId, stat] of salesStatsByProductId) {
+      map.set(productId, stat.unitsSold)
+    }
+    return map
+  }, [salesStatsByProductId])
+
+  const gridProducts = useMemo(
+    () => sortProductsBySales(allProducts, unitsSoldByProductId),
+    [allProducts, unitsSoldByProductId],
+  )
+
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of categories) map.set(c.id, c.name)
+    return map
+  }, [categories])
+
   const catalogLayoutKey = useMemo(
     () =>
       productSections
@@ -365,6 +530,28 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       })
       .catch((e: Error) => {
         if (!cancelled) setCatError(e.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [baseUrl])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchProductSalesStats(baseUrl)
+      .then((stats) => {
+        if (cancelled) return
+        const map = new Map<string, { unitsSold: number; revenue: number }>()
+        for (const row of stats) {
+          map.set(row.productId, {
+            unitsSold: row.unitsSold,
+            revenue: row.revenue,
+          })
+        }
+        setSalesStatsByProductId(map)
+      })
+      .catch(() => {
+        if (!cancelled) setSalesStatsByProductId(new Map())
       })
     return () => {
       cancelled = true
@@ -413,9 +600,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setDetailRecipe(null)
     const d = emptyDraft(categories)
     setDraft(d)
-    setCommittedSnapshot(draftSnapshot(d))
-    setProductUnlockedFields(new Set())
-    setSaveConfirmPending(false)
     setSaveError(null)
     setSaveBannerVisible(false)
   }, [categories])
@@ -424,7 +608,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     async (id: string) => {
       setCreating(false)
       setSelectedId(id)
-      setSaveConfirmPending(false)
       setSaveError(null)
       setDetailRecipe(null)
       setProductHistory(null)
@@ -434,8 +617,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         const p = await fetchProduct(baseUrl, id)
         const rd = rowToDraft(p, categories)
         setDraft(rd)
-        setCommittedSnapshot(draftSnapshot(rd))
-        setProductUnlockedFields(new Set())
         setSelectedProductDetail(p as ProductRow)
         setDetailRecipe('recipe' in p ? p.recipe : null)
         try {
@@ -466,6 +647,11 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       clearTimeout(saveCloseTimerRef.current)
       saveCloseTimerRef.current = null
     }
+    if (savePulseTimerRef.current) {
+      clearTimeout(savePulseTimerRef.current)
+      savePulseTimerRef.current = null
+    }
+    setSavePulse(false)
     setSelectedId(null)
     setCreating(false)
     setDraft(null)
@@ -475,22 +661,34 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setProductHistory(null)
     setHistoryError(null)
     setHistoryLoading(false)
-    setCommittedSnapshot('')
-    setProductUnlockedFields(new Set())
     setSaveBannerVisible(false)
-    setSaveConfirmPending(false)
     setArchiveConfirmOpen(false)
-    setAdvancedPopupOpen(false)
+    setZeroCostWarning(null)
     setHistoryPopupOpen(false)
+    setRecipePopupOpen(false)
   }, [])
 
-  const navigateToProductRecipe = useCallback(
-    (productId: string) => {
-      closePanel()
-      window.location.hash = `#/recipes/${productId}`
-    },
-    [closePanel],
-  )
+  const requestClosePanel = useCallback(() => {
+    if (
+      draft &&
+      draftHasZeroOrMissingCost(
+        draft,
+        detailRecipe,
+        inventoryOptions,
+        selectedProductDetail,
+      )
+    ) {
+      setZeroCostWarning('close')
+      return
+    }
+    closePanel()
+  }, [
+    closePanel,
+    detailRecipe,
+    draft,
+    inventoryOptions,
+    selectedProductDetail,
+  ])
 
   const navigateToRecipesIndex = useCallback(() => {
     closePanel()
@@ -500,6 +698,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const showSavedBanner = useCallback(() => {
     setSaveAnimKey((k) => k + 1)
     setSaveBannerVisible(true)
+    setSavePulse(true)
     if (saveBannerTimerRef.current) {
       clearTimeout(saveBannerTimerRef.current)
     }
@@ -507,6 +706,13 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       setSaveBannerVisible(false)
       saveBannerTimerRef.current = null
     }, 3400)
+    if (savePulseTimerRef.current) {
+      clearTimeout(savePulseTimerRef.current)
+    }
+    savePulseTimerRef.current = window.setTimeout(() => {
+      setSavePulse(false)
+      savePulseTimerRef.current = null
+    }, 2400)
   }, [])
 
   const syncDraftAfterServerProduct = useCallback(
@@ -515,9 +721,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       setDraft(next)
       setSelectedProductDetail(p)
       setDetailRecipe('recipe' in p ? p.recipe : null)
-      setCommittedSnapshot(draftSnapshot(next))
-      setProductUnlockedFields(new Set())
-      setSaveConfirmPending(false)
     },
     [categories],
   )
@@ -533,15 +736,40 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     }
   }, [panelOpen])
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (opts?: {
+    afterSuccess?: () => void
+    skipZeroCostCheck?: boolean
+  }) => {
     if (!draft) return
-    const validationError = validateProductDraft(draft)
+    const validationError = validateProductDraft(draft, categories, creating)
     if (validationError) {
       setSaveError(validationError)
       return
     }
-    const price = parseFloat(draft.price.replace(',', '.'))
-    const typeTrim = draft.type.trim()
+    if (
+      !opts?.skipZeroCostCheck &&
+      draftHasZeroOrMissingCost(
+        draft,
+        detailRecipe,
+        inventoryOptions,
+        selectedProductDetail,
+      )
+    ) {
+      setZeroCostWarning('save')
+      return
+    }
+    const price = Math.round(parseMoney(draft.price))
+    const typeTrim = resolveDraftType(draft, categories)
+    const costSource = draft.costMode === 'recipe' ? 'RECIPE' : 'MANUAL'
+    const unitCostForApi = resolveUnitCostForSave(
+      draft,
+      detailRecipe,
+      inventoryOptions,
+      selectedProductDetail,
+    )
+    const skuForApi = draft.sku.trim() || null
+    const costPayload =
+      unitCostForApi !== undefined ? { unitCost: unitCostForApi } : {}
     setSaving(true)
     setSaveError(null)
     try {
@@ -549,6 +777,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
       if (creating) {
         savedRow = await createProduct(baseUrl, {
           name: draft.name.trim(),
+          sku: skuForApi,
           price,
           categoryId: draft.categoryId,
           type: typeTrim,
@@ -557,6 +786,8 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           saleUnit: draft.saleUnit.trim() || undefined,
           imageUrl: draft.imageUrl.trim() || undefined,
           active: draft.active,
+          costSource,
+          ...costPayload,
         })
       } else if (selectedId) {
         savedRow = await updateProduct(baseUrl, selectedId, {
@@ -569,9 +800,8 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           saleUnit: draft.saleUnit.trim() || undefined,
           imageUrl: draft.imageUrl.trim() || undefined,
           active: draft.active,
-          traceModifiedAt: datetimeLocalValueToIsoUtcOrNull(
-            draft.traceModifiedLocal,
-          ),
+          costSource,
+          ...costPayload,
         })
       }
       if (savedRow) {
@@ -593,6 +823,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           syncDraftAfterServerProduct(savedRow as ProductRow)
           showSavedBanner()
         }
+        opts?.afterSuccess?.()
       }
     } catch (e) {
       setSaveError((e as Error).message)
@@ -605,11 +836,25 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     closePanel,
     creating,
     draft,
+    detailRecipe,
+    inventoryOptions,
     refreshCatalogSummary,
     selectedId,
+    selectedProductDetail,
     showSavedBanner,
     syncDraftAfterServerProduct,
   ])
+
+  const confirmZeroCostWarning = useCallback(() => {
+    const mode = zeroCostWarning
+    setZeroCostWarning(null)
+    if (mode === 'close') closePanel()
+    else if (mode === 'save') void save({ skipZeroCostCheck: true })
+  }, [closePanel, save, zeroCostWarning])
+
+  const cancelZeroCostWarning = useCallback(() => {
+    setZeroCostWarning(null)
+  }, [])
 
   const requestArchive = useCallback(() => {
     if (!selectedId || saving) return
@@ -646,18 +891,43 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     return { nIng, nCost, hasViewableRecipe }
   }, [detailRecipe])
 
-  const isDraftDirty = useMemo(() => {
-    if (!draft) return false
-    if (!committedSnapshot) return true
-    return draftSnapshot(draft) !== committedSnapshot
-  }, [draft, committedSnapshot])
+  const recipeUnitCostLive = useMemo(() => {
+    if (draft?.costMode !== 'recipe') return null
+    return computeRecipeUnitCostCOP(
+      parseProductRecipeFull(detailRecipe),
+      inventoryOptions,
+    )
+  }, [detailRecipe, draft?.costMode, inventoryOptions])
+
+  const effectiveUnitCost = useMemo((): number | null => {
+    if (!draft) return null
+    if (draft.unitCost.trim()) {
+      const fromInput = unitCostToNumber(draft.unitCost)
+      if (fromInput != null && fromInput > 0) return fromInput
+    }
+    if (draft.costMode === 'recipe') return recipeUnitCostLive
+    return null
+  }, [draft, recipeUnitCostLive])
 
   useEffect(() => {
-    if (!panelOpen || creating) return
-    if (!isDraftDirty && saveConfirmPending) {
-      setSaveConfirmPending(false)
+    if (!panelOpen || SALES_FLOOR_ONLY) return
+    let cancelled = false
+    fetchInventoryOptions(baseUrl)
+      .then((rows) => {
+        if (!cancelled) setInventoryOptions(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setInventoryOptions([])
+      })
+    return () => {
+      cancelled = true
     }
-  }, [panelOpen, creating, isDraftDirty, saveConfirmPending])
+  }, [baseUrl, panelOpen])
+
+  const handleSave = useCallback(() => {
+    if (!draft || saving || categories.length === 0) return
+    void save()
+  }, [categories.length, draft, save, saving])
 
   useEffect(() => {
     if (!panelOpen) return
@@ -667,157 +937,50 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           setHistoryPopupOpen(false)
           return
         }
-        if (advancedPopupOpen) {
-          setAdvancedPopupOpen(false)
+        if (recipePopupOpen) {
+          setRecipePopupOpen(false)
           return
         }
         if (archiveConfirmOpen) {
           setArchiveConfirmOpen(false)
           return
         }
-        if (saveConfirmPending) {
-          setSaveConfirmPending(false)
+        if (zeroCostWarning) {
+          setZeroCostWarning(null)
           return
         }
-        closePanel()
+        requestClosePanel()
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [
-    advancedPopupOpen,
     archiveConfirmOpen,
-    closePanel,
     historyPopupOpen,
     panelOpen,
-    saveConfirmPending,
-  ])
-
-  const handleSaveOrConfirm = useCallback(() => {
-    if (!draft || saving || categories.length === 0) return
-    if (!creating && !isDraftDirty && !saveConfirmPending) return
-
-    const validationError = validateProductDraft(draft)
-    if (validationError) {
-      setSaveError(validationError)
-      return
-    }
-    setSaveError(null)
-
-    if (creating) {
-      void save()
-      return
-    }
-    if (saveConfirmPending) {
-      setSaveConfirmPending(false)
-      void save()
-      return
-    }
-    setSaveConfirmPending(true)
-  }, [
-    draft,
-    saving,
-    categories.length,
-    creating,
-    isDraftDirty,
-    saveConfirmPending,
-    save,
+    recipePopupOpen,
+    requestClosePanel,
+    zeroCostWarning,
   ])
 
   function renderProductFieldRow(args: {
-    fieldKey: string
+    fieldKey?: string
     label: string
-    display: ReactNode
-    canLock: boolean
+    display?: ReactNode
+    canLock?: boolean
     disabled?: boolean
     children: ReactNode
-    /** Estilo compacto dentro del popup de edición avanzada */
     inAdvancedPopup?: boolean
   }): ReactNode {
-    const {
-      fieldKey,
-      label,
-      display,
-      canLock,
-      disabled,
-      children,
-      inAdvancedPopup,
-    } = args
-    const locksOn = canLock
-    const unlocked = !locksOn || productUnlockedFields.has(fieldKey)
-    const toggle = () => {
-      if (disabled) return
-      setProductUnlockedFields((prev) => {
-        const next = new Set(prev)
-        if (next.has(fieldKey)) next.delete(fieldKey)
-        else next.add(fieldKey)
-        return next
-      })
-    }
+    const { label, children, inAdvancedPopup } = args
     return (
       <div
-        className={`product-editor-field-row${unlocked ? ' product-editor-field-row--unlocked' : ''}${inAdvancedPopup ? ' product-editor-field-row--advanced' : ''}`}
+        className={`product-editor-field-row product-editor-field-row--unlocked${inAdvancedPopup ? ' product-editor-field-row--advanced' : ''}`}
       >
         <div className="product-editor-field-row__main">
           <span className="product-editor-field-row__label">{label}</span>
-          {unlocked ? (
-            <div className="product-editor-field-row__input">{children}</div>
-          ) : locksOn ? (
-            <button
-              type="button"
-              className="product-editor-field-row__value-btn"
-              disabled={disabled}
-              onClick={toggle}
-              aria-label={`Editar ${label}`}
-            >
-              {display}
-            </button>
-          ) : (
-            <div className="product-editor-field-row__value">{display}</div>
-          )}
+          <div className="product-editor-field-row__input">{children}</div>
         </div>
-        {locksOn ? (
-          <button
-            type="button"
-            className={`product-editor-field-edit${unlocked ? ' product-editor-field-edit--active' : ''}`}
-            disabled={disabled}
-            onClick={toggle}
-            aria-pressed={unlocked}
-            aria-label={unlocked ? `Listo: ${label}` : `Editar ${label}`}
-            title={unlocked ? 'Listo' : 'Editar'}
-          >
-            {unlocked ? (
-              <svg
-                aria-hidden
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            ) : (
-              <svg
-                aria-hidden
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            )}
-          </button>
-        ) : null}
       </div>
     )
   }
@@ -959,9 +1122,45 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           </FloatingGearFab>
         )}
 
-        <p className="products-dashboard-lead muted">
-          Productos a la venta para carta y tickets.
-        </p>
+        <div className="products-page-head">
+          <div className="products-page-intro">
+            <p className="products-dashboard-lead muted">
+              Productos a la venta para carta y tickets.
+              {catalogViewMode === 'grid' ? (
+                <>
+                  {' '}
+                  Ordenados por unidades vendidas.
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="products-toolbar-actions products-toolbar-actions--top">
+            <div
+              className="view-toggle module-view-toggle"
+              role="tablist"
+              aria-label="Vista de productos"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={catalogViewMode === 'grid'}
+                className={catalogViewMode === 'grid' ? 'active' : ''}
+                onClick={() => setCatalogViewMode('grid')}
+              >
+                Cuadrícula
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={catalogViewMode === 'list'}
+                className={catalogViewMode === 'list' ? 'active' : ''}
+                onClick={() => setCatalogViewMode('list')}
+              >
+                Lista
+              </button>
+            </div>
+          </div>
+        </div>
 
         {catError && (
           <p className="banner-warn" role="status">
@@ -982,6 +1181,70 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           </p>
         )}
 
+        {catalogViewMode === 'grid' ? (
+          <ul
+            className="product-cards products-catalog-grid"
+            aria-label="Productos a la venta en cuadrícula"
+          >
+            {gridProducts.map((p) => {
+              const meta = productListMeta(p)
+              const unitsSold = unitsSoldByProductId.get(p.id) ?? 0
+              const categoryName = categoryNameById.get(p.categoryId)
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className={
+                      selectedId === p.id
+                        ? 'product-card active'
+                        : 'product-card'
+                    }
+                    onMouseEnter={() => prefetchProductDetail(p.id)}
+                    onFocus={() => prefetchProductDetail(p.id)}
+                    onClick={() => void openEdit(p.id)}
+                  >
+                    <div className="product-card-thumb">
+                      {p.imageUrl?.trim() ? (
+                        <img src={p.imageUrl.trim()} alt="" />
+                      ) : (
+                        <span className="product-card-thumb__placeholder" aria-hidden>
+                          {p.name.trim().charAt(0).toUpperCase() || '?'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="product-card-body">
+                      <span className="product-card-name">{p.name}</span>
+                      <span className="product-card-meta mono">
+                        {formatCOP(p.price)}
+                        {p.sku?.trim() ? ` · ${p.sku.trim()}` : ''}
+                      </span>
+                      {(categoryName || meta || unitsSold > 0) && (
+                        <span className="product-card-meta muted small">
+                          {[
+                            categoryName,
+                            unitsSold > 0
+                              ? `${unitsSold % 1 === 0 ? unitsSold.toFixed(0) : unitsSold.toFixed(1)} vendidos`
+                              : null,
+                            meta,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      )}
+                      <span className="product-card-badges">
+                        {p.active ? (
+                          <span className="badge badge-ok">Activo</span>
+                        ) : (
+                          <span className="badge badge-muted">Inactivo</span>
+                        )}
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
         <div className="catalog-by-category" aria-label="Productos a la venta por categoría">
           {productSections.map((section) =>
             section.products.length === 0 ? null : (
@@ -1014,11 +1277,26 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                   <table className="data-table data-table-striped data-table--products-catalog">
                     <thead>
                       <tr>
+                        <th className="products-table-col products-table-col--code">
+                          Código
+                        </th>
                         <th className="products-table-col products-table-col--name">
                           Producto
                         </th>
                         <th className="products-table-col products-table-col--price num">
                           Precio
+                        </th>
+                        <th className="products-table-col products-table-col--cost num products-catalog-col--desktop">
+                          Costo
+                        </th>
+                        <th className="products-table-col products-table-col--profit num products-catalog-col--desktop">
+                          Utilidad
+                        </th>
+                        <th className="products-table-col products-table-col--margin num products-catalog-col--desktop">
+                          Margen
+                        </th>
+                        <th className="products-table-col products-table-col--updated products-catalog-col--desktop">
+                          Actualizado
                         </th>
                         <th className="products-table-col products-table-col--status">
                           Estado
@@ -1037,6 +1315,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                               : ''
                           }
                         >
+                          <td className="mono muted products-table-cell products-table-cell--code">
+                            {p.sku?.trim() || '—'}
+                          </td>
                           <td className="products-table-cell products-table-cell--name">
                             <button
                               type="button"
@@ -1048,7 +1329,11 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                               <span className="products-table-link__name">
                                 {p.name}
                               </span>
-                              {meta ? (
+                              {p.description?.trim() ? (
+                                <span className="products-table-link__meta muted small products-catalog-desc">
+                                  {p.description.trim()}
+                                </span>
+                              ) : meta ? (
                                 <span className="products-table-link__meta muted small">
                                   {meta}
                                 </span>
@@ -1057,6 +1342,36 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                           </td>
                           <td className="num mono products-table-cell products-table-cell--price">
                             {formatCOP(p.price)}
+                          </td>
+                          <td className="num mono muted products-table-cell products-table-cell--cost products-catalog-col--desktop">
+                            {productTableCost(p)}
+                          </td>
+                          <td className="num mono products-table-cell products-table-cell--profit products-catalog-col--desktop">
+                            {productTableProfit(p)}
+                          </td>
+                          <td className="num mono products-table-cell products-table-cell--margin products-catalog-col--desktop">
+                            {productTableMargin(p)}
+                          </td>
+                          <td className="products-table-cell products-table-cell--updated products-catalog-col--desktop">
+                            {(() => {
+                              const updated = productTableUpdatedParts(p.updatedAt)
+                              if (!updated) {
+                                return <span className="muted">—</span>
+                              }
+                              return (
+                                <span
+                                  className="products-table-updated"
+                                  title={formatSystemDateTime(p.updatedAt)}
+                                >
+                                  <span className="products-table-updated__date">
+                                    {updated.date}
+                                  </span>
+                                  <span className="products-table-updated__time muted small">
+                                    {updated.time}
+                                  </span>
+                                </span>
+                              )
+                            })()}
                           </td>
                           <td className="products-table-cell products-table-cell--status">
                             {p.active ? (
@@ -1076,6 +1391,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
             ),
           )}
         </div>
+        )}
 
         {!loading && allProducts.length === 0 && !listError && (
           <p className="empty-hint">No hay productos. Crea uno o ajusta la búsqueda.</p>
@@ -1084,7 +1400,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
 
       {panelOpen && draft && (
         <div
-          className="modal-backdrop modal-backdrop--product-editor"
+          className="modal-backdrop modal-backdrop--product-editor modal-backdrop--config"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target !== e.currentTarget) return
@@ -1092,16 +1408,20 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
               cancelArchive()
               return
             }
-            closePanel()
+            if (zeroCostWarning) {
+              cancelZeroCostWarning()
+              return
+            }
+            requestClosePanel()
           }}
         >
           <section
-            className="modal modal--product-editor"
+            className="modal modal--config modal--config-full modal--product-editor"
             role="dialog"
             aria-modal="true"
             aria-labelledby="product-editor-title"
           >
-            <header className="modal-head modal-head--product-editor">
+            <header className="modal-head modal-head--config modal-head--product-editor">
               <div className="modal-head-title product-editor-head__title">
                 {creating ? (
                   <>
@@ -1135,7 +1455,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                 <button
                   type="button"
                   className="product-editor-close"
-                  onClick={closePanel}
+                  onClick={requestClosePanel}
                   aria-label="Cerrar editor"
                 >
                   <span aria-hidden>×</span>
@@ -1143,7 +1463,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
               </div>
             </header>
 
-            <div className="modal-body modal-body--product-editor">
+            <div className="modal-body modal-body--config modal-body--product-editor">
             {saveBannerVisible ? (
               <div
                 key={saveAnimKey}
@@ -1208,6 +1528,124 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     />
                   ),
                 })}
+                <div
+                  className={`product-editor-cost-mode${savePulse ? ' product-editor-cost-mode--saved' : ''}`}
+                >
+                  <div className="product-editor-cost-mode__head">
+                    <span className="product-editor-field-row__label">
+                      Costo unitario (COP)
+                    </span>
+                    {!SALES_FLOOR_ONLY && !creating ? (
+                      <div
+                        className="product-editor-cost-mode__switch"
+                        role="group"
+                        aria-label="Origen del costo"
+                      >
+                        <button
+                          type="button"
+                          className={`product-editor-cost-mode__option${draft.costMode === 'manual' ? ' product-editor-cost-mode__option--active' : ''}`}
+                          disabled={saving}
+                          onClick={() =>
+                            setDraft((d) => {
+                              if (!d) return d
+                              if (d.unitCost.trim()) return { ...d, costMode: 'manual' }
+                              const suggested =
+                                recipeUnitCostLive ??
+                                unitCostToNumber(
+                                  selectedProductDetail?.unitCost ??
+                                    selectedProductDetail?.cost ??
+                                    null,
+                                )
+                              return {
+                                ...d,
+                                costMode: 'manual',
+                                unitCost:
+                                  suggested != null && suggested > 0
+                                    ? String(Math.round(suggested))
+                                    : d.unitCost,
+                              }
+                            })
+                          }
+                        >
+                          Manual
+                        </button>
+                        <button
+                          type="button"
+                          className={`product-editor-cost-mode__option${draft.costMode === 'recipe' ? ' product-editor-cost-mode__option--active' : ''}`}
+                          disabled={saving}
+                          onClick={() =>
+                            setDraft((d) => {
+                              if (!d) return d
+                              const next = { ...d, costMode: 'recipe' as const }
+                              if (
+                                !d.unitCost.trim() &&
+                                recipeUnitCostLive != null &&
+                                recipeUnitCostLive > 0
+                              ) {
+                                next.unitCost = String(Math.round(recipeUnitCostLive))
+                              }
+                              return next
+                            })
+                          }
+                        >
+                          Desde receta
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {draft.costMode === 'recipe' &&
+                  !SALES_FLOOR_ONLY &&
+                  recipeUnitCostLive != null ? (
+                    <p className="muted small product-editor-cost-mode__recipe-hint">
+                      Sugerido desde receta:{' '}
+                      <strong className="mono">
+                        {formatCOPMoney(recipeUnitCostLive)}
+                      </strong>
+                      . Podés ajustarlo abajo.
+                    </p>
+                  ) : null}
+                  <input
+                    className="input-cell mono product-editor-cost-mode__input"
+                    inputMode="decimal"
+                    placeholder="Sin costo cargado"
+                    value={draft.unitCost}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        unitCost: e.target.value,
+                        costMode: 'manual',
+                      })
+                    }
+                  />
+                  <p className="muted small product-editor-field-hint">
+                    {draft.costMode === 'recipe'
+                      ? 'Modo receta: al guardar se usa el valor de la receta si existe; el campo queda como referencia editable.'
+                      : 'Valor fijo en cartilla. Dejalo vacío si aún no tenés costo.'}
+                  </p>
+                </div>
+                {(() => {
+                  const econ = draftEconomics(draft, effectiveUnitCost)
+                  return (
+                    <div
+                      className="product-editor-economics muted small"
+                      aria-live="polite"
+                    >
+                      <dl className="product-editor-economics__grid">
+                        <dt>Utilidad unitaria</dt>
+                        <dd
+                          className={`mono${econ.profit !== null && econ.profit < 0 ? ' product-editor-profit--neg' : ''}`}
+                        >
+                          {econ.profit != null ? formatCOPMoney(econ.profit) : '—'}
+                        </dd>
+                        <dt>Margen sobre precio</dt>
+                        <dd className="mono">
+                          {econ.marginPct != null ? `${econ.marginPct}%` : '—'}
+                        </dd>
+                      </dl>
+                    </div>
+                  )
+                })()}
                 {renderProductFieldRow({
                   fieldKey: 'category',
                   label: 'Categoría',
@@ -1277,110 +1715,300 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                 })}
               </div>
 
-              {!SALES_FLOOR_ONLY && !creating && selectedId ? (
-                <div
-                  className="product-editor-recipe-card"
-                  aria-label="Accesos a recetas"
-                >
-                  <div className="product-editor-recipe-card__head">
-                    <h3 className="product-editor-recipe-card__title">
-                      Receta
-                    </h3>
-                    {recipeCardMeta.hasViewableRecipe ? (
-                      <span className="product-editor-recipe-card__badge product-editor-recipe-card__badge--ok">
-                        Con contenido
+              <details className="product-editor-advanced-panel catalog-category-block" open>
+                <summary className="catalog-category-block__summary product-editor-advanced-panel__summary">
+                  <span className="catalog-category-block__summary-main">
+                    <span className="catalog-category-block__chevron" aria-hidden />
+                    <span>
+                      <span className="product-editor-advanced-panel__title">
+                        Configuración avanzada
                       </span>
-                    ) : (
-                      <span className="product-editor-recipe-card__badge product-editor-recipe-card__badge--muted">
-                        Sin insumos ni costos
+                      <span className="muted small product-editor-advanced-panel__preview">
+                        {productSaleDefaultsSummary(draft)}
                       </span>
-                    )}
-                  </div>
-                  <p className="muted small product-editor-recipe-card__lead">
-                    {recipeCardMeta.hasViewableRecipe
-                      ? [
-                          recipeCardMeta.nIng > 0
-                            ? `${recipeCardMeta.nIng} insumo${recipeCardMeta.nIng !== 1 ? 's' : ''}`
-                            : null,
-                          recipeCardMeta.nCost > 0
-                            ? `${recipeCardMeta.nCost} línea${recipeCardMeta.nCost !== 1 ? 's' : ''} de costo`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')
-                      : 'Agregá insumos o líneas de costo en la receta para poder verla aquí.'}
+                    </span>
+                  </span>
+                </summary>
+                <div className="catalog-category-block__body product-editor-advanced-panel__body">
+                  <p className="muted small product-editor-advanced-panel__intro">
+                    Unidad y tamaño al vender, descripción extendida, imagen y
+                    auditoría. Los cambios se aplican al guardar el producto.
                   </p>
-                  <div className="product-editor-recipe-card__actions product-editor-recipe-card__actions--primary-row">
-                    <button
-                      type="button"
-                      className="product-editor-recipe-view-btn"
-                      disabled={!recipeCardMeta.hasViewableRecipe}
-                      title={
-                        recipeCardMeta.hasViewableRecipe
-                          ? 'Abrir la receta de este producto'
-                          : 'Este producto aún no tiene insumos ni costos en la receta'
-                      }
-                      onClick={() => navigateToProductRecipe(selectedId)}
-                    >
-                      Ver receta
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-compact product-editor-recipe-card__btn-edit"
-                      onClick={() => navigateToProductRecipe(selectedId)}
-                    >
-                      {recipeCardMeta.nIng > 0 || recipeCardMeta.nCost > 0
-                        ? 'Editar receta'
-                        : 'Definir receta'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-compact"
-                      onClick={navigateToRecipesIndex}
-                    >
-                      Todas las recetas
-                    </button>
+                  <div className="product-advanced-fields">
+                    <div className="product-advanced-fields__grid">
+                      <section className="product-editor-subsection product-editor-subsection--advanced-sale">
+                        <header className="product-editor-subsection__head">
+                          <h4 className="product-editor-subsection__title">
+                            Venta: unidad y tamaño
+                          </h4>
+                        </header>
+                        <div className="product-editor-subsection__body">
+                          <p className="product-editor-sale-defaults-preview muted small">
+                            <strong>Por defecto en ventas:</strong>{' '}
+                            {productSaleDefaultsSummary(draft)}
+                          </p>
+                          {renderProductFieldRow({
+                            fieldKey: 'saleUnit',
+                            label: 'Unidad de venta',
+                            inAdvancedPopup: true,
+                            canLock: false,
+                            disabled: saving,
+                            display: (
+                              <span className="product-editor-field-value-text">
+                                {draft.saleUnit.trim() || '—'}
+                              </span>
+                            ),
+                            children: (
+                              <input
+                                className="input-cell"
+                                value={draft.saleUnit}
+                                onChange={(e) =>
+                                  setDraft({ ...draft, saleUnit: e.target.value })
+                                }
+                                placeholder="und, porción, oz…"
+                                list="product-sale-unit-suggestions"
+                              />
+                            ),
+                          })}
+                          {renderProductFieldRow({
+                            fieldKey: 'size',
+                            label: 'Tamaño / presentación',
+                            inAdvancedPopup: true,
+                            canLock: false,
+                            disabled: saving,
+                            display: (
+                              <span className="product-editor-field-value-text">
+                                {draft.size.trim() || '—'}
+                              </span>
+                            ),
+                            children: (
+                              <input
+                                className="input-cell"
+                                value={draft.size}
+                                onChange={(e) =>
+                                  setDraft({ ...draft, size: e.target.value })
+                                }
+                                placeholder="6 oz, 330 ml…"
+                              />
+                            ),
+                          })}
+                        </div>
+                      </section>
+
+                      <datalist id="product-sale-unit-suggestions">
+                        <option value="und" />
+                        <option value="porción" />
+                        <option value="oz" />
+                        <option value="ml" />
+                        <option value="litro" />
+                      </datalist>
+
+                      <section className="product-editor-subsection product-editor-subsection--advanced-text">
+                        <header className="product-editor-subsection__head">
+                          <h4 className="product-editor-subsection__title">
+                            Texto e imagen
+                          </h4>
+                        </header>
+                        <div className="product-editor-subsection__body">
+                          {renderProductFieldRow({
+                            fieldKey: 'description',
+                            label: 'Descripción',
+                            inAdvancedPopup: true,
+                            canLock: false,
+                            disabled: saving,
+                            display: (
+                              <span className="product-editor-field-value-text product-editor-field-value-text--multiline">
+                                {draft.description.trim() || '—'}
+                              </span>
+                            ),
+                            children: (
+                              <textarea
+                                className="input-cell product-editor-description-input product-editor-description-input--advanced"
+                                rows={5}
+                                value={draft.description}
+                                onChange={(e) =>
+                                  setDraft({ ...draft, description: e.target.value })
+                                }
+                                placeholder="Texto comercial para la carta…"
+                              />
+                            ),
+                          })}
+                          {renderProductFieldRow({
+                            fieldKey: 'type',
+                            label: 'Tipo (API)',
+                            inAdvancedPopup: true,
+                            canLock: false,
+                            disabled: saving,
+                            display: (
+                              <span className="product-editor-field-value-text">
+                                {PRODUCT_TYPE_LABELS[
+                                  isProductTypeSlug(draft.type)
+                                    ? draft.type
+                                    : PRODUCT_TYPE_SLUGS[0]
+                                ]}{' '}
+                                <span className="mono muted small">({draft.type})</span>
+                              </span>
+                            ),
+                            children: (
+                              <>
+                                <select
+                                  className="inventory-filter__input"
+                                  value={
+                                    isProductTypeSlug(draft.type)
+                                      ? draft.type
+                                      : PRODUCT_TYPE_SLUGS[0]
+                                  }
+                                  onChange={(e) =>
+                                    setDraft({ ...draft, type: e.target.value })
+                                  }
+                                >
+                                  {PRODUCT_TYPE_SLUGS.map((t) => (
+                                    <option key={t} value={t}>
+                                      {PRODUCT_TYPE_LABELS[t]}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="muted small product-editor-field-hint">
+                                  Suele alinearse con la categoría (
+                                  {productTypeLabel(draft.type)}).
+                                </p>
+                              </>
+                            ),
+                          })}
+                          {renderProductFieldRow({
+                            fieldKey: 'imageUrl',
+                            label: 'URL de imagen',
+                            inAdvancedPopup: true,
+                            canLock: false,
+                            disabled: saving,
+                            display: (
+                              <span className="mono muted small product-editor-field-value-text product-editor-field-value-text--clip">
+                                {draft.imageUrl.trim() || '—'}
+                              </span>
+                            ),
+                            children: (
+                              <input
+                                className="input-cell"
+                                type="url"
+                                value={draft.imageUrl}
+                                onChange={(e) =>
+                                  setDraft({ ...draft, imageUrl: e.target.value })
+                                }
+                                placeholder="https://…"
+                              />
+                            ),
+                          })}
+                          {draft.imageUrl.trim() ? (
+                            <div className="product-advanced-image-preview">
+                              <img
+                                src={draft.imageUrl.trim()}
+                                alt=""
+                                loading="lazy"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      </section>
+
+                      {!creating && selectedProductDetail ? (
+                        <section className="product-editor-subsection product-advanced-fields__span-full">
+                          <header className="product-editor-subsection__head">
+                            <h4 className="product-editor-subsection__title">
+                              Revisión y auditoría
+                            </h4>
+                          </header>
+                          <div className="product-editor-subsection__body">
+                            <div className="product-editor-readonly-block product-editor-readonly-block--audit">
+                              <span className="product-editor-field-row__label">
+                                Último cambio en sistema
+                              </span>
+                              <p className="product-editor-readonly-block__value mono">
+                                {formatSystemDateTime(selectedProductDetail.updatedAt)}
+                              </p>
+                            </div>
+                            {renderProductFieldRow({
+                              fieldKey: 'trace',
+                              label: 'Marca de revisión',
+                              inAdvancedPopup: true,
+                              canLock: false,
+                              disabled: saving,
+                              display: (
+                                <span className="product-editor-field-value-text">
+                                  {draft.traceModifiedLocal
+                                    ? (() => {
+                                        const dt = new Date(draft.traceModifiedLocal)
+                                        return Number.isFinite(dt.getTime())
+                                          ? dt.toLocaleString('es-CO', {
+                                              dateStyle: 'medium',
+                                              timeStyle: 'short',
+                                            })
+                                          : draft.traceModifiedLocal
+                                      })()
+                                    : 'Sin marca'}
+                                </span>
+                              ),
+                              children: (
+                                <>
+                                  <input
+                                    className="input-cell"
+                                    type="datetime-local"
+                                    value={draft.traceModifiedLocal}
+                                    onChange={(e) =>
+                                      setDraft({
+                                        ...draft,
+                                        traceModifiedLocal: e.target.value,
+                                      })
+                                    }
+                                  />
+                                  <p className="muted small product-editor-field-hint">
+                                    Vacío al guardar limpia la marca en el servidor.
+                                  </p>
+                                </>
+                              ),
+                            })}
+                            <button
+                              type="button"
+                              className="btn-secondary btn-compact"
+                              disabled={saving}
+                              onClick={() => {
+                                void (async () => {
+                                  if (!selectedId) return
+                                  setSaving(true)
+                                  setSaveError(null)
+                                  try {
+                                    await updateProduct(baseUrl, selectedId, {
+                                      traceModifiedAt: null,
+                                    })
+                                    const p = await fetchProduct(baseUrl, selectedId)
+                                    syncDraftAfterServerProduct(p as ProductRow)
+                                    setAllProducts((prev) =>
+                                      prev.map((row) =>
+                                        row.id === selectedId ? (p as ProductRow) : row,
+                                      ),
+                                    )
+                                    showSavedBanner()
+                                  } catch (e) {
+                                    setSaveError((e as Error).message)
+                                  } finally {
+                                    setSaving(false)
+                                  }
+                                })()
+                              }}
+                            >
+                              Quitar marca de revisión
+                            </button>
+                          </div>
+                        </section>
+                      ) : null}
+                    </div>
                   </div>
-                  <p className="muted small product-editor-recipe-card__foot">
-                    {recipeCardMeta.hasViewableRecipe ? (
-                      <>
-                        <a
-                          href={`#/recipes/${selectedId}`}
-                          className="product-editor-hash-link"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            navigateToProductRecipe(selectedId)
-                          }}
-                        >
-                          Abrir en pantalla completa
-                        </a>
-                        <span className="product-editor-hash-sep" aria-hidden>
-                          ·
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="product-editor-recipe-card__foot-hint">
-                          Vista de receta desactivada hasta que haya contenido.
-                        </span>
-                        <span className="product-editor-hash-sep" aria-hidden>
-                          ·
-                        </span>
-                      </>
-                    )}
-                    <a
-                      href="#/recipes"
-                      className="product-editor-hash-link"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        navigateToRecipesIndex()
-                      }}
-                    >
-                      Listado de recetas
-                    </a>
-                  </p>
                 </div>
-              ) : !SALES_FLOOR_ONLY ? (
+              </details>
+
+              {!SALES_FLOOR_ONLY && creating ? (
                 <p className="muted small product-editor-recipe-hint">
                   Cuando guardes el producto, podrás{' '}
                   <a
@@ -1400,21 +2028,34 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
               <div className="product-editor-extra-links" role="group" aria-label="Más opciones">
                 <p className="product-editor-extra-links__label">Más opciones</p>
                 <div className="product-editor-extra-links__grid">
-                  <button
-                    type="button"
-                    className="product-editor-link-card product-editor-link-card--advanced"
-                    onClick={() => setAdvancedPopupOpen(true)}
-                  >
-                    <span className="product-editor-link-card__copy">
-                      <span className="product-editor-link-card__title">
-                        Edición avanzada
+                  {!SALES_FLOOR_ONLY && !creating && selectedId ? (
+                    <button
+                      type="button"
+                      className="product-editor-link-card product-editor-link-card--recipe"
+                      onClick={() => setRecipePopupOpen(true)}
+                    >
+                      <span className="product-editor-link-card__copy">
+                        <span className="product-editor-link-card__title">
+                          Receta
+                        </span>
+                        <span className="product-editor-link-card__preview muted small">
+                          {recipeCardMeta.hasViewableRecipe
+                            ? [
+                                recipeCardMeta.nIng > 0
+                                  ? `${recipeCardMeta.nIng} insumo${recipeCardMeta.nIng !== 1 ? 's' : ''}`
+                                  : null,
+                                recipeCardMeta.nCost > 0
+                                  ? `${recipeCardMeta.nCost} línea${recipeCardMeta.nCost !== 1 ? 's' : ''} de costo`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ') || 'Con contenido'
+                            : 'Sin insumos · tocar para definir'}
+                        </span>
                       </span>
-                      <span className="product-editor-link-card__preview muted small">
-                        {productSaleDefaultsSummary(draft)}
-                      </span>
-                    </span>
-                    <span className="product-editor-link-card__chevron" aria-hidden />
-                  </button>
+                      <span className="product-editor-link-card__chevron" aria-hidden />
+                    </button>
+                  ) : null}
                   {!creating && selectedId ? (
                     <button
                       type="button"
@@ -1449,63 +2090,42 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                 <div
                   className="product-editor-archive-bar"
                   role="group"
-                  aria-label="Archivar producto"
+                  aria-label="Eliminar producto"
                 >
                   <button
                     type="button"
                     className="product-editor-btn product-editor-btn--danger product-editor-btn--archive-full"
                     onClick={requestArchive}
-                    disabled={saving || archiveConfirmOpen}
+                    disabled={saving || archiveConfirmOpen || zeroCostWarning != null}
                   >
-                    Archivar producto
+                    Eliminar producto
                   </button>
                 </div>
               ) : null}
             </div>
 
-            {(creating || isDraftDirty || saveConfirmPending) ? (
-              <footer
-                className={`product-editor-footer${saveConfirmPending && !creating ? ' product-editor-footer--confirm' : ''}`}
-                role="toolbar"
-                aria-label="Guardar producto"
-              >
-                {saveConfirmPending && !creating ? (
-                  <p className="product-editor-footer__hint" role="status">
-                    <span className="product-editor-footer__hint-step" aria-hidden>
-                      2
-                    </span>
-                    Revisá los cambios. Tocá otra vez{' '}
-                    <strong>Confirmar y guardar</strong> para aplicarlos.
-                  </p>
-                ) : null}
-                <div className="product-editor-footer__actions">
-                  <button
-                    type="button"
-                    className={`product-editor-btn product-editor-btn--primary${saveConfirmPending && !creating ? ' product-editor-btn--confirm' : ''}`}
-                    disabled={saving || categories.length === 0}
-                    onClick={() => void handleSaveOrConfirm()}
-                  >
-                    {saving
-                      ? 'Guardando…'
+            <footer
+              className="product-editor-footer modal-footer--config"
+              role="toolbar"
+              aria-label="Guardar producto"
+            >
+              <div className="product-editor-footer__actions">
+                <button
+                  type="button"
+                  className={`product-editor-btn product-editor-btn--primary${savePulse ? ' product-editor-btn--saved' : ''}`}
+                  disabled={saving || categories.length === 0}
+                  onClick={handleSave}
+                >
+                  {saving
+                    ? 'Guardando…'
+                    : savePulse
+                      ? '✓ Guardado'
                       : creating
                         ? 'Crear producto'
-                        : saveConfirmPending
-                          ? 'Confirmar y guardar'
-                          : 'Guardar cambios'}
-                  </button>
-                  {saveConfirmPending && !creating ? (
-                    <button
-                      type="button"
-                      className="product-editor-btn product-editor-btn--secondary"
-                      disabled={saving}
-                      onClick={() => setSaveConfirmPending(false)}
-                    >
-                      Seguir editando
-                    </button>
-                  ) : null}
-                </div>
-              </footer>
-            ) : null}
+                        : 'Guardar cambios'}
+                </button>
+              </div>
+            </footer>
 
             {archiveConfirmOpen && !creating ? (
               <div
@@ -1526,15 +2146,15 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     id="product-archive-confirm-title"
                     className="product-editor-confirm__title"
                   >
-                    ¿Archivar este producto?
+                    ¿Eliminar este producto?
                   </h3>
                   <p
                     id="product-archive-confirm-desc"
                     className="product-editor-confirm__desc"
                   >
-                    <strong>{draft.name?.trim() || 'Sin nombre'}</strong> dejará
-                    de mostrarse en la carta y en ventas. Podés cancelar si no
-                    estás seguro.
+                    <strong>{draft.name?.trim() || 'Sin nombre'}</strong> se
+                    borrará de forma permanente. Las ventas antiguas conservan el
+                    nombre en el detalle, pero el producto ya no estará en la carta.
                   </p>
                   <div className="product-editor-confirm__actions">
                     <button
@@ -1551,7 +2171,67 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                       disabled={saving}
                       onClick={() => void confirmArchive()}
                     >
-                      {saving ? 'Archivando…' : 'Sí, archivar'}
+                      {saving ? 'Eliminando…' : 'Sí, eliminar'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {zeroCostWarning ? (
+              <div
+                className="product-editor-confirm-layer"
+                role="presentation"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) cancelZeroCostWarning()
+                }}
+              >
+                <div
+                  className="product-editor-confirm product-editor-confirm--warning"
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="product-zero-cost-title"
+                  aria-describedby="product-zero-cost-desc"
+                >
+                  <h3
+                    id="product-zero-cost-title"
+                    className="product-editor-confirm__title"
+                  >
+                    {zeroCostWarning === 'close'
+                      ? '¿Cerrar sin costo unitario?'
+                      : '¿Guardar con costo en cero?'}
+                  </h3>
+                  <p
+                    id="product-zero-cost-desc"
+                    className="product-editor-confirm__desc"
+                  >
+                    <strong>{draft.name?.trim() || 'Sin nombre'}</strong> no
+                    tiene costo unitario definido. Sin costo no podés calcular
+                    márgenes ni utilidades reales.
+                    {draft.costMode === 'recipe'
+                      ? ' Revisá la receta o ingresá un costo manual.'
+                      : ' Ingresá un costo manual o configurá la receta.'}
+                  </p>
+                  <div className="product-editor-confirm__actions">
+                    <button
+                      type="button"
+                      className="product-editor-btn product-editor-btn--secondary"
+                      disabled={saving}
+                      onClick={cancelZeroCostWarning}
+                    >
+                      Volver y corregir
+                    </button>
+                    <button
+                      type="button"
+                      className="product-editor-btn product-editor-btn--warning"
+                      disabled={saving}
+                      onClick={() => void confirmZeroCostWarning()}
+                    >
+                      {zeroCostWarning === 'close'
+                        ? 'Cerrar igual'
+                        : saving
+                          ? 'Guardando…'
+                          : 'Guardar igual'}
                     </button>
                   </div>
                 </div>
@@ -1559,338 +2239,22 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
             ) : null}
           </section>
 
-          {advancedPopupOpen && draft ? (
-            <div
-              className="modal-backdrop modal-backdrop--product-submodal"
-              role="presentation"
-              onMouseDown={(e) => {
-                if (e.target === e.currentTarget) setAdvancedPopupOpen(false)
-              }}
-            >
-              <section
-                className="modal modal--product-submodal modal--product-advanced-popup"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="product-advanced-popup-title"
-              >
-                <header className="modal-head modal-head--product-submodal modal-head--product-submodal--advanced">
-                  <div className="modal-head-title product-submodal-head__copy">
-                    <h2 id="product-advanced-popup-title">Edición avanzada</h2>
-                    <p className="product-submodal-head__product">
-                      {draft.name?.trim() || 'Sin nombre'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="product-editor-close"
-                    onClick={() => setAdvancedPopupOpen(false)}
-                    aria-label="Cerrar edición avanzada"
-                  >
-                    <span aria-hidden>×</span>
-                  </button>
-                </header>
-                <div className="modal-body modal-body--product-submodal">
-                  <div className="product-submodal-callout" role="note">
-                    <p className="product-submodal-callout__text muted small">
-                      Unidad, tamaño, texto e imagen del catálogo. Se usan al
-                      enlazar el producto en una venta. Los cambios se guardan con
-                      el botón principal del producto.
-                    </p>
-                  </div>
-                  <div className="product-editor-panel-scroll product-editor-panel-scroll--popup product-advanced-fields">
-                  <section className="product-editor-subsection product-editor-subsection--advanced-sale">
-                    <header className="product-editor-subsection__head">
-                      <h4 className="product-editor-subsection__title">
-                        Venta: unidad y tamaño
-                      </h4>
-                    </header>
-                    <div className="product-editor-subsection__body">
-                      <p className="product-editor-sale-defaults-preview muted small">
-                        <strong>Por defecto en ventas:</strong>{' '}
-                        {productSaleDefaultsSummary(draft)}
-                      </p>
-                      {renderProductFieldRow({
-                        fieldKey: 'saleUnit',
-                        label: 'Unidad de venta',
-                        inAdvancedPopup: true,
-                        canLock: !creating,
-                        disabled: saving,
-                        display: (
-                          <span className="product-editor-field-value-text">
-                            {draft.saleUnit.trim() || '—'}
-                          </span>
-                        ),
-                        children: (
-                          <input
-                            className="input-cell"
-                            value={draft.saleUnit}
-                            onChange={(e) =>
-                              setDraft({ ...draft, saleUnit: e.target.value })
-                            }
-                            placeholder="und, porción, oz…"
-                            list="product-sale-unit-suggestions"
-                          />
-                        ),
-                      })}
-                      {renderProductFieldRow({
-                        fieldKey: 'size',
-                        label: 'Tamaño / presentación',
-                        inAdvancedPopup: true,
-                        canLock: !creating,
-                        disabled: saving,
-                        display: (
-                          <span className="product-editor-field-value-text">
-                            {draft.size.trim() || '—'}
-                          </span>
-                        ),
-                        children: (
-                          <input
-                            className="input-cell"
-                            value={draft.size}
-                            onChange={(e) =>
-                              setDraft({ ...draft, size: e.target.value })
-                            }
-                            placeholder="6 oz, 330 ml…"
-                          />
-                        ),
-                      })}
-                    </div>
-                  </section>
-
-                  <datalist id="product-sale-unit-suggestions">
-                    <option value="und" />
-                    <option value="porción" />
-                    <option value="oz" />
-                    <option value="ml" />
-                    <option value="litro" />
-                  </datalist>
-
-                  <section className="product-editor-subsection">
-                    <header className="product-editor-subsection__head">
-                      <h4 className="product-editor-subsection__title">
-                        Texto e imagen
-                      </h4>
-                    </header>
-                    <div className="product-editor-subsection__body">
-                  {renderProductFieldRow({
-                    fieldKey: 'type',
-                    label: 'Tipo (API)',
-                    inAdvancedPopup: true,
-                    canLock: !creating,
-                    disabled: saving,
-                    display: (
-                      <span className="product-editor-field-value-text">
-                        {PRODUCT_TYPE_LABELS[
-                          isProductTypeSlug(draft.type)
-                            ? draft.type
-                            : PRODUCT_TYPE_SLUGS[0]
-                        ]}{' '}
-                        <span className="mono muted small">({draft.type})</span>
-                      </span>
-                    ),
-                    children: (
-                      <>
-                        <select
-                          className="inventory-filter__input"
-                          value={
-                            isProductTypeSlug(draft.type)
-                              ? draft.type
-                              : PRODUCT_TYPE_SLUGS[0]
-                          }
-                          onChange={(e) =>
-                            setDraft({ ...draft, type: e.target.value })
-                          }
-                        >
-                          {PRODUCT_TYPE_SLUGS.map((t) => (
-                            <option key={t} value={t}>
-                              {PRODUCT_TYPE_LABELS[t]}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="muted small product-editor-field-hint">
-                          Suele alinearse con la categoría (
-                          {productTypeLabel(draft.type)}).
-                        </p>
-                      </>
-                    ),
-                  })}
-                  {renderProductFieldRow({
-                    fieldKey: 'description',
-                    label: 'Descripción',
-                    inAdvancedPopup: true,
-                    canLock: !creating,
-                    disabled: saving,
-                    display: (
-                      <span className="product-editor-field-value-text product-editor-field-value-text--multiline">
-                        {draft.description.trim() || '—'}
-                      </span>
-                    ),
-                    children: (
-                      <textarea
-                        className="input-cell"
-                        rows={2}
-                        value={draft.description}
-                        onChange={(e) =>
-                          setDraft({ ...draft, description: e.target.value })
-                        }
-                      />
-                    ),
-                  })}
-                  {renderProductFieldRow({
-                    fieldKey: 'imageUrl',
-                    label: 'URL de imagen',
-                    inAdvancedPopup: true,
-                    canLock: !creating,
-                    disabled: saving,
-                    display: (
-                      <span className="mono muted small product-editor-field-value-text product-editor-field-value-text--clip">
-                        {draft.imageUrl.trim() || '—'}
-                      </span>
-                    ),
-                    children: (
-                      <input
-                        className="input-cell"
-                        type="url"
-                        value={draft.imageUrl}
-                        onChange={(e) =>
-                          setDraft({ ...draft, imageUrl: e.target.value })
-                        }
-                        placeholder="https://…"
-                      />
-                    ),
-                  })}
-                    </div>
-                  </section>
-
-                  {!creating && selectedProductDetail ? (
-                    <section className="product-editor-subsection">
-                      <header className="product-editor-subsection__head">
-                        <h4 className="product-editor-subsection__title">
-                          Revisión y auditoría
-                        </h4>
-                      </header>
-                      <div className="product-editor-subsection__body">
-                    <div className="product-editor-readonly-block product-editor-readonly-block--audit">
-                      <span className="product-editor-field-row__label">
-                        Último cambio en sistema
-                      </span>
-                      <p className="product-editor-readonly-block__value mono">
-                        {formatSystemDateTime(
-                          selectedProductDetail.updatedAt,
-                        )}
-                      </p>
-                    </div>
-                    {renderProductFieldRow({
-                      fieldKey: 'trace',
-                      label: 'Marca de revisión',
-                      inAdvancedPopup: true,
-                      canLock: true,
-                      disabled: saving,
-                      display: (
-                        <span className="product-editor-field-value-text">
-                          {draft.traceModifiedLocal
-                            ? (() => {
-                                const dt = new Date(
-                                  draft.traceModifiedLocal,
-                                )
-                                return Number.isFinite(dt.getTime())
-                                  ? dt.toLocaleString('es-CO', {
-                                      dateStyle: 'medium',
-                                      timeStyle: 'short',
-                                    })
-                                  : draft.traceModifiedLocal
-                              })()
-                            : 'Sin marca'}
-                        </span>
-                      ),
-                      children: (
-                        <>
-                          <input
-                            className="input-cell"
-                            type="datetime-local"
-                            value={draft.traceModifiedLocal}
-                            onChange={(e) =>
-                              setDraft({
-                                ...draft,
-                                traceModifiedLocal: e.target.value,
-                              })
-                            }
-                          />
-                          <p className="muted small product-editor-field-hint">
-                            Vacío al guardar limpia la marca en el servidor.
-                          </p>
-                        </>
-                      ),
-                    })}
-                    <button
-                      type="button"
-                      className="btn-secondary btn-compact"
-                      disabled={saving}
-                      onClick={() => {
-                        void (async () => {
-                          if (!selectedId) return
-                          setSaving(true)
-                          setSaveError(null)
-                          try {
-                            await updateProduct(baseUrl, selectedId, {
-                              traceModifiedAt: null,
-                            })
-                            const p = await fetchProduct(baseUrl, selectedId)
-                            syncDraftAfterServerProduct(p as ProductRow)
-                            setAllProducts((prev) =>
-                              prev.map((row) =>
-                                row.id === selectedId
-                                  ? (p as ProductRow)
-                                  : row,
-                              ),
-                            )
-                            showSavedBanner()
-                          } catch (e) {
-                            setSaveError((e as Error).message)
-                          } finally {
-                            setSaving(false)
-                          }
-                        })()
-                      }}
-                    >
-                      Quitar marca de revisión
-                    </button>
-                      </div>
-                    </section>
-                  ) : null}
-                  </div>
-                </div>
-                <footer
-                  className="product-editor-footer product-submodal-footer"
-                  role="toolbar"
-                >
-                  <button
-                    type="button"
-                    className="product-editor-btn product-editor-btn--primary"
-                    onClick={() => setAdvancedPopupOpen(false)}
-                  >
-                    Listo
-                  </button>
-                </footer>
-              </section>
-            </div>
-          ) : null}
 
           {historyPopupOpen && !creating && selectedId ? (
             <div
-              className="modal-backdrop modal-backdrop--product-submodal"
+              className="modal-backdrop modal-backdrop--product-submodal modal-backdrop--config"
               role="presentation"
               onMouseDown={(e) => {
                 if (e.target === e.currentTarget) setHistoryPopupOpen(false)
               }}
             >
               <section
-                className="modal modal--product-submodal modal--product-history-popup"
+                className="modal modal--config modal--config-xl modal--product-submodal modal--product-history-popup"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="product-history-popup-title"
               >
-                <header className="modal-head modal-head--product-submodal modal-head--product-submodal--history">
+                <header className="modal-head modal-head--config modal-head--product-submodal modal-head--product-submodal--history">
                   <div className="modal-head-title product-submodal-head__copy">
                     <h2 id="product-history-popup-title">Historial</h2>
                     <p className="product-submodal-head__product">
@@ -1906,7 +2270,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                     <span aria-hidden>×</span>
                   </button>
                 </header>
-                <div className="modal-body modal-body--product-submodal modal-body--product-submodal--history">
+                <div className="modal-body modal-body--config modal-body--product-submodal modal-body--product-submodal--history">
                   <div className="product-editor-panel-scroll product-editor-panel-scroll--popup product-editor-panel-scroll--history">
                     {historyLoading ? (
                       <p className="product-editor-panel-empty muted small">
@@ -2076,7 +2440,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                   </div>
                 </div>
                 <footer
-                  className="product-editor-footer product-submodal-footer"
+                  className="product-editor-footer modal-footer--config product-submodal-footer"
                   role="toolbar"
                 >
                   <button
@@ -2089,6 +2453,17 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                 </footer>
               </section>
             </div>
+          ) : null}
+
+          {recipePopupOpen && !creating && selectedId && draft ? (
+            <ProductRecipePopup
+              baseUrl={baseUrl}
+              productId={selectedId}
+              productName={draft.name}
+              initialRecipe={detailRecipe}
+              onClose={() => setRecipePopupOpen(false)}
+              onRecipeUpdated={setDetailRecipe}
+            />
           ) : null}
         </div>
       )}

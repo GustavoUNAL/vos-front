@@ -491,19 +491,19 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
 
       {selectedId && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop modal-backdrop--config"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closePanel()
           }}
         >
           <section
-            className="modal modal--fullscreen"
+            className="modal modal--config modal--config-full modal--recipe-editor"
             role="dialog"
             aria-modal="true"
             aria-label="Editor de receta"
           >
-            <header className="modal-head">
+            <header className="modal-head modal-head--config">
               <div className="modal-head-title">
                 <h2>Receta</h2>
                 <p className="muted small modal-subtitle">{selectedName}</p>
@@ -525,7 +525,7 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
               </div>
             </header>
 
-            <div className="modal-body">
+            <div className="modal-body modal-body--config modal-body--recipe-editor">
               {detailLoading && <p className="muted">Cargando receta…</p>}
               {detailError && (
                 <p className="error" role="alert">

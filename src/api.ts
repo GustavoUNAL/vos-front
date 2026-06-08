@@ -1,4 +1,5 @@
 import { isBackendDown } from './backendHealth'
+import { unitCostToNumber } from './lib/productEconomics'
 
 const STORAGE_KEY = 'vos_api_base'
 const TOKEN_KEY = 'vos_access_token'
@@ -279,6 +280,14 @@ export type ProductRow = {
   /** Unidad por defecto al vender (und, porción, etc.). */
   saleUnit?: string | null
   active: boolean
+  sku?: string | null
+  /** Costo declarado (API v2: `cost`). */
+  cost?: string | number | null
+  unitCost?: string | number | null
+  /** Origen del costo unitario: manual o calculado desde receta. */
+  costSource?: 'MANUAL' | 'RECIPE' | null
+  /** % utilidad declarada sobre precio (cartilla). */
+  marginPercent?: string | number | null
   createdAt?: string
   updatedAt?: string
   /** Revisión / trazabilidad (manual). Distinto de `updatedAt`. */
@@ -300,11 +309,59 @@ export type CreateProductPayload = {
   size?: string
   saleUnit?: string
   imageUrl?: string
+  sku?: string | null
+  unitCost?: number | null
+  costSource?: 'MANUAL' | 'RECIPE'
+  marginPercent?: number | null
   active?: boolean
 }
 
 export type UpdateProductPayload = Partial<CreateProductPayload> & {
   traceModifiedAt?: string | null
+}
+
+/** Normaliza fila del API v2 (`cost` → `unitCost` para el front). */
+export function normalizeProductRow<T extends ProductRow>(row: T): T {
+  const rawCost = row.cost ?? row.unitCost
+  const parsed =
+    rawCost != null && `${rawCost}`.trim() !== ''
+      ? unitCostToNumber(rawCost as string | number)
+      : null
+  const hasCost = parsed != null && parsed > 0
+  return {
+    ...row,
+    unitCost: hasCost ? rawCost : null,
+    cost: hasCost ? rawCost : null,
+    costSource:
+      row.costSource === 'RECIPE' || row.costSource === 'MANUAL'
+        ? row.costSource
+        : 'MANUAL',
+  }
+}
+
+/** Campos permitidos por el API v2 de productos (evita rechazos por whitelist). */
+function productWriteBody(
+  payload: CreateProductPayload | UpdateProductPayload,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (payload.name !== undefined) body.name = payload.name
+  if (payload.price !== undefined) body.price = payload.price
+  if (payload.categoryId !== undefined) body.categoryId = payload.categoryId
+  if (payload.type !== undefined) body.type = payload.type
+  if (payload.description !== undefined) body.description = payload.description
+  if (payload.sku !== undefined) body.sku = payload.sku
+  if (payload.imageUrl !== undefined) body.imageUrl = payload.imageUrl
+  if (payload.active !== undefined) body.active = payload.active
+  const unitCost = payload.unitCost
+  if (typeof unitCost === 'number' && Number.isFinite(unitCost)) {
+    body.cost = unitCost
+  } else if (unitCost === 0) {
+    body.cost = 0
+  }
+  if (payload.costSource === 'MANUAL' || payload.costSource === 'RECIPE') {
+    body.costSource = payload.costSource
+  }
+  return body
 }
 
 /** Cuerpo típico de error Nest / vos-api (`message`, `hint`, `path`, `statusCode`). */
@@ -353,7 +410,7 @@ async function apiFetch(
     return new Response(
       JSON.stringify({
         message: 'API no disponible',
-        hint: 'Iniciá el backend: cd vos-api && npm run start:dev',
+        hint: 'Iniciá el backend: cd vos.ai-api && npm run start:dev',
       }),
       { status: 503, statusText: 'Service Unavailable' },
     )
@@ -467,7 +524,26 @@ export async function fetchProducts(
   if (opts.sort && opts.sort !== 'name') q.set('sort', opts.sort)
   const res = await apiFetch(`${base}/products?${q}`, { signal: opts.signal })
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<ProductsListResponse>
+  const out = (await res.json()) as ProductsListResponse
+  return {
+    ...out,
+    data: out.data.map((row) => normalizeProductRow(row)),
+  }
+}
+
+export type ProductSalesStat = {
+  productId: string
+  unitsSold: number
+  revenue: number
+}
+
+export async function fetchProductSalesStats(
+  base: string,
+  signal?: AbortSignal,
+): Promise<ProductSalesStat[]> {
+  const res = await apiFetch(`${base}/products/sales-stats`, { signal })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as ProductSalesStat[]
 }
 
 export async function fetchProduct(
@@ -476,7 +552,9 @@ export async function fetchProduct(
 ): Promise<ProductRow & { recipe?: unknown }> {
   const res = await apiFetch(`${base}/products/${id}`)
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<ProductRow & { recipe?: unknown }>
+  return normalizeProductRow(
+    (await res.json()) as ProductRow & { recipe?: unknown },
+  )
 }
 
 /** Lote de compra asociado al producto (p. ej. vía receta → inventario → compra). */
@@ -575,10 +653,10 @@ export async function createProduct(
   const res = await apiFetch(`${base}/products`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(productWriteBody(payload)),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<ProductRow>
+  return normalizeProductRow((await res.json()) as ProductRow)
 }
 
 export async function updateProduct(
@@ -589,10 +667,10 @@ export async function updateProduct(
   const res = await apiFetch(`${base}/products/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(productWriteBody(payload)),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<ProductRow>
+  return normalizeProductRow((await res.json()) as ProductRow)
 }
 
 export async function deleteProduct(base: string, id: string): Promise<void> {
@@ -991,6 +1069,61 @@ export type PatchPurchaseLotPayload = {
   consumptionStatus?: 'EMPTY' | 'FRESH' | 'PARTIAL' | 'DEPLETED'
   /** ISO UTC; usar `null` explícito para borrar la marca (no omitir el campo). */
   traceModifiedAt?: string | null
+}
+
+export type PurchaseCalendarDay = {
+  date: string
+  count: number
+  totalCOP: string
+}
+
+export type PurchaseCalendarResponse = {
+  year: number
+  month: number
+  days: PurchaseCalendarDay[]
+  totals: { count: number; totalCOP: string }
+}
+
+export type CreatePurchaseLotLinePayload = {
+  lineName: string
+  quantityPurchased: number
+  unit: string
+  purchaseUnitCostCOP: number
+  lineTotalCOP?: number
+  categoryId?: string | null
+  lineComment?: string | null
+}
+
+export type CreatePurchaseLotPayload = {
+  purchaseDate: string
+  supplier?: string
+  notes?: string
+  lines?: CreatePurchaseLotLinePayload[]
+  totalValue?: number
+}
+
+export async function fetchPurchaseLotsCalendar(
+  base: string,
+  year: number,
+  month: number,
+): Promise<PurchaseCalendarResponse> {
+  const q = new URLSearchParams({ year: String(year), month: String(month) })
+  const res = await apiFetch(`${base}/purchase-lots/calendar?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<PurchaseCalendarResponse>
+}
+
+export async function createPurchaseLot(
+  base: string,
+  payload: CreatePurchaseLotPayload,
+): Promise<PurchaseLotRow> {
+  const res = await apiFetch(`${base}/purchase-lots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<PurchaseLotRow>
 }
 
 export type InventoryOption = {

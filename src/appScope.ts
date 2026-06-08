@@ -6,11 +6,31 @@
 const envFlag = import.meta.env.VITE_SALES_FLOOR_ONLY as string | undefined
 const platformFlag = import.meta.env.VITE_PLATFORM_MODE as string | undefined
 
-/** VOS AI multi-tenant: catálogo de productos por empresa (módulos vía API). */
+/** vos.ai multi-tenant: catálogo, ventas y compras por empresa. */
 export const PLATFORM_MODE =
   platformFlag !== '0' && platformFlag !== 'false' && platformFlag !== 'off'
 
-export const PLATFORM_NAV_GROUPS = ['catalog'] as const
+export const PLATFORM_NAV_GROUPS = ['catalog', 'sales', 'purchases'] as const
+
+export const PLATFORM_VIEWS = ['home', 'products', 'sales', 'purchases'] as const
+export type PlatformView = (typeof PLATFORM_VIEWS)[number]
+
+export function isPlatformView(v: string | null | undefined): v is PlatformView {
+  return (
+    v === 'home' ||
+    v === 'products' ||
+    v === 'sales' ||
+    v === 'purchases'
+  )
+}
+
+/** Normaliza hash/ruta a una vista permitida en modo plataforma. */
+export function resolvePlatformView(
+  fromHash: string | null | undefined,
+): PlatformView {
+  if (isPlatformView(fromHash)) return fromHash
+  return 'home'
+}
 
 export const SALES_FLOOR_ONLY =
   !PLATFORM_MODE &&
