@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -590,25 +589,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     return map
   }, [categories])
 
-  const catalogLayoutKey = useMemo(
-    () =>
-      productSections
-        .filter((s) => s.products.length > 0)
-        .map((s) => s.id)
-        .join('|'),
-    [productSections],
-  )
-
   const [openCategoryIds, setOpenCategoryIds] = useState(() => new Set<string>())
-
-  useLayoutEffect(() => {
-    const first = productSections.find((s) => s.products.length > 0)?.id
-    if (!first) {
-      setOpenCategoryIds(new Set())
-      return
-    }
-    setOpenCategoryIds(new Set([first]))
-  }, [catalogLayoutKey])
 
   useEffect(() => {
     let cancelled = false
@@ -1086,6 +1067,30 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           trailing={
             isMobile ? (
               <div className="vos-toolbar__actions mobile-list-toolbar__actions">
+                <div
+                  className="view-toggle view-toggle--compact module-view-toggle"
+                  role="tablist"
+                  aria-label="Vista de productos"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={catalogViewMode === 'grid'}
+                    className={catalogViewMode === 'grid' ? 'active' : ''}
+                    onClick={() => setCatalogViewMode('grid')}
+                  >
+                    Cuadrícula
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={catalogViewMode === 'list'}
+                    className={catalogViewMode === 'list' ? 'active' : ''}
+                    onClick={() => setCatalogViewMode('list')}
+                  >
+                    Lista
+                  </button>
+                </div>
                 <ProductSummaryCard
                   summary={catalogSummary}
                   categories={categories}
@@ -1213,45 +1218,47 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           </FloatingGearFab>
         )}
 
-        <div className="products-page-head">
-          <div className="products-page-intro">
-            <p className="products-dashboard-lead muted">
-              Productos a la venta para carta y tickets.
-              {catalogViewMode === 'grid' ? (
-                <>
-                  {' '}
-                  Ordenados por unidades vendidas; la cantidad aparece en cada tarjeta.
-                </>
-              ) : null}
-            </p>
-          </div>
-          <div className="products-toolbar-actions products-toolbar-actions--top">
-            <div
-              className="view-toggle module-view-toggle"
-              role="tablist"
-              aria-label="Vista de productos"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={catalogViewMode === 'grid'}
-                className={catalogViewMode === 'grid' ? 'active' : ''}
-                onClick={() => setCatalogViewMode('grid')}
+        {!isMobile ? (
+          <div className="products-page-head">
+            <div className="products-page-intro">
+              <p className="products-dashboard-lead muted">
+                Productos a la venta para carta y tickets.
+                {catalogViewMode === 'grid' ? (
+                  <>
+                    {' '}
+                    Ordenados por unidades vendidas; la cantidad aparece en cada tarjeta.
+                  </>
+                ) : null}
+              </p>
+            </div>
+            <div className="products-toolbar-actions products-toolbar-actions--top">
+              <div
+                className="view-toggle module-view-toggle"
+                role="tablist"
+                aria-label="Vista de productos"
               >
-                Cuadrícula
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={catalogViewMode === 'list'}
-                className={catalogViewMode === 'list' ? 'active' : ''}
-                onClick={() => setCatalogViewMode('list')}
-              >
-                Lista
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={catalogViewMode === 'grid'}
+                  className={catalogViewMode === 'grid' ? 'active' : ''}
+                  onClick={() => setCatalogViewMode('grid')}
+                >
+                  Cuadrícula
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={catalogViewMode === 'list'}
+                  className={catalogViewMode === 'list' ? 'active' : ''}
+                  onClick={() => setCatalogViewMode('list')}
+                >
+                  Lista
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         {catError && (
           <p className="banner-warn" role="status">
@@ -2193,6 +2200,14 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
               aria-label="Guardar producto"
             >
               <div className="product-editor-footer__actions">
+                <button
+                  type="button"
+                  className="product-editor-btn product-editor-btn--secondary"
+                  disabled={saving}
+                  onClick={requestClosePanel}
+                >
+                  Cancelar
+                </button>
                 <button
                   type="button"
                   className={`product-editor-btn product-editor-btn--primary${savePulse ? ' product-editor-btn--saved' : ''}`}

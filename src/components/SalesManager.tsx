@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createSale,
+  downloadSaleInvoiceBusinessPdf,
+  downloadSaleInvoiceClientPdf,
   fetchProducts,
   fetchSale,
   fetchSales,
@@ -25,6 +27,8 @@ import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
 import { MonthCalendar } from './MonthCalendar'
+import { CashClosePanel } from './CashClosePanel'
+import { Button } from './ui/button'
 import { consumePendingSalesDate } from '../lib/pending-view-filter'
 
 const LIMIT = 15
@@ -188,8 +192,18 @@ type HeaderDraft = {
   saleDateLocal: string
   paymentMethod: string
   mesa: string
+  customerPhone: string
   notes: string
   source: string
+}
+
+function isValidColombiaMobile(phone: string): boolean {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 10 && digits.startsWith('3')) return true
+  if (digits.length === 12 && digits.startsWith('57') && digits[2] === '3') {
+    return true
+  }
+  return false
 }
 
 function headerFromSale(s: SaleDetail): HeaderDraft {
@@ -197,6 +211,7 @@ function headerFromSale(s: SaleDetail): HeaderDraft {
     saleDateLocal: toDatetimeLocalValue(s.saleDate),
     paymentMethod: s.paymentMethod ?? '',
     mesa: s.mesa ?? '',
+    customerPhone: s.customerPhone ?? '',
     notes: s.notes ?? '',
     source: s.source,
   }
@@ -207,6 +222,7 @@ function headerSnapshot(h: HeaderDraft): string {
     saleDateLocal: h.saleDateLocal,
     paymentMethod: h.paymentMethod.trim(),
     mesa: h.mesa.trim(),
+    customerPhone: h.customerPhone.trim(),
     notes: h.notes.trim(),
     source: h.source,
   })
@@ -301,6 +317,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   )
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [cashCloseDate, setCashCloseDate] = useState<string | null>(null)
 
   useEffect(() => {
     const date = consumePendingSalesDate()
@@ -325,6 +342,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saleNotice, setSaleNotice] = useState<string | null>(null)
   const [saveBannerVisible, setSaveBannerVisible] = useState(false)
   const saveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [headerBaseline, setHeaderBaseline] = useState<string | null>(null)
@@ -508,24 +526,12 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       saleDateLocal: local,
       paymentMethod: '',
       mesa: '',
+      customerPhone: '',
       notes: '',
       source: 'MANUAL',
     })
     setLineRows([emptyLine()])
     setProductSearch('')
-  }, [])
-
-  const closePanel = useCallback(() => {
-    setSelectedId(null)
-    setCreating(false)
-    setDetail(null)
-    setHeader(null)
-    setLineRows([])
-    setDetailError(null)
-    setSaveError(null)
-    setHeaderBaseline(null)
-    setLinesBaseline(null)
-    setAdvancedMode(false)
   }, [])
 
   const isHeaderDirty = useMemo(() => {
@@ -539,6 +545,26 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   }, [creating, lineRows, linesBaseline])
 
   const isSaleDirty = creating || isHeaderDirty || isLinesDirty
+
+  const closePanel = useCallback(() => {
+    if (
+      isSaleDirty &&
+      !window.confirm('Hay cambios sin guardar. ¿Cerrar de todos modos?')
+    ) {
+      return
+    }
+    setSelectedId(null)
+    setCreating(false)
+    setDetail(null)
+    setHeader(null)
+    setLineRows([])
+    setDetailError(null)
+    setSaveError(null)
+    setSaleNotice(null)
+    setHeaderBaseline(null)
+    setLinesBaseline(null)
+    setAdvancedMode(false)
+  }, [isSaleDirty])
 
   const saveNewSale = useCallback(async () => {
     if (!header) return
@@ -576,6 +602,15 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       setSaveError('Añade al menos una línea.')
       return
     }
+    const phone = header.customerPhone.trim()
+    if (!phone) {
+      setSaveError('Ingresá el celular del cliente para enviar el comprobante por WhatsApp.')
+      return
+    }
+    if (!isValidColombiaMobile(phone)) {
+      setSaveError('Celular inválido. Usá 10 dígitos (ej. 300 123 4567).')
+      return
+    }
 
     setSaving(true)
     setSaveError(null)
@@ -585,6 +620,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
         paymentMethod: header.paymentMethod.trim() || undefined,
         source: header.source,
         mesa: header.mesa.trim() || undefined,
+        customerPhone: phone,
         notes: header.notes.trim() || undefined,
         lines: payloadLines,
       })
@@ -598,6 +634,19 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       setMeta(res.meta)
       openSale(created.id)
       showSavedBanner()
+      if (created.whatsappSent) {
+        setSaleNotice('Comprobante enviado por WhatsApp al cliente.')
+      } else if (phone && created.whatsappConfigured === false) {
+        setSaleNotice(
+          'Venta guardada. Configure WHATSAPP_ACCESS_TOKEN en el servidor para enviar WhatsApp.',
+        )
+      } else if (phone) {
+        setSaleNotice(
+          'Venta guardada. No se pudo enviar WhatsApp; verifique el número o la API.',
+        )
+      } else {
+        setSaleNotice(null)
+      }
     } catch (e) {
       setSaveError((e as Error).message)
     } finally {
@@ -658,6 +707,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           paymentMethod: header.paymentMethod.trim() || undefined,
           source: header.source,
           mesa: header.mesa.trim() || undefined,
+          customerPhone: header.customerPhone.trim() || undefined,
           notes: header.notes.trim() || undefined,
         })
       }
@@ -959,7 +1009,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           </p>
         )}
 
-        {viewMode === 'calendar' ? (
+        {viewMode === 'calendar' && !cashCloseDate ? (
           <MonthCalendar
             year={calendarYear}
             month={calendarMonth}
@@ -985,11 +1035,22 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             onDayClick={(date) => {
               setFilterDateFrom(date)
               setFilterDateTo(date)
+              setCashCloseDate(date)
               setPage(1)
               setViewMode('list')
             }}
           />
-        ) : (
+        ) : null}
+
+        {cashCloseDate ? (
+          <CashClosePanel
+            baseUrl={baseUrl}
+            date={cashCloseDate}
+            onClose={() => setCashCloseDate(null)}
+          />
+        ) : null}
+
+        {viewMode === 'list' ? (
           <>
         {loading && <p className="muted">Cargando ventas…</p>}
 
@@ -1143,7 +1204,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           <p className="empty-hint">No hay ventas en esta página.</p>
         )}
           </>
-        )}
+        ) : null}
       </div>
 
       {panelOpen && (creating || selectedId) && (
@@ -1195,6 +1256,12 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                 {detailError}
               </p>
             )}
+
+            {saleNotice ? (
+              <p className="banner-warn" role="status">
+                {saleNotice}
+              </p>
+            ) : null}
 
             {saveBannerVisible ? (
               <div
@@ -1249,6 +1316,39 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                       >
                         Resumen de venta
                       </h3>
+                      <div className="sales-invoice-sheet__top-actions">
+                      {!creating && selectedId ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              void downloadSaleInvoiceClientPdf(
+                                baseUrl,
+                                selectedId,
+                                detail?.code ?? undefined,
+                              )
+                            }
+                          >
+                            PDF Cliente
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              void downloadSaleInvoiceBusinessPdf(
+                                baseUrl,
+                                selectedId,
+                                detail?.code ?? undefined,
+                              )
+                            }
+                          >
+                            PDF Negocio
+                          </Button>
+                        </>
+                      ) : null}
                       <button
                         type="button"
                         className="sales-advanced-toggle sales-advanced-toggle--compact"
@@ -1281,6 +1381,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                           Configurar
                         </span>
                       </button>
+                      </div>
                     </div>
 
                     <article className="sales-invoice" aria-label="Factura de venta">
@@ -1316,8 +1417,36 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                             <span className="sales-invoice__chip-label">Origen</span>
                             <span>{header.source}</span>
                           </li>
+                          {detail?.code ? (
+                            <li className="sales-invoice__chip">
+                              <span className="sales-invoice__chip-label">Nº venta</span>
+                              <span>{detail.code}</span>
+                            </li>
+                          ) : null}
                         </ul>
                       </header>
+
+                      {creating ? (
+                        <label className="field sales-invoice-phone">
+                          <span>Celular cliente (WhatsApp) *</span>
+                          <input
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            value={header.customerPhone}
+                            onChange={(e) =>
+                              setHeader({
+                                ...header,
+                                customerPhone: e.target.value,
+                              })
+                            }
+                            placeholder="300 123 4567"
+                          />
+                          <span className="muted small">
+                            Al guardar se envía el comprobante por WhatsApp.
+                          </span>
+                        </label>
+                      ) : null}
 
                       <div className="sales-invoice__add">
                         <input
@@ -1809,6 +1938,31 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                       />
                     </label>
                     <label className="field">
+                      <span>
+                        Celular cliente (WhatsApp)
+                        {creating ? ' *' : ''}
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        value={header.customerPhone}
+                        onChange={(e) =>
+                          setHeader({
+                            ...header,
+                            customerPhone: e.target.value,
+                          })
+                        }
+                        placeholder="300 123 4567"
+                      />
+                      {creating ? (
+                        <span className="muted small">
+                          Se envía el comprobante de venta por WhatsApp al
+                          registrar.
+                        </span>
+                      ) : null}
+                    </label>
+                    <label className="field">
                       <span>Notas</span>
                       <textarea
                         rows={2}
@@ -1905,7 +2059,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                     disabled={saving}
                     onClick={closePanel}
                   >
-                    Cerrar
+                    Cancelar
                   </button>
                   <button
                     type="button"

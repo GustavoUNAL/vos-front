@@ -1487,6 +1487,7 @@ export type SaleListRow = {
   paymentMethod?: string | null
   source: string
   mesa?: string | null
+  customerPhone?: string | null
   notes?: string | null
   userId?: string | null
   createdAt?: string | null
@@ -1739,6 +1740,7 @@ export type SaleLineDetail = {
 
 export type SaleDetail = {
   id: string
+  code?: string | null
   saleDate: string
   saleDateOnly?: string | null
   total?: string | number | null
@@ -1754,12 +1756,15 @@ export type SaleDetail = {
   paymentMethod?: string | null
   source: string
   mesa?: string | null
+  customerPhone?: string | null
   notes?: string | null
   userId?: string | null
   createdAt?: string | null
   updatedAt?: string | null
   cart?: { user?: SaleCartUserRef | null } | null
   lines?: SaleLineDetail[]
+  whatsappSent?: boolean
+  whatsappConfigured?: boolean
 }
 
 export type SaleLineInputPayload = {
@@ -1778,6 +1783,7 @@ export type CreateSalePayload = {
   paymentMethod?: string
   source?: string
   mesa?: string
+  customerPhone?: string
   notes?: string
   userId?: string
   lines: SaleLineInputPayload[]
@@ -1788,6 +1794,7 @@ export type PatchSalePayload = {
   paymentMethod?: string
   source?: string
   mesa?: string
+  customerPhone?: string
   notes?: string
   userId?: string
 }
@@ -1819,6 +1826,104 @@ export async function fetchSale(base: string, id: string): Promise<SaleDetail> {
   const res = await apiFetch(`${base}/sales/${id}`)
   if (!res.ok) throw new Error(await parseJsonError(res))
   return res.json() as Promise<SaleDetail>
+}
+
+async function downloadSaleInvoicePdfCopy(
+  base: string,
+  saleId: string,
+  copy: 'client' | 'business',
+  code?: string | null,
+): Promise<void> {
+  const path =
+    copy === 'business'
+      ? `${base}/sales/${saleId}/invoice/business.pdf`
+      : `${base}/sales/${saleId}/invoice/client.pdf`
+  const res = await apiFetch(path)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const suffix = copy === 'business' ? 'negocio' : 'cliente'
+  a.download = `factura-${suffix}-${code ?? saleId.slice(0, 8)}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadSaleInvoiceClientPdf(
+  base: string,
+  saleId: string,
+  code?: string | null,
+): Promise<void> {
+  return downloadSaleInvoicePdfCopy(base, saleId, 'client', code)
+}
+
+export async function downloadSaleInvoiceBusinessPdf(
+  base: string,
+  saleId: string,
+  code?: string | null,
+): Promise<void> {
+  return downloadSaleInvoicePdfCopy(base, saleId, 'business', code)
+}
+
+/** @deprecated Usar downloadSaleInvoiceClientPdf */
+export async function downloadSaleInvoicePdf(
+  base: string,
+  saleId: string,
+  code?: string | null,
+): Promise<void> {
+  return downloadSaleInvoiceClientPdf(base, saleId, code)
+}
+
+export type DailyCashClose = {
+  date: string
+  companyName: string
+  summary: {
+    saleCount: number
+    salesTotalCOP: number
+    purchaseCount: number
+    purchasesTotalCOP: number
+    netCOP: number
+    laborTotalCOP: number
+    shiftCount: number
+  }
+  paymentsByMethod: { method: string; totalCOP: number }[]
+  sales: {
+    id: string
+    code: string | null
+    customer: string
+    saleDate: string
+    total: number
+    paymentMethod: string
+    lineCount: number
+  }[]
+  purchases: {
+    id: string
+    code: string
+    name: string
+    purchaseDate: string
+    total: number
+    lineCount: number
+  }[]
+  shifts: {
+    id: string
+    staffName: string
+    startAt: string
+    endAt: string | null
+    hoursWorked: number | null
+    totalPayCOP: number | null
+    notes: string | null
+  }[]
+}
+
+export async function fetchDailyCashClose(
+  base: string,
+  date: string,
+): Promise<DailyCashClose> {
+  const q = new URLSearchParams({ date })
+  const res = await apiFetch(`${base}/cash-close/daily?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<DailyCashClose>
 }
 
 export type SalesCalendarDay = {

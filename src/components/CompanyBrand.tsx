@@ -1,3 +1,5 @@
+import { displayCompanyName } from '../lib/displayLabels'
+
 type CompanyBrandProps = {
   name: string
   size?: 'sm' | 'md'
@@ -13,7 +15,7 @@ export function CompanyBrand({
     <div
       className={`company-brand company-brand--${size}${className ? ` ${className}` : ''}`}
     >
-      <span className="company-brand__name">{name}</span>
+      <span className="company-brand__name">{displayCompanyName(name)}</span>
     </div>
   )
 }

@@ -242,20 +242,36 @@
   }
 
   .vos-mobile-header__bar {
-    @apply grid items-center gap-3;
-    grid-template-columns: 2.75rem 1fr;
-    min-height: 2.75rem;
-    padding: 0.35rem max(0.65rem, env(safe-area-inset-left, 0px)) 0.4rem
-      max(0.65rem, env(safe-area-inset-right, 0px));
+    @apply grid items-center gap-2;
+    grid-template-columns: 1fr auto 1fr;
+    min-height: 2.85rem;
+    padding: 0.35rem max(0.75rem, env(safe-area-inset-left, 0px)) 0.42rem
+      max(0.75rem, env(safe-area-inset-right, 0px));
   }
 
-  .vos-mobile-header__bar--with-trailing {
-    grid-template-columns: 2.75rem 1fr 2.75rem;
+  .vos-mobile-header__leading {
+    @apply flex min-w-0 items-center justify-start;
+  }
+
+  .vos-mobile-header__brand {
+    @apply block min-w-0 truncate text-xs font-semibold tracking-tight;
+    max-width: 6.5rem;
+    color: color-mix(in srgb, var(--muted) 25%, var(--heading));
+  }
+
+  .vos-mobile-header__spacer {
+    @apply block h-9 w-9 shrink-0;
+  }
+
+  .vos-mobile-header__menu {
+    justify-self: end;
   }
 
   .vos-mobile-header__title {
-    @apply m-0 min-w-0 truncate text-center text-base font-bold tracking-tight;
+    @apply m-0 min-w-0 truncate text-center text-[0.98rem] font-bold tracking-tight;
     color: var(--heading);
+    justify-self: center;
+    max-width: 11rem;
   }
 
   .vos-filter-panel {
@@ -280,7 +296,141 @@
   }
 
   .app-shell--mobile-compact .vos-toolbar {
-    padding-top: 0.25rem;
-    padding-bottom: 0.3rem;
+    margin-top: 0;
+    padding-top: 0.2rem;
+    padding-bottom: 0.25rem;
   }
+
+  .app-shell--mobile-compact .products-list-pane {
+    padding-top: 0;
+  }
+
+  .app-shell--mobile-compact .mobile-filter-sheet {
+    margin-top: 0;
+    margin-bottom: 0.35rem;
+  }
+
+  .app-shell--mobile-compact .mobile-list-toolbar__actions .view-toggle--compact {
+    flex-shrink: 0;
+  }
+
+  .app-shell--mobile-compact .mobile-list-toolbar__actions .view-toggle--compact button {
+    padding: 0.28rem 0.5rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .app-shell--mobile-compact .catalog-by-category {
+    margin-top: 0;
+  }
+
+  .app-shell--mobile-dock.app-shell--mobile-compact .page-pane--floating-gear-dock {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--mobile-dock.app-shell--mobile-compact .app-main {
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.cash-close-panel {
+  margin: 0.75rem 0 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface));
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--shadow-soft) 40%, transparent);
+}
+
+.cash-close-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.cash-close-panel__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.cash-close-panel__date {
+  margin: 0.2rem 0 0;
+  font-size: 0.88rem;
+}
+
+.cash-close-panel__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.cash-close-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.cash-close-kpi--accent {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface-elevated));
+}
+
+.cash-close-kpi__label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cash-close-panel__block {
+  margin-top: 0.85rem;
+}
+
+.cash-close-panel__subtitle {
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--heading);
+}
+
+.cash-close-panel__list,
+.cash-close-panel__sales {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cash-close-panel__list li,
+.cash-close-panel__sale-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+}
+
+.cash-close-panel__sale-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sales-invoice-sheet__top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }

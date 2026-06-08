@@ -2,6 +2,7 @@ import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useEffect } from 'react'
 import type { AuthUser } from '../api'
 import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
+import { displayCompanyName, displayUserRole } from '../lib/displayLabels'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 
@@ -23,18 +24,49 @@ export type MobileChromeView =
 const SCREEN_TITLE: Record<MobileChromeView, string> = {
   home: 'Inicio',
   menu: 'Inicio',
-  products: 'Productos a la venta',
+  products: 'Productos',
   recipes: 'Recetas',
   inventory: 'Inventario',
   sales: 'Ventas',
-  pos: 'POS · Mesas',
+  pos: 'POS',
   purchases: 'Compras',
   staff: 'Personal',
-  analytics: 'Análisis financiero',
+  analytics: 'Finanzas',
   costs: 'Costos',
   gastos: 'Gastos',
   explorer: 'Datos',
 }
+
+type SheetLink = {
+  view: MobileChromeView
+  label: string
+}
+
+const PLATFORM_SHEET_LINKS: SheetLink[] = [
+  { view: 'home', label: 'Inicio' },
+  { view: 'products', label: 'Productos a la venta' },
+  { view: 'inventory', label: 'Inventario' },
+  { view: 'sales', label: 'Ventas' },
+  { view: 'pos', label: 'POS · Mesas' },
+  { view: 'purchases', label: 'Compras' },
+  { view: 'staff', label: 'Personal' },
+  { view: 'analytics', label: 'Análisis financiero' },
+]
+
+const FULL_SHEET_LINKS: SheetLink[] = [
+  { view: 'menu', label: 'Inicio' },
+  { view: 'products', label: 'Productos a la venta' },
+  { view: 'recipes', label: 'Recetas' },
+  { view: 'inventory', label: 'Inventario' },
+  { view: 'sales', label: 'Ventas' },
+  { view: 'pos', label: 'POS · Mesas' },
+  { view: 'purchases', label: 'Compras' },
+  { view: 'staff', label: 'Personal' },
+  { view: 'analytics', label: 'Análisis financiero' },
+  { view: 'costs', label: 'Costos' },
+  { view: 'gastos', label: 'Gastos' },
+  { view: 'explorer', label: 'Explorador de datos' },
+]
 
 type DockTabId = MobileChromeView
 
@@ -156,11 +188,6 @@ function MobileDockIcon({ id }: { id: DockTabId }) {
   }
 }
 
-type SheetLink = {
-  view: MobileChromeView
-  label: string
-}
-
 export function MobileAppChrome({
   view,
   onNavigate,
@@ -186,29 +213,19 @@ export function MobileAppChrome({
     : SALES_FLOOR_ONLY
       ? DOCK_TABS_SALES
       : DOCK_TABS_FULL
-  const showDock = dockTabs.length > 0
+  const showDock = !PLATFORM_MODE && dockTabs.length > 0
 
-  const sheetLinks: SheetLink[] = compactChrome
-    ? PLATFORM_MODE
+  const sheetLinks: SheetLink[] = PLATFORM_MODE
+    ? PLATFORM_SHEET_LINKS
+    : SALES_FLOOR_ONLY
       ? [
-          { view: 'inventory', label: 'Inventario' },
-          { view: 'staff', label: 'Personal' },
-          { view: 'analytics', label: 'Análisis financiero' },
+          { view: 'products', label: 'Productos a la venta' },
+          { view: 'sales', label: 'Ventas' },
         ]
-      : []
-    : [
-        { view: 'menu', label: 'Inicio' },
-        { view: 'recipes', label: 'Recetas' },
-        { view: 'purchases', label: 'Compras' },
-        { view: 'pos', label: 'POS · Mesas' },
-        { view: 'costs', label: 'Costos' },
-        { view: 'gastos', label: 'Gastos' },
-        { view: 'explorer', label: 'Explorador DB' },
-      ]
+      : FULL_SHEET_LINKS
 
-  const userInitial = user?.name?.trim().charAt(0).toUpperCase() ?? ''
+  const companyLabel = displayCompanyName(user?.companyName)
   const showMenuButton = sheetLinks.length > 0 || Boolean(user)
-  const showAvatarButton = !compactChrome && showMenuButton && Boolean(userInitial)
   const headerTitle = SCREEN_TITLE[view]
 
   useEffect(() => {
@@ -241,17 +258,25 @@ export function MobileAppChrome({
   return (
     <>
       <header className="vos-mobile-header">
-        <div
-          className={cn(
-            'vos-mobile-header__bar',
-            !compactChrome && showAvatarButton && 'vos-mobile-header__bar--with-trailing',
-          )}
-        >
+        <div className="vos-mobile-header__bar vos-mobile-header__bar--menu-right">
+          <div className="vos-mobile-header__leading">
+            {companyLabel ? (
+              <span className="vos-mobile-header__brand" title={companyLabel}>
+                {companyLabel}
+              </span>
+            ) : (
+              <span className="vos-mobile-header__spacer" aria-hidden />
+            )}
+          </div>
+
+          <h1 className="vos-mobile-header__title">{headerTitle}</h1>
+
           {showMenuButton ? (
             <Button
               type="button"
               variant={sheetOpen ? 'accent' : 'ghost'}
               size="icon-sm"
+              className="vos-mobile-header__menu"
               aria-expanded={sheetOpen}
               aria-haspopup="dialog"
               aria-label="Menú y cuenta"
@@ -260,26 +285,8 @@ export function MobileAppChrome({
               <Menu className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
             </Button>
           ) : (
-            <span className="w-10" aria-hidden />
+            <span className="vos-mobile-header__spacer" aria-hidden />
           )}
-
-          <h1 className="vos-mobile-header__title">{headerTitle}</h1>
-
-          {!compactChrome ? (
-            showAvatarButton ? (
-              <Button
-                type="button"
-                variant={sheetOpen ? 'accent' : 'secondary'}
-                size="icon-sm"
-                aria-label={`Cuenta: ${user?.name}`}
-                onClick={() => onSheetOpenChange(!sheetOpen)}
-              >
-                {userInitial}
-              </Button>
-            ) : (
-              <span className="w-10" aria-hidden />
-            )
-          ) : null}
         </div>
       </header>
 
@@ -337,7 +344,7 @@ export function MobileAppChrome({
           >
             <header className="vos-sheet__head">
               <h2 id="mobile-sheet-title" className="vos-sheet__title">
-                Menú
+                {companyLabel || 'Menú'}
               </h2>
               <Button
                 type="button"
@@ -370,15 +377,17 @@ export function MobileAppChrome({
               ) : null}
               {user ? (
                 <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-3">
-                  {user.companyName ? (
-                    <p className="vos-sheet__company">{user.companyName}</p>
+                  {companyLabel ? (
+                    <p className="vos-sheet__company">{companyLabel}</p>
                   ) : null}
                   <p className="vos-sheet__user">
                     {user.name}
-                    <span className="text-[color-mix(in_srgb,var(--muted)_80%,transparent)]">
-                      {' '}
-                      · {user.role}
-                    </span>
+                    {displayUserRole(user.role) ? (
+                      <span className="text-[color-mix(in_srgb,var(--muted)_80%,transparent)]">
+                        {' '}
+                        · {displayUserRole(user.role)}
+                      </span>
+                    ) : null}
                   </p>
                   {compactChrome ? (
                     <Button

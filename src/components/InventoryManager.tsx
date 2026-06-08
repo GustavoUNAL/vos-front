@@ -1141,6 +1141,14 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
             )}
 
             <div className="editor-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={saving}
+                onClick={closePanel}
+              >
+                Cancelar
+              </button>
               {!creating && (
                 <button
                   type="button"

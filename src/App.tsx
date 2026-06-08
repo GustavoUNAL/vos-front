@@ -38,6 +38,7 @@ import {
   MobileAppChrome,
   type MobileChromeView,
 } from './components/MobileAppChrome'
+import { displayUserRole } from './lib/displayLabels'
 import type { NavGroupId } from './navTypes'
 import {
   setPendingPurchasesDate,
@@ -133,6 +134,19 @@ const COLLAPSED_GROUP_LABEL: Record<NavGroupId, string> = {
   staff: 'Personal',
   finance: 'Finanzas',
   data: 'Datos',
+}
+
+function HomeGlyph({ className = 'app-nav-home__icon' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 function NavGlyph({ group }: { group: NavGroupId }) {
@@ -240,21 +254,38 @@ function NavGlyph({ group }: { group: NavGroupId }) {
 function SidebarCollapsedRail({
   view,
   onPick,
+  onHome,
+  showHome,
 }: {
   view: View
   onPick: (g: NavGroupId) => void
+  onHome?: () => void
+  showHome?: boolean
 }) {
   const groups: NavGroupId[] = PLATFORM_MODE
     ? [...PLATFORM_NAV_GROUPS]
     : SALES_FLOOR_ONLY
       ? [...SALES_FLOOR_NAV_GROUPS]
       : ['catalog', 'stock', 'purchases', 'sales', 'finance', 'data']
+  const homeActive = view === 'home' || view === 'menu'
   return (
     <nav
       id="app-sidebar-collapsed-rail"
       className="app-sidebar__collapsed-rail"
       aria-label="Secciones (iconos)"
     >
+      {showHome && onHome ? (
+        <button
+          type="button"
+          className={`app-sidebar__icon-btn app-sidebar__icon-btn--home${homeActive ? ' app-sidebar__icon-btn--active' : ''}`}
+          title="Inicio"
+          aria-label="Inicio"
+          aria-current={homeActive ? 'page' : undefined}
+          onClick={onHome}
+        >
+          <HomeGlyph className="app-sidebar__icon-svg" />
+        </button>
+      ) : null}
       {groups.map((g) => {
         const ag = activeNavGroup(view)
         const active = ag !== null && ag === g
@@ -675,7 +706,11 @@ export default function App() {
             {user && (
               <div className="header-auth">
                 <span className="muted small" title={user.email}>
-                  {user.name} · {user.role}
+                  {user.name}
+                  {(() => {
+                    const roleLabel = displayUserRole(user.role)
+                    return roleLabel ? ` · ${roleLabel}` : ''
+                  })()}
                 </span>
                 <button
                   type="button"
@@ -699,7 +734,12 @@ export default function App() {
             />
           </div>
           {sidebarCollapsed ? (
-            <SidebarCollapsedRail view={view} onPick={goCollapsedGroup} />
+            <SidebarCollapsedRail
+              view={view}
+              onPick={goCollapsedGroup}
+              showHome={!SALES_FLOOR_ONLY}
+              onHome={() => setView(PLATFORM_MODE ? 'home' : 'menu')}
+            />
           ) : null}
           <nav
             id="app-sidebar-nav"
@@ -716,7 +756,8 @@ export default function App() {
                       className={view === 'menu' ? 'active' : ''}
                       onClick={() => setView('menu')}
                     >
-                      Inicio
+                      <HomeGlyph />
+                      <span>Inicio</span>
                     </button>
                   </li>
                 </ul>
@@ -731,7 +772,8 @@ export default function App() {
                       className={view === 'home' ? 'active' : ''}
                       onClick={() => setView('home')}
                     >
-                      Inicio
+                      <HomeGlyph />
+                      <span>Inicio</span>
                     </button>
                   </li>
                 </ul>

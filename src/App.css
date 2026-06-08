@@ -475,6 +475,20 @@
   margin-bottom: 0.35rem;
 }
 
+.app-nav-home .app-nav-list button {
+  gap: 0.5rem;
+}
+
+.app-nav-home__icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+}
+
+.app-sidebar__icon-btn--home {
+  --rail-accent: var(--berry, #8b2942);
+}
+
 .app-nav-home .app-nav-list button.active {
   box-shadow:
     inset -3px 0 0 0 var(--berry),
