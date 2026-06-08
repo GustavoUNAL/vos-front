@@ -9,6 +9,10 @@ import {
   type SaleListRow,
 } from '../api'
 import { MonthCalendar } from './MonthCalendar'
+import {
+  getOpenPosTables,
+  type OpenPosTableSnapshot,
+} from '../pos/lib/openTablesSnapshot'
 
 function localDateKey(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -51,12 +55,14 @@ type HomeDashboardProps = {
   baseUrl: string
   onOpenSales: (date: string) => void
   onOpenPurchases: (date: string) => void
+  onOpenPos: (tableId?: string) => void
 }
 
 export function HomeDashboard({
   baseUrl,
   onOpenSales,
   onOpenPurchases,
+  onOpenPos,
 }: HomeDashboardProps) {
   const todayKey = useMemo(() => localDateKey(), [])
   const now = new Date()
@@ -73,6 +79,20 @@ export function HomeDashboard({
   const [purchasesCalendar, setPurchasesCalendar] = useState<
     Awaited<ReturnType<typeof fetchPurchaseLotsCalendar>> | null
   >(null)
+  const [openPosTables, setOpenPosTables] = useState<OpenPosTableSnapshot[]>(() =>
+    getOpenPosTables(),
+  )
+
+  const refreshOpenPosTables = useCallback(() => {
+    setOpenPosTables(getOpenPosTables())
+  }, [])
+
+  useEffect(() => {
+    refreshOpenPosTables()
+    const onFocus = () => refreshOpenPosTables()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshOpenPosTables])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -173,6 +193,60 @@ export function HomeDashboard({
           {error}
         </p>
       )}
+
+      {openPosTables.length > 0 ? (
+        <section
+          className="home-dashboard__pos-alert"
+          aria-labelledby="home-open-tables"
+        >
+          <div className="home-dashboard__pos-alert-head">
+            <div>
+              <h2 id="home-open-tables">Mesas abiertas en POS</h2>
+              <p className="muted small">
+                {openPosTables.length} comanda
+                {openPosTables.length !== 1 ? 's' : ''} pendiente
+                {openPosTables.length !== 1 ? 's' : ''} de cobro en este dispositivo
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-primary btn-compact"
+              onClick={() => onOpenPos()}
+            >
+              Ir al POS
+            </button>
+          </div>
+          <ul className="home-dashboard__open-tables">
+            {openPosTables.map((table) => (
+              <li key={table.tableId} className="home-dashboard__open-table">
+                <div>
+                  <span className="home-dashboard__open-table-name">
+                    {table.tableName}
+                  </span>
+                  <span className="home-dashboard__open-table-meta muted small">
+                    {table.lineCount}{' '}
+                    {table.lineCount === 1 ? 'producto' : 'productos'}
+                    {table.openedAt
+                      ? ` · abierta ${formatTime(table.openedAt)}`
+                      : ''}
+                    {table.status === 'closing' ? ' · cerrando' : ''}
+                  </span>
+                </div>
+                <div className="home-dashboard__open-table-actions">
+                  <strong className="mono">{formatCOP(table.totalCOP)}</strong>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-compact"
+                    onClick={() => onOpenPos(table.tableId)}
+                  >
+                    Continuar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section
         className={`home-dashboard__kpi-grid${isEmptyDay ? ' home-dashboard__kpi-grid--empty' : ''}`}

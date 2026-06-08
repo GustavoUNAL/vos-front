@@ -10,6 +10,8 @@ import {
 } from './api'
 import { ProductsManager } from './components/ProductsManager'
 import { HomeDashboard } from './components/HomeDashboard'
+import { StaffManager } from './components/StaffManager'
+import { FinanceAnalyticsView } from './components/FinanceAnalyticsView'
 import { SalesManager } from './components/SalesManager'
 import { InventoryManager } from './components/InventoryManager'
 import { CostsView } from './components/CostsView'
@@ -41,6 +43,7 @@ import {
   setPendingPurchasesDate,
   setPendingSalesDate,
 } from './lib/pending-view-filter'
+import { setPendingPosTableId } from './lib/pending-pos-navigation'
 import './App.css'
 
 type View =
@@ -52,6 +55,8 @@ type View =
   | 'sales'
   | 'pos'
   | 'purchases'
+  | 'staff'
+  | 'analytics'
   | 'costs'
   | 'gastos'
   | 'explorer'
@@ -65,6 +70,8 @@ const VIEW_HASH: Record<View, string> = {
   sales: '#/sales',
   pos: '#/pos',
   purchases: '#/purchases',
+  staff: '#/staff',
+  analytics: '#/analytics',
   costs: '#/costs',
   gastos: '#/gastos',
   explorer: '#/explorer',
@@ -106,6 +113,8 @@ const VIEW_TO_GROUP: Partial<Record<View, NavGroupId>> = {
   sales: 'sales',
   pos: 'sales',
   purchases: 'purchases',
+  staff: 'staff',
+  analytics: 'finance',
   costs: 'finance',
   gastos: 'finance',
   explorer: 'data',
@@ -121,6 +130,7 @@ const COLLAPSED_GROUP_LABEL: Record<NavGroupId, string> = {
   stock: 'Inventario',
   purchases: 'Compras',
   sales: 'Ventas',
+  staff: 'Personal',
   finance: 'Finanzas',
   data: 'Datos',
 }
@@ -180,6 +190,18 @@ function NavGlyph({ group }: { group: NavGroupId }) {
           />
           <circle cx="9" cy="20" r="1.35" fill="currentColor" />
           <circle cx="18" cy="20" r="1.35" fill="currentColor" />
+        </svg>
+      )
+    case 'staff':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.35" />
+          <path
+            d="M5 20c0-3.3 3.1-5 7-5s7 1.7 7 5"
+            stroke="currentColor"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+          />
         </svg>
       )
     case 'finance':
@@ -266,6 +288,8 @@ function getViewFromHash(): View | null {
   if (first === 'sales') return 'sales'
   if (first === 'pos') return 'pos'
   if (first === 'purchases') return 'purchases'
+  if (first === 'staff') return 'staff'
+  if (first === 'analytics') return 'analytics'
   if (first === 'costs') return 'costs'
   if (first === 'gastos') return 'gastos'
   if (first === 'explorer') return 'explorer'
@@ -353,11 +377,14 @@ export default function App() {
       case 'purchases':
         setView('purchases')
         return
+      case 'staff':
+        setView('staff')
+        return
       case 'sales':
         setView('sales')
         return
       case 'finance':
-        setView('costs')
+        setView(PLATFORM_MODE ? 'analytics' : 'costs')
         return
       case 'data':
         setView('explorer')
@@ -542,19 +569,29 @@ export default function App() {
                 setPendingPurchasesDate(date)
                 setView('purchases')
               }}
+              onOpenPos={(tableId) => {
+                if (tableId) setPendingPosTableId(tableId)
+                setView('pos')
+              }}
             />
           )}
           {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'recipes' && (
             <RecipesView baseUrl={baseUrl} />
           )}
-          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'inventory' && (
+          {!SALES_FLOOR_ONLY && view === 'inventory' && (
             <InventoryManager baseUrl={baseUrl} />
           )}
           {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
-          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'pos' && <PosApp />}
+          {!SALES_FLOOR_ONLY && view === 'pos' && <PosApp />}
           {(PLATFORM_MODE || (!SALES_FLOOR_ONLY && !PLATFORM_MODE)) &&
             view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
+          {PLATFORM_MODE && view === 'staff' && (
+            <StaffManager baseUrl={baseUrl} />
+          )}
+          {PLATFORM_MODE && view === 'analytics' && (
+            <FinanceAnalyticsView baseUrl={baseUrl} />
+          )}
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'costs' && (
             <CostsView baseUrl={baseUrl} />
           )}
@@ -746,6 +783,36 @@ export default function App() {
               </ul>
             </div>
 
+            {!SALES_FLOOR_ONLY && PLATFORM_MODE && (
+            <div className="app-nav-group app-nav-group--stock">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
+                id="nav-head-stock-platform"
+              >
+                <span className="app-nav-group__toggle-main">
+                  <span className="app-nav-group__title">Inventario</span>
+                  <span className="app-nav-group__hint">
+                    {inventorySubtitle ?? 'Insumos en existencia y stock mínimo'}
+                  </span>
+                </span>
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-stock-platform"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'inventory' ? 'active' : ''}
+                    onClick={() => setView('inventory')}
+                  >
+                    Stock
+                  </button>
+                </li>
+              </ul>
+            </div>
+            )}
+
             {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--stock">
               <div
@@ -815,7 +882,7 @@ export default function App() {
                     Ventas
                   </button>
                 </li>
-                {!SALES_FLOOR_ONLY && !PLATFORM_MODE && (
+                {!SALES_FLOOR_ONLY && (
                   <li>
                     <button
                       type="button"
@@ -853,6 +920,66 @@ export default function App() {
                     onClick={() => setView('purchases')}
                   >
                     Compras
+                  </button>
+                </li>
+              </ul>
+            </div>
+            )}
+
+            {PLATFORM_MODE && (
+            <div className="app-nav-group app-nav-group--staff">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
+                id="nav-head-staff"
+              >
+                <span className="app-nav-group__toggle-main">
+                  <span className="app-nav-group__title">Personal</span>
+                  <span className="app-nav-group__hint">
+                    Turnos, horas y pago por hora
+                  </span>
+                </span>
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-staff"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'staff' ? 'active' : ''}
+                    onClick={() => setView('staff')}
+                  >
+                    Personal
+                  </button>
+                </li>
+              </ul>
+            </div>
+            )}
+
+            {PLATFORM_MODE && (
+            <div className="app-nav-group app-nav-group--finance">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
+                id="nav-head-finance-platform"
+              >
+                <span className="app-nav-group__toggle-main">
+                  <span className="app-nav-group__title">Finanzas</span>
+                  <span className="app-nav-group__hint">
+                    Análisis de ventas, compras y nómina
+                  </span>
+                </span>
+              </div>
+              <ul
+                className="app-nav-list"
+                aria-labelledby="nav-head-finance-platform"
+              >
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'analytics' ? 'active' : ''}
+                    onClick={() => setView('analytics')}
+                  >
+                    Análisis financiero
                   </button>
                 </li>
               </ul>

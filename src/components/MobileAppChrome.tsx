@@ -14,6 +14,8 @@ export type MobileChromeView =
   | 'sales'
   | 'pos'
   | 'purchases'
+  | 'staff'
+  | 'analytics'
   | 'costs'
   | 'gastos'
   | 'explorer'
@@ -27,6 +29,8 @@ const SCREEN_TITLE: Record<MobileChromeView, string> = {
   sales: 'Ventas',
   pos: 'POS · Mesas',
   purchases: 'Compras',
+  staff: 'Personal',
+  analytics: 'Análisis financiero',
   costs: 'Costos',
   gastos: 'Gastos',
   explorer: 'Datos',
@@ -43,6 +47,7 @@ type DockTab = {
 const DOCK_TABS_PLATFORM: DockTab[] = [
   { id: 'home', label: 'Inicio', view: 'home' },
   { id: 'products', label: 'Productos', view: 'products' },
+  { id: 'pos', label: 'POS', view: 'pos' },
   { id: 'sales', label: 'Ventas', view: 'sales' },
   { id: 'purchases', label: 'Compras', view: 'purchases' },
 ]
@@ -95,6 +100,26 @@ function MobileDockIcon({ id }: { id: DockTabId }) {
           />
           <circle cx="9" cy="20" r="1.5" fill="currentColor" />
           <circle cx="18" cy="20" r="1.5" fill="currentColor" />
+        </svg>
+      )
+    case 'pos':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <rect
+            x="3"
+            y="4"
+            width="18"
+            height="14"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M7 9h4M7 12h10M7 15h6"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       )
     case 'inventory':
@@ -164,7 +189,13 @@ export function MobileAppChrome({
   const showDock = dockTabs.length > 0
 
   const sheetLinks: SheetLink[] = compactChrome
-    ? []
+    ? PLATFORM_MODE
+      ? [
+          { view: 'inventory', label: 'Inventario' },
+          { view: 'staff', label: 'Personal' },
+          { view: 'analytics', label: 'Análisis financiero' },
+        ]
+      : []
     : [
         { view: 'menu', label: 'Inicio' },
         { view: 'recipes', label: 'Recetas' },

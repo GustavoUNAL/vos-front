@@ -2147,6 +2147,15 @@ export async function fetchInventoryCategories(
   base: string,
 ): Promise<CategoryRef[]> {
   try {
+    const res = await apiFetch(`${base}/inventory/categories`)
+    if (res.ok) {
+      const rows = (await res.json()) as CategoryRef[]
+      if (Array.isArray(rows)) return rows
+    }
+  } catch {
+    /* fallback al explorador legacy */
+  }
+  try {
     return await fetchCategoriesViaExplorer(base, 'INVENTORY')
   } catch (first) {
     const viaRest = await tryFetchCategoriesRest(base, 'INVENTORY')
@@ -2242,4 +2251,273 @@ export async function fetchInventoryInStockCount(base: string): Promise<number> 
     if (page > 100) break
   }
   return count
+}
+
+// ——— Personal (turnos) ———
+
+export type StaffMemberRow = {
+  id: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  idNumber?: string | null
+  defaultHourlyRate: string
+  active: boolean
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type StaffShiftRow = {
+  id: string
+  staffMemberId: string
+  staffMemberName: string
+  shiftDate: string
+  startAt: string
+  endAt: string | null
+  hourlyRateCOP: string
+  hoursWorked: string | null
+  totalPayCOP: string | null
+  status: 'OPEN' | 'CLOSED' | 'PAID'
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type StaffSummary = {
+  shiftCount: number
+  openShifts: number
+  totalHours: number
+  totalPayCOP: number
+}
+
+type Paginated<T> = {
+  data: T[]
+  meta: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+    hasNextPage: boolean
+  }
+}
+
+export async function fetchStaffMembers(
+  base: string,
+  opts?: { page?: number; limit?: number; search?: string; active?: boolean },
+): Promise<Paginated<StaffMemberRow>> {
+  const q = new URLSearchParams()
+  q.set('page', String(opts?.page ?? 1))
+  q.set('limit', String(opts?.limit ?? 100))
+  if (opts?.search?.trim()) q.set('search', opts.search.trim())
+  if (opts?.active === true) q.set('active', 'true')
+  if (opts?.active === false) q.set('active', 'false')
+  const res = await apiFetch(`${base}/staff?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<Paginated<StaffMemberRow>>
+}
+
+export async function createStaffMember(
+  base: string,
+  payload: {
+    name: string
+    phone?: string
+    email?: string
+    idNumber?: string
+    defaultHourlyRate: number
+    active?: boolean
+    notes?: string
+  },
+): Promise<StaffMemberRow> {
+  const res = await apiFetch(`${base}/staff`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<StaffMemberRow>
+}
+
+export async function updateStaffMember(
+  base: string,
+  id: string,
+  payload: Partial<{
+    name: string
+    phone: string
+    email: string
+    idNumber: string
+    defaultHourlyRate: number
+    active: boolean
+    notes: string
+  }>,
+): Promise<StaffMemberRow> {
+  const res = await apiFetch(`${base}/staff/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<StaffMemberRow>
+}
+
+export async function deleteStaffMember(
+  base: string,
+  id: string,
+): Promise<void> {
+  const res = await apiFetch(`${base}/staff/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+}
+
+export async function fetchStaffShifts(
+  base: string,
+  opts?: {
+    page?: number
+    limit?: number
+    staffMemberId?: string
+    status?: StaffShiftRow['status']
+    dateFrom?: string
+    dateTo?: string
+  },
+): Promise<Paginated<StaffShiftRow>> {
+  const q = new URLSearchParams()
+  q.set('page', String(opts?.page ?? 1))
+  q.set('limit', String(opts?.limit ?? 100))
+  if (opts?.staffMemberId) q.set('staffMemberId', opts.staffMemberId)
+  if (opts?.status) q.set('status', opts.status)
+  if (opts?.dateFrom) q.set('dateFrom', opts.dateFrom)
+  if (opts?.dateTo) q.set('dateTo', opts.dateTo)
+  const res = await apiFetch(`${base}/staff-shifts?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<Paginated<StaffShiftRow>>
+}
+
+export async function createStaffShift(
+  base: string,
+  payload: {
+    staffMemberId: string
+    startAt: string
+    endAt?: string
+    hourlyRateCOP: number
+    hoursWorked?: number
+    status?: StaffShiftRow['status']
+    notes?: string
+  },
+): Promise<StaffShiftRow> {
+  const res = await apiFetch(`${base}/staff-shifts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<StaffShiftRow>
+}
+
+export async function updateStaffShift(
+  base: string,
+  id: string,
+  payload: Partial<{
+    startAt: string
+    endAt: string | null
+    hourlyRateCOP: number
+    hoursWorked: number | null
+    status: StaffShiftRow['status']
+    notes: string
+  }>,
+): Promise<StaffShiftRow> {
+  const res = await apiFetch(`${base}/staff-shifts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<StaffShiftRow>
+}
+
+export async function deleteStaffShift(base: string, id: string): Promise<void> {
+  const res = await apiFetch(`${base}/staff-shifts/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+}
+
+export async function fetchStaffSummary(
+  base: string,
+  opts?: { dateFrom?: string; dateTo?: string },
+): Promise<StaffSummary> {
+  const q = new URLSearchParams()
+  if (opts?.dateFrom) q.set('dateFrom', opts.dateFrom)
+  if (opts?.dateTo) q.set('dateTo', opts.dateTo)
+  const qs = q.toString()
+  const res = await apiFetch(`${base}/staff/summary${qs ? `?${qs}` : ''}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<StaffSummary>
+}
+
+export type AnalyticsGranularity = 'day' | 'week' | 'month'
+
+export type FinancialAnalyticsSeriesPoint = {
+  period: string
+  label: string
+  count: number
+  totalCOP: number
+  profitCOP?: number
+  hours?: number
+}
+
+export type FinancialAnalyticsCombinedRow = {
+  period: string
+  label: string
+  salesCount: number
+  salesCOP: number
+  salesProfitCOP: number
+  grossProfitCOP: number
+  purchasesCount: number
+  purchasesCOP: number
+  staffShifts: number
+  staffHours: number
+  staffPayCOP: number
+  netCOP: number
+}
+
+export type FinancialAnalyticsOverview = {
+  granularity: AnalyticsGranularity
+  dateFrom: string
+  dateTo: string
+  sales: {
+    series: FinancialAnalyticsSeriesPoint[]
+    totals: { count: number; totalCOP: number; profitCOP: number }
+  }
+  purchases: {
+    series: FinancialAnalyticsSeriesPoint[]
+    totals: { count: number; totalCOP: number }
+  }
+  staff: {
+    series: FinancialAnalyticsSeriesPoint[]
+    totals: { shiftCount: number; hours: number; totalPayCOP: number }
+  }
+  combined: FinancialAnalyticsCombinedRow[]
+  summary: {
+    salesCOP: number
+    salesProfitCOP: number
+    grossProfitCOP: number
+    purchasesCOP: number
+    staffPayCOP: number
+    netCOP: number
+  }
+}
+
+export async function fetchFinancialAnalytics(
+  base: string,
+  opts?: {
+    dateFrom?: string
+    dateTo?: string
+    granularity?: AnalyticsGranularity
+  },
+): Promise<FinancialAnalyticsOverview> {
+  const q = new URLSearchParams()
+  if (opts?.dateFrom) q.set('dateFrom', opts.dateFrom)
+  if (opts?.dateTo) q.set('dateTo', opts.dateTo)
+  if (opts?.granularity) q.set('granularity', opts.granularity)
+  const qs = q.toString()
+  const res = await apiFetch(`${base}/analytics/financial${qs ? `?${qs}` : ''}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<FinancialAnalyticsOverview>
 }

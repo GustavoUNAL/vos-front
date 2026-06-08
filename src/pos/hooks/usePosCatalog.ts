@@ -7,7 +7,6 @@ import {
 } from '../../api'
 import { isBackendDown } from '../../backendHealth'
 import { getDemoCatalog } from '../services/demoCatalog'
-import { isPosDemoMode } from '../services/posApi'
 
 function isApiUnreachableError(e: unknown): boolean {
   if (e instanceof TypeError) return true
@@ -28,7 +27,7 @@ export function usePosCatalog(baseUrl: string) {
     setLoading(true)
     setError(null)
     setUsingDemoCatalog(false)
-    if (isBackendDown() || isPosDemoMode()) {
+    if (isBackendDown()) {
       const demo = getDemoCatalog()
       setCategories(demo.categories)
       setProducts(demo.products)
@@ -59,7 +58,7 @@ export function usePosCatalog(baseUrl: string) {
         )
       }
     } catch (e) {
-      if (isPosDemoMode() || isApiUnreachableError(e) || isBackendDown()) {
+      if (isApiUnreachableError(e) || isBackendDown()) {
         const demo = getDemoCatalog()
         setCategories(demo.categories)
         setProducts(demo.products)

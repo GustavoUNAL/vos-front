@@ -200,6 +200,11 @@ function sortProductRows(rows: ProductRow[], sort: ProductListSort): ProductRow[
   return copy
 }
 
+function formatUnitsSold(units: number): string {
+  if (units <= 0) return '0'
+  return units % 1 === 0 ? units.toFixed(0) : units.toFixed(1)
+}
+
 function sortProductsBySales(
   rows: ProductRow[],
   unitsSoldByProductId: Map<string, number>,
@@ -210,6 +215,20 @@ function sortProductsBySales(
     if (soldB !== soldA) return soldB - soldA
     return a.name.localeCompare(b.name, 'es')
   })
+}
+
+function partitionGridBySales(
+  rows: ProductRow[],
+  unitsSoldByProductId: Map<string, number>,
+): { topSellers: ProductRow[]; rest: ProductRow[] } {
+  const sorted = sortProductsBySales(rows, unitsSoldByProductId)
+  const topSellers: ProductRow[] = []
+  const rest: ProductRow[] = []
+  for (const row of sorted) {
+    if ((unitsSoldByProductId.get(row.id) ?? 0) > 0) topSellers.push(row)
+    else rest.push(row)
+  }
+  return { topSellers, rest }
 }
 
 function resolveDraftType(d: Draft, categories: CategoryRef[]): ProductTypeSlug {
@@ -333,6 +352,73 @@ function draftEconomics(
   }
 }
 
+function ProductGridCard({
+  product: p,
+  rank,
+  unitsSold,
+  categoryName,
+  meta,
+  selected,
+  onPrefetch,
+  onSelect,
+}: {
+  product: ProductRow
+  rank: number
+  unitsSold: number
+  categoryName: string | undefined
+  meta: string | null
+  selected: boolean
+  onPrefetch: () => void
+  onSelect: () => void
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={
+          selected
+            ? 'product-card product-card--catalog active'
+            : 'product-card product-card--catalog'
+        }
+        onMouseEnter={onPrefetch}
+        onFocus={onPrefetch}
+        onClick={onSelect}
+      >
+        <div className="product-card-body">
+          <div className="products-catalog-grid__stats">
+            <span
+              className={`products-catalog-grid__rank${rank <= 3 && unitsSold > 0 ? ` products-catalog-grid__rank--${rank}` : ''}`}
+              title={`Puesto #${rank} en ventas`}
+            >
+              #{rank}
+            </span>
+            <div className="products-catalog-grid__qty" aria-label={`${formatUnitsSold(unitsSold)} vendidos`}>
+              <strong className="products-catalog-grid__qty-value mono">
+                {formatUnitsSold(unitsSold)}
+              </strong>
+              <span className="products-catalog-grid__qty-label">vendidos</span>
+            </div>
+          </div>
+          <div className="products-catalog-grid__head">
+            <span className="product-card-name">{p.name}</span>
+          </div>
+          <div className="products-catalog-grid__price-row">
+            <span className="products-catalog-grid__price mono">{formatCOP(p.price)}</span>
+            {p.sku?.trim() ? (
+              <span className="products-catalog-grid__sku mono muted">{p.sku.trim()}</span>
+            ) : null}
+          </div>
+          {categoryName || meta ? (
+            <p className="products-catalog-grid__meta muted small">
+              {[categoryName, meta].filter(Boolean).join(' · ')}
+            </p>
+          ) : null}
+        </div>
+      </button>
+    </li>
+  )
+}
+
 export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -345,7 +431,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const [searchDebounced, setSearchDebounced] = useState('')
   const [filterActive, setFilterActive] = useState<
     'all' | 'active' | 'inactive'
-  >('all')
+  >('active')
   const [filterType, setFilterType] = useState('')
   const [sortBy, setSortBy] = useState<ProductListSort>('name')
   const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid')
@@ -488,9 +574,14 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     return map
   }, [salesStatsByProductId])
 
-  const gridProducts = useMemo(
-    () => sortProductsBySales(allProducts, unitsSoldByProductId),
-    [allProducts, unitsSoldByProductId],
+  const gridProducts = useMemo(() => {
+    const activeOnly = allProducts.filter((p) => p.active)
+    return sortProductsBySales(activeOnly, unitsSoldByProductId)
+  }, [allProducts, unitsSoldByProductId])
+
+  const gridSections = useMemo(
+    () => partitionGridBySales(gridProducts, unitsSoldByProductId),
+    [gridProducts, unitsSoldByProductId],
   )
 
   const categoryNameById = useMemo(() => {
@@ -1129,7 +1220,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
               {catalogViewMode === 'grid' ? (
                 <>
                   {' '}
-                  Ordenados por unidades vendidas.
+                  Ordenados por unidades vendidas; la cantidad aparece en cada tarjeta.
                 </>
               ) : null}
             </p>
@@ -1182,68 +1273,60 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         )}
 
         {catalogViewMode === 'grid' ? (
-          <ul
-            className="product-cards products-catalog-grid"
-            aria-label="Productos a la venta en cuadrícula"
-          >
-            {gridProducts.map((p) => {
-              const meta = productListMeta(p)
-              const unitsSold = unitsSoldByProductId.get(p.id) ?? 0
-              const categoryName = categoryNameById.get(p.categoryId)
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={
-                      selectedId === p.id
-                        ? 'product-card active'
-                        : 'product-card'
-                    }
-                    onMouseEnter={() => prefetchProductDetail(p.id)}
-                    onFocus={() => prefetchProductDetail(p.id)}
-                    onClick={() => void openEdit(p.id)}
-                  >
-                    <div className="product-card-thumb">
-                      {p.imageUrl?.trim() ? (
-                        <img src={p.imageUrl.trim()} alt="" />
-                      ) : (
-                        <span className="product-card-thumb__placeholder" aria-hidden>
-                          {p.name.trim().charAt(0).toUpperCase() || '?'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="product-card-body">
-                      <span className="product-card-name">{p.name}</span>
-                      <span className="product-card-meta mono">
-                        {formatCOP(p.price)}
-                        {p.sku?.trim() ? ` · ${p.sku.trim()}` : ''}
-                      </span>
-                      {(categoryName || meta || unitsSold > 0) && (
-                        <span className="product-card-meta muted small">
-                          {[
-                            categoryName,
-                            unitsSold > 0
-                              ? `${unitsSold % 1 === 0 ? unitsSold.toFixed(0) : unitsSold.toFixed(1)} vendidos`
-                              : null,
-                            meta,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
-                      )}
-                      <span className="product-card-badges">
-                        {p.active ? (
-                          <span className="badge badge-ok">Activo</span>
-                        ) : (
-                          <span className="badge badge-muted">Inactivo</span>
-                        )}
-                      </span>
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="products-catalog-grid-wrap">
+            {gridSections.topSellers.length > 0 ? (
+              <section className="products-catalog-grid-section" aria-label="Más vendidos">
+                <h2 className="products-catalog-grid-section__title">Más vendidos</h2>
+                <ul className="product-cards products-catalog-grid">
+                  {gridSections.topSellers.map((p, index) => (
+                    <ProductGridCard
+                      key={p.id}
+                      product={p}
+                      rank={index + 1}
+                      unitsSold={unitsSoldByProductId.get(p.id) ?? 0}
+                      categoryName={categoryNameById.get(p.categoryId)}
+                      meta={productListMeta(p)}
+                      selected={selectedId === p.id}
+                      onPrefetch={() => prefetchProductDetail(p.id)}
+                      onSelect={() => void openEdit(p.id)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {gridSections.rest.length > 0 ? (
+              <section
+                className="products-catalog-grid-section"
+                aria-label={
+                  gridSections.topSellers.length > 0
+                    ? 'Resto del catálogo'
+                    : 'Productos a la venta en cuadrícula'
+                }
+              >
+                {gridSections.topSellers.length > 0 ? (
+                  <h2 className="products-catalog-grid-section__title">Resto del catálogo</h2>
+                ) : null}
+                <ul className="product-cards products-catalog-grid">
+                  {gridSections.rest.map((p, index) => (
+                    <ProductGridCard
+                      key={p.id}
+                      product={p}
+                      rank={gridSections.topSellers.length + index + 1}
+                      unitsSold={unitsSoldByProductId.get(p.id) ?? 0}
+                      categoryName={categoryNameById.get(p.categoryId)}
+                      meta={productListMeta(p)}
+                      selected={selectedId === p.id}
+                      onPrefetch={() => prefetchProductDetail(p.id)}
+                      onSelect={() => void openEdit(p.id)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+            {gridProducts.length === 0 && !loading ? (
+              <p className="muted">No hay productos activos que coincidan con los filtros.</p>
+            ) : null}
+          </div>
         ) : (
         <div className="catalog-by-category" aria-label="Productos a la venta por categoría">
           {productSections.map((section) =>

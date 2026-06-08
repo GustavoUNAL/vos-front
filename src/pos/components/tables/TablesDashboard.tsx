@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { PLATFORM_MODE } from '../../../appScope'
 import type { CreateTablePayload, PosTable, UpdateTablePayload } from '../../types'
 import { usePosTables } from '../../hooks/usePosTables'
 import { usePosStore } from '../../store/posStore'
@@ -61,7 +62,10 @@ export function TablesDashboard({ baseUrl }: Props) {
           <p className="pos-topbar__sub muted">
             {tables.length} mesa{tables.length === 1 ? '' : 's'}
             {occupied > 0 && ` · ${occupied} ocupada${occupied === 1 ? '' : 's'}`}
-            {demoMode && ' · Modo local (API apagado)'}
+            {demoMode &&
+              (PLATFORM_MODE
+                ? ' · Mesas en este dispositivo'
+                : ' · Modo local (API apagado)')}
             {offline && ' · Sin conexión'}
           </p>
         </div>

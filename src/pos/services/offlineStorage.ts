@@ -1,3 +1,4 @@
+import { getCompanyId } from '../../api'
 import { DEMO_TABLE_COUNT, POS_STORAGE_KEY } from '../constants'
 import { DEFAULT_TAX_RATE, computeOrderTotals } from '../lib/money'
 import type {
@@ -51,9 +52,14 @@ export function createDemoTables(): PosTable[] {
   })
 }
 
+function storageKey(): string {
+  const companyId = getCompanyId()
+  return companyId ? `${POS_STORAGE_KEY}_${companyId}` : POS_STORAGE_KEY
+}
+
 export function loadLocalState(): PosLocalState {
   try {
-    const raw = window.localStorage.getItem(POS_STORAGE_KEY)
+    const raw = window.localStorage.getItem(storageKey())
     if (raw) {
       const parsed = JSON.parse(raw) as PosLocalState
       if (parsed?.tables?.length && parsed.orders) {
@@ -68,7 +74,7 @@ export function loadLocalState(): PosLocalState {
 
 export function saveLocalState(state: PosLocalState): void {
   try {
-    window.localStorage.setItem(POS_STORAGE_KEY, JSON.stringify(state))
+    window.localStorage.setItem(storageKey(), JSON.stringify(state))
   } catch {
     /* ignore */
   }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { PAYMENT_METHOD_LABEL } from '../../constants'
 import { formatCOP } from '../../lib/money'
 import { payPosOrder } from '../../services/posApi'
+import { registerPlatformSaleFromPosOrder } from '../../services/platformPosPay'
 import { usePosStore } from '../../store/posStore'
 import type { PaymentMethod, PaymentSplit } from '../../types'
 import { PosErrorBanner } from '../ui/PosErrorBanner'
@@ -30,6 +31,7 @@ export function PaymentView({ baseUrl }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(true)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const totalDue = order?.totalCOP ?? 0
   const paid = splits.reduce((s, x) => s + x.amountCOP, 0)
@@ -66,18 +68,22 @@ export function PaymentView({ baseUrl }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const result = await payPosOrder(baseUrl, order.id, {
-        splits,
-        tipCOP,
-        printReceipt,
-      })
+      const payload = { splits, tipCOP, printReceipt }
+      await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
+      const result = await payPosOrder(baseUrl, order.id, payload)
       setActiveOrder(result)
+      setConfirmOpen(false)
       navigate('tables')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cobrar')
     } finally {
       setBusy(false)
     }
+  }
+
+  const requestConfirmPay = () => {
+    if (paid < totalDue + tipCOP) return
+    setConfirmOpen(true)
   }
 
   return (
@@ -205,12 +211,59 @@ export function PaymentView({ baseUrl }: Props) {
             type="button"
             className="pos-btn pos-btn--accent pos-btn--block pos-btn--xl"
             disabled={busy || paid < totalDue + tipCOP}
-            onClick={() => void confirmPay()}
+            onClick={requestConfirmPay}
           >
             Confirmar pago
           </button>
         </section>
       </div>
+
+      {confirmOpen && (
+        <div
+          className="pos-modal-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setConfirmOpen(false)
+          }}
+        >
+          <div
+            className="pos-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="pos-close-sale-title"
+            aria-describedby="pos-close-sale-desc"
+          >
+            <h2 id="pos-close-sale-title" className="pos-modal__title">
+              ¿Cerrar la venta?
+            </h2>
+            <p id="pos-close-sale-desc" className="pos-modal__text muted">
+              Se registrará la venta de{' '}
+              <strong>{order.tableName ?? 'esta mesa'}</strong> por{' '}
+              <strong>{formatCOP(totalDue + tipCOP)}</strong> ({order.lines.length}{' '}
+              {order.lines.length === 1 ? 'producto' : 'productos'}). Esta acción no se
+              puede deshacer.
+            </p>
+            <div className="pos-modal__actions pos-modal__actions--padded">
+              <button
+                type="button"
+                className="pos-btn pos-btn--ghost"
+                disabled={busy}
+                onClick={() => setConfirmOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="pos-btn pos-btn--accent"
+                disabled={busy}
+                onClick={() => void confirmPay()}
+              >
+                {busy ? 'Cobrando…' : 'Sí, cerrar venta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
