@@ -7,7 +7,11 @@ import {
 import { BrandMark } from './BrandMark'
 import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { usePublicTheme } from '../hooks/usePublicTheme'
+import { LandingChatMock, type LandingChatTurn } from './landing/LandingChatMock'
+import { LandingSalesChat } from './landing/LandingSalesChat'
 import '../public-shell.css'
+
+const TAGLINE = 'El primer gerente digital para empresas.'
 
 const QUESTIONS = [
   '¿Cuánto vendí hoy?',
@@ -54,7 +58,15 @@ const INDUSTRIES = [
   'Negocios de servicios',
 ] as const
 
-const PLANS = [
+type Plan = {
+  name: string
+  price: string
+  period: string
+  note: string
+  featured?: boolean
+}
+
+const PLANS: Plan[] = [
   {
     name: 'Starter',
     price: '$49.000',
@@ -74,11 +86,83 @@ const PLANS = [
     period: '/ mes',
     note: 'Automatizaciones avanzadas.',
   },
-] as const
+]
 
 const WHATSAPP_DEMO =
   (import.meta.env.VITE_LANDING_WHATSAPP_URL as string | undefined)?.trim() ||
   'https://wa.me/573207909835?text=Hola%2C%20quiero%20una%20demo%20de%20VOS%20AI'
+
+const CHAT_HERO: LandingChatTurn[] = [
+  { who: 'Dueño', role: 'user', text: '¿Cuánto vendí hoy?' },
+  {
+    who: BRAND_NAME,
+    role: 'ai',
+    text: [
+      '<strong>Ventas de hoy:</strong> $1.250.000',
+      '<strong>Utilidad estimada:</strong> $420.000',
+      '<strong>Producto más vendido:</strong> Mojito Tradicional',
+      '<strong>Inventario crítico:</strong> Limón (2 días restantes)',
+    ].join('\n'),
+  },
+]
+
+const CHAT_INVENTORY: LandingChatTurn[] = [
+  { who: 'Gerente', role: 'user', text: '¿Qué debo comprar esta semana?' },
+  {
+    who: BRAND_NAME,
+    role: 'ai',
+    text: [
+      'Reponer con prioridad:',
+      '• Limón — 2 días de stock',
+      '• Ron blanco — bajo mínimo',
+      '• Vasos 12oz — agotándose',
+      '',
+      'Compra sugerida: ~$380.000 en insumos.',
+    ].join('\n'),
+  },
+]
+
+const CHAT_FINANCE: LandingChatTurn[] = [
+  { who: 'Administrador', role: 'user', text: '¿Cuál fue la utilidad del mes?' },
+  {
+    who: BRAND_NAME,
+    role: 'ai',
+    text: [
+      '<strong>Junio 2026</strong>',
+      'Ventas: $18.400.000',
+      'Utilidad en productos: $6.120.000',
+      'Compras: $4.200.000',
+      'Nómina: $2.800.000',
+      '<strong>Resultado aprox.:</strong> $11.400.000',
+    ].join('\n'),
+  },
+]
+
+const CHAT_CLIENTS: LandingChatTurn[] = [
+  { who: 'Dueño', role: 'user', text: '¿Qué clientes no han regresado?' },
+  {
+    who: BRAND_NAME,
+    role: 'ai',
+    text: [
+      'Sin compra en +3 semanas:',
+      '• Mesa 4 — última vez 12 may',
+      '• Juan P. (300…) — 8 may',
+      '• Empresa XYZ — 2 may',
+      '',
+      'Sugerencia: mensaje de reactivación este fin de semana.',
+    ].join('\n'),
+  },
+]
+
+const CHAT_ALERT: LandingChatTurn[] = [
+  { who: BRAND_NAME, role: 'ai', text: '⚠️ <strong>Alerta automática</strong>\nLas ventas de hoy van 18% por debajo del mismo día la semana pasada. El producto con mayor caída es Café Americano.' },
+  { who: 'Dueño', role: 'user', text: '¿Qué producto está estrella?' },
+  {
+    who: BRAND_NAME,
+    role: 'ai',
+    text: 'En los últimos 30 días: <strong>Brownie de chocolate</strong> deja $890.000 de utilidad — 34% más que el segundo.',
+  },
+]
 
 type Props = {
   onLoginClick?: () => void
@@ -99,7 +183,7 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
   const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
-    document.title = `${BRAND_NAME} — El primer gerente digital para pequeños negocios`
+    document.title = `${BRAND_NAME} — El primer gerente digital para empresas`
   }, [])
 
   function handleLogin(e: MouseEvent<HTMLAnchorElement>) {
@@ -136,16 +220,14 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
       <div className="public-wrap landing-v2__wrap">
         <section className="landing-hero" aria-labelledby="landing-hero-title">
           <div className="landing-hero__copy">
-            <p className="landing-hero__category">
-              El primer gerente digital para pequeños negocios.
-            </p>
+            <p className="landing-hero__category">{TAGLINE}</p>
             <h1 id="landing-hero-title">Habla con tu negocio por WhatsApp.</h1>
             <p className="landing-hero__lead">
               {BRAND_NAME} es el gerente digital que te ayuda a administrar ventas,
               inventario, compras y finanzas simplemente conversando.
             </p>
             <div className="landing-hero__actions">
-              <a className="public-btn public-btn--accent" href={accessUrl} onClick={handleAccess}>
+              <a className="public-btn public-btn--accent landing-v2__btn-solid" href={accessUrl} onClick={handleAccess}>
                 Solicitar demo
               </a>
               <a className="public-btn public-btn--ghost" href={loginUrl} onClick={handleLogin}>
@@ -154,60 +236,36 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             </div>
           </div>
 
-          <div className="landing-chat" aria-label="Ejemplo de conversación con VOS AI">
-            <div className="landing-chat__head">
-              <span className="landing-chat__dot" />
-              <span className="landing-chat__dot" />
-              <span className="landing-chat__dot" />
-              <span className="landing-chat__title">{BRAND_NAME}</span>
-            </div>
-            <div className="landing-chat__body">
-              <div className="landing-chat__bubble landing-chat__bubble--user">
-                <span className="landing-chat__who">Dueño</span>
-                <p>¿Cuánto vendí hoy?</p>
-              </div>
-              <div className="landing-chat__bubble landing-chat__bubble--ai">
-                <span className="landing-chat__who">{BRAND_NAME}</span>
-                <p>
-                  <strong>Ventas de hoy:</strong> $1.250.000
-                  <br />
-                  <strong>Utilidad estimada:</strong> $420.000
-                  <br />
-                  <strong>Producto más vendido:</strong> Mojito Tradicional
-                  <br />
-                  <strong>Inventario crítico:</strong> Limón (2 días restantes)
-                </p>
-              </div>
-            </div>
-          </div>
+          <LandingChatMock turns={CHAT_HERO} />
         </section>
 
         <section className="public-section landing-section" aria-labelledby="problem-title">
           <div className="public-section__head">
             <p className="landing-section__kicker">El problema</p>
-            <h2 id="problem-title">Administrar un negocio no debería ser un segundo trabajo.</h2>
+            <h2 id="problem-title">Administrar una empresa no debería ser un segundo trabajo.</h2>
             <p>
-              Cada día los dueños pierden horas revisando ventas, inventario, compras,
+              Cada día los equipos pierden horas revisando ventas, inventario, compras,
               gastos y clientes. La información existe. Pero encontrar respuestas sigue
               siendo difícil.
             </p>
           </div>
         </section>
 
-        <section className="public-section landing-section" aria-labelledby="solution-title">
-          <div className="public-section__head">
+        <section className="public-section landing-section landing-section--split" aria-labelledby="solution-title">
+          <div className="landing-section__split-copy">
             <p className="landing-section__kicker">La solución</p>
             <h2 id="solution-title">Tu negocio ahora puede responderte.</h2>
             <p>Pregunta lo que quieras:</p>
+            <ul className="landing-questions landing-questions--inline">
+              {QUESTIONS.map((q) => (
+                <li key={q}>{q}</li>
+              ))}
+            </ul>
+            <p className="landing-section__after">
+              {BRAND_NAME} analiza toda la operación y responde en segundos.
+            </p>
           </div>
-          <ul className="landing-questions">
-            {QUESTIONS.map((q) => (
-              <li key={q}>{q}</li>
-            ))}
-          </ul>
-          <p className="landing-section__after">
-            {BRAND_NAME} analiza toda la operación y responde en segundos.
-          </p>
+          <LandingChatMock turns={CHAT_INVENTORY} compact />
         </section>
 
         <section className="public-section landing-section" aria-labelledby="how-title">
@@ -215,19 +273,22 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <p className="landing-section__kicker">¿Cómo funciona?</p>
             <h2 id="how-title">Tres pasos. Sin complicaciones.</h2>
           </div>
-          <div className="public-steps">
-            <article className="public-step">
-              <h3>Registra tu operación</h3>
-              <p>Ventas, compras e inventario.</p>
-            </article>
-            <article className="public-step">
-              <h3>La IA analiza tu negocio</h3>
-              <p>Procesa datos y detecta oportunidades.</p>
-            </article>
-            <article className="public-step">
-              <h3>Pregunta por WhatsApp</h3>
-              <p>Obtén respuestas y recomendaciones.</p>
-            </article>
+          <div className="landing-how-grid">
+            <div className="public-steps landing-how-grid__steps">
+              <article className="public-step">
+                <h3>Registra tu operación</h3>
+                <p>Ventas, compras e inventario.</p>
+              </article>
+              <article className="public-step">
+                <h3>La IA analiza tu negocio</h3>
+                <p>Procesa datos y detecta oportunidades.</p>
+              </article>
+              <article className="public-step">
+                <h3>Pregunta por WhatsApp</h3>
+                <p>Obtén respuestas y recomendaciones.</p>
+              </article>
+            </div>
+            <LandingChatMock turns={CHAT_FINANCE} compact className="landing-how-grid__chat" />
           </div>
         </section>
 
@@ -258,36 +319,38 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
           </div>
         </section>
 
-        <section className="public-section landing-section" aria-labelledby="pillars-title">
-          <div className="public-section__head">
-            <p className="landing-section__kicker">Todo lo que tu negocio necesita</p>
+        <section className="public-section landing-section landing-section--split landing-section--split-reverse" aria-labelledby="pillars-title">
+          <div className="landing-section__split-copy">
+            <p className="landing-section__kicker">Todo lo que tu empresa necesita</p>
             <h2 id="pillars-title">Operación completa. Respuestas simples.</h2>
+            <div className="public-grid public-grid--2 landing-pillars-compact">
+              {PILLARS.map((p) => (
+                <article key={p.title} className="public-card landing-pillar">
+                  <h3>{p.title}</h3>
+                  <p>{p.text}</p>
+                </article>
+              ))}
+            </div>
           </div>
-          <div className="public-grid public-grid--3">
-            {PILLARS.map((p) => (
-              <article key={p.title} className="public-card landing-pillar">
-                <h3>{p.title}</h3>
-                <p>{p.text}</p>
-              </article>
-            ))}
-          </div>
+          <LandingChatMock turns={CHAT_CLIENTS} compact />
         </section>
 
-        <section className="public-section landing-section" aria-labelledby="auto-title">
-          <div className="public-section__head">
+        <section className="public-section landing-section landing-section--split" aria-labelledby="auto-title">
+          <div className="landing-section__split-copy">
             <p className="landing-section__kicker">Automatizaciones inteligentes</p>
             <h2 id="auto-title">{BRAND_NAME} puede:</h2>
+            <ul className="landing-bullets">
+              {AUTOMATIONS.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
-          <ul className="landing-bullets">
-            {AUTOMATIONS.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          <LandingChatMock turns={CHAT_ALERT} compact />
         </section>
 
         <section className="public-section landing-section" aria-labelledby="industries-title">
           <div className="public-section__head">
-            <p className="landing-section__kicker">Diseñado para negocios reales</p>
+            <p className="landing-section__kicker">Diseñado para empresas reales</p>
             <h2 id="industries-title">Ideal para:</h2>
           </div>
           <div className="landing-chips">
@@ -305,7 +368,7 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
           <ul className="landing-results">
             <li>Recupera tiempo.</li>
             <li>Toma mejores decisiones.</li>
-            <li>Controla tu negocio desde cualquier lugar.</li>
+            <li>Controla tu empresa desde cualquier lugar.</li>
             <li>Crece sin complicarte.</li>
           </ul>
         </section>
@@ -333,13 +396,11 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
         </section>
 
         <section className="public-cta landing-final-cta" aria-labelledby="final-cta-title">
-          <p className="landing-hero__category landing-hero__category--cta">
-            El primer gerente digital para pequeños negocios.
-          </p>
-          <h2 id="final-cta-title">Tu negocio ya genera datos.</h2>
+          <p className="landing-hero__category landing-hero__category--cta">{TAGLINE}</p>
+          <h2 id="final-cta-title">Tu empresa ya genera datos.</h2>
           <p>Es hora de que esos datos trabajen para ti.</p>
           <div className="public-cta__actions">
-            <a className="public-btn public-btn--accent" href={accessUrl} onClick={handleAccess}>
+            <a className="public-btn public-btn--accent landing-v2__btn-solid" href={accessUrl} onClick={handleAccess}>
               Solicita una demostración
             </a>
             <a
@@ -353,16 +414,44 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
           </div>
         </section>
 
-        <footer className="public-footer">
+        <footer className="public-footer landing-v2__footer">
           <p className="public-footer__brand">
             <strong>{BRAND_NAME}</strong>
           </p>
-          <p className="public-footer__tagline">
-            El primer gerente digital para pequeños negocios.
+          <p className="public-footer__tagline">{TAGLINE}</p>
+          <nav className="landing-footer__legal" aria-label="Legal">
+            <a href="#privacidad">Política de privacidad</a>
+            <span aria-hidden>·</span>
+            <a href="#terminos">Términos de uso</a>
+            <span aria-hidden>·</span>
+            <a href={WHATSAPP_DEMO} target="_blank" rel="noopener noreferrer">Contacto</a>
+          </nav>
+          <p className="landing-footer__fine">
+            © {new Date().getFullYear()} {BRAND_NAME}. Todos los derechos reservados.
           </p>
-          <p className="public-footer__latam">Desarrollado en Colombia</p>
+          <p className="public-footer__latam landing-footer__colombia">
+            Desarrollado en Colombia 🇨🇴
+          </p>
+          <div id="privacidad" className="landing-footer__legal-block">
+            <h3>Política de privacidad</h3>
+            <p>
+              Tratamos los datos de tu empresa con fines operativos: ventas, inventario,
+              compras y asistencia IA. No vendemos información a terceros. Puedes solicitar
+              acceso, corrección o eliminación escribiendo a soporte.
+            </p>
+          </div>
+          <div id="terminos" className="landing-footer__legal-block">
+            <h3>Términos de uso</h3>
+            <p>
+              El servicio se presta bajo suscripción mensual. El cliente es responsable de
+              la veracidad de los datos ingresados. Las cifras de utilidad son estimaciones
+              basadas en la operación registrada.
+            </p>
+          </div>
         </footer>
       </div>
+
+      <LandingSalesChat />
     </div>
   )
 }
