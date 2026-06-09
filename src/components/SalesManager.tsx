@@ -28,9 +28,14 @@ import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
 import { MonthCalendar } from './MonthCalendar'
-import { CashClosePanel } from './CashClosePanel'
+import { DataLoadingSplash } from './DataLoadingSplash'
+import { DaySalesModal } from './DaySalesModal'
 import { Button } from './ui/button'
 import { consumePendingSalesDate } from '../lib/pending-view-filter'
+import {
+  readDefaultSaleParty,
+  writeDefaultSaleParty,
+} from '../lib/salesDefaults'
 
 const LIMIT = 15
 const SALE_SOURCES = ['MANUAL', 'CART', 'AI'] as const
@@ -266,7 +271,7 @@ function saleDetailPreview(header: HeaderDraft): string {
     }
   }
   if (header.paymentMethod.trim()) parts.push(header.paymentMethod.trim())
-  if (header.mesa.trim()) parts.push(`Mesa ${header.mesa.trim()}`)
+  if (header.mesa.trim()) parts.push(header.mesa.trim())
   if (header.source) parts.push(header.source)
   if (header.notes.trim()) parts.push('con notas')
   return parts.length ? parts.join(' · ') : 'Fecha, pago y mesa'
@@ -318,16 +323,17 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   )
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [calendarError, setCalendarError] = useState<string | null>(null)
-  const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null)
+  const [dayModalDate, setDayModalDate] = useState<string | null>(null)
+  const [bootProgress, setBootProgress] = useState(8)
+  const [bootComplete, setBootComplete] = useState(false)
   const [dayPanelRefresh, setDayPanelRefresh] = useState(0)
-  const dayPanelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const date = consumePendingSalesDate()
     if (!date) return
     setFilterDateFrom(date)
     setFilterDateTo(date)
-    setSelectedDayDate(date)
+    setDayModalDate(date)
     setViewMode('calendar')
     setPage(1)
     const [y, m] = date.split('-').map(Number)
@@ -336,14 +342,6 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       setCalendarMonth(m)
     }
   }, [])
-
-  useEffect(() => {
-    if (!selectedDayDate) return
-    const t = window.setTimeout(() => {
-      dayPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 80)
-    return () => window.clearTimeout(t)
-  }, [selectedDayDate])
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -439,17 +437,28 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   useEffect(() => {
     if (viewMode !== 'calendar') return
     let cancelled = false
+    setBootComplete(false)
     setCalendarLoading(true)
     setCalendarError(null)
+    setBootProgress(18)
     fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
       .then((res) => {
-        if (!cancelled) setCalendarData(res)
+        if (!cancelled) {
+          setCalendarData(res)
+          setBootProgress(92)
+        }
       })
       .catch((e: Error) => {
         if (!cancelled) setCalendarError(e.message)
       })
       .finally(() => {
-        if (!cancelled) setCalendarLoading(false)
+        if (!cancelled) {
+          setCalendarLoading(false)
+          setBootProgress(100)
+          window.setTimeout(() => {
+            if (!cancelled) setBootComplete(true)
+          }, 350)
+        }
       })
     return () => {
       cancelled = true
@@ -538,7 +547,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     setHeader({
       saleDateLocal: local,
       paymentMethod: '',
-      mesa: '',
+      mesa: readDefaultSaleParty(),
       customerPhone: '',
       notes: '',
       source: 'MANUAL',
@@ -548,13 +557,13 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   }, [])
 
   const refreshDayAndCalendar = useCallback(() => {
-    if (selectedDayDate) setDayPanelRefresh((k) => k + 1)
+    if (dayModalDate) setDayPanelRefresh((k) => k + 1)
     if (viewMode === 'calendar') {
       void fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
         .then(setCalendarData)
         .catch(() => {})
     }
-  }, [baseUrl, calendarMonth, calendarYear, selectedDayDate, viewMode])
+  }, [baseUrl, calendarMonth, calendarYear, dayModalDate, viewMode])
 
   const openCreate = useCallback(() => {
     setCreating(true)
@@ -573,7 +582,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     setHeader({
       saleDateLocal: local,
       paymentMethod: '',
-      mesa: '',
+      mesa: readDefaultSaleParty(),
       customerPhone: '',
       notes: '',
       source: 'MANUAL',
@@ -680,11 +689,16 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       })
       setList(res.data)
       setMeta(res.meta)
+      if (header.mesa.trim()) writeDefaultSaleParty(header.mesa)
       openSale(created.id)
       refreshDayAndCalendar()
       showSavedBanner()
-      if (created.whatsappSent) {
+      if (created.whatsappSent && created.internalNotified) {
+        setSaleNotice('Venta registrada. WhatsApp enviado al cliente y a ti.')
+      } else if (created.whatsappSent) {
         setSaleNotice('Comprobante enviado por WhatsApp al cliente.')
+      } else if (created.internalNotified) {
+        setSaleNotice('Venta registrada. Copia enviada a tu WhatsApp.')
       } else if (phone && created.whatsappConfigured === false) {
         setSaleNotice(
           'Venta guardada. Configure TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN (o WHATSAPP_ACCESS_TOKEN) en el servidor para enviar WhatsApp.',
@@ -772,6 +786,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
         setLineRows(rows)
         setHeaderBaseline(headerSnapshot(h))
         setLinesBaseline(linesSnapshot(rows))
+        if (h.mesa.trim()) writeDefaultSaleParty(h.mesa)
       }
       const res = await fetchSales(baseUrl, {
         page,
@@ -819,8 +834,12 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     setSaleNotice(null)
     try {
       const result = await sendSaleReceiptWhatsApp(baseUrl, selectedId)
-      if (result.whatsappSent) {
+      if (result.whatsappSent && result.internalNotified) {
+        setSaleNotice('Comprobante enviado por WhatsApp al cliente y a ti.')
+      } else if (result.whatsappSent) {
         setSaleNotice('Comprobante enviado por WhatsApp al cliente.')
+      } else if (result.internalNotified) {
+        setSaleNotice('Copia del comprobante enviada a tu WhatsApp.')
       } else if (result.whatsappConfigured === false) {
         setSaleNotice(
           'WhatsApp no configurado en el servidor (TWILIO_* o WHATSAPP_ACCESS_TOKEN).',
@@ -1107,7 +1126,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             loading={calendarLoading}
             error={calendarError}
             countLabel="venta"
-            selectedDate={selectedDayDate}
+            selectedDate={dayModalDate}
             onPrevMonth={() => {
               const prev = new Date(calendarYear, calendarMonth - 2, 1)
               setCalendarYear(prev.getFullYear())
@@ -1126,30 +1145,15 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             onDayClick={(date) => {
               setFilterDateFrom(date)
               setFilterDateTo(date)
-              setSelectedDayDate((prev) => (prev === date ? null : date))
+              setDayModalDate(date)
               setPage(1)
             }}
           />
 
-          {!selectedDayDate ? (
-            <p className="muted small month-calendar-hint">
-              Hacé clic en un día del calendario para ver todas las ventas, editarlas
-              o crear una nueva.
-            </p>
-          ) : null}
-
-          {selectedDayDate ? (
-            <div ref={dayPanelRef} className="sales-day-panel-anchor">
-            <CashClosePanel
-              baseUrl={baseUrl}
-              date={selectedDayDate}
-              refreshKey={dayPanelRefresh}
-              onClose={() => setSelectedDayDate(null)}
-              onEditSale={openSale}
-              onCreateSale={() => openCreateForDay(selectedDayDate)}
-            />
-            </div>
-          ) : null}
+          <p className="muted small month-calendar-hint">
+            Hacé clic en un día del calendario para abrir un popup con todas las
+            ventas, editarlas o crear una nueva.
+          </p>
           </>
         ) : null}
 
@@ -1542,6 +1546,19 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
 
                       {header ? (
                         <>
+                          <label className="field sales-invoice-party">
+                            <span>Cliente o mesa</span>
+                            <input
+                              value={header.mesa}
+                              onChange={(e) =>
+                                setHeader({ ...header, mesa: e.target.value })
+                              }
+                              placeholder="Ej. Juan, Mesa 3, mostrador…"
+                            />
+                            <span className="muted small">
+                              Se guarda como valor por defecto para la próxima venta.
+                            </span>
+                          </label>
                           <label className="field sales-invoice-phone">
                             <span>
                               Celular cliente (WhatsApp)
@@ -2212,6 +2229,29 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           </section>
         </div>
       )}
+
+      <DataLoadingSplash
+        visible={viewMode === 'calendar' && !bootComplete}
+        progress={bootProgress}
+      />
+
+      {dayModalDate ? (
+        <DaySalesModal
+          baseUrl={baseUrl}
+          date={dayModalDate}
+          refreshKey={dayPanelRefresh}
+          onClose={() => setDayModalDate(null)}
+          onEditSale={(id) => {
+            setDayModalDate(null)
+            openSale(id)
+          }}
+          onCreateSale={() => {
+            const dateKey = dayModalDate
+            setDayModalDate(null)
+            openCreateForDay(dateKey)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

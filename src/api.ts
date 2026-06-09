@@ -2292,12 +2292,20 @@ export async function createSale(
 export async function sendSaleReceiptWhatsApp(
   base: string,
   id: string,
-): Promise<{ whatsappSent: boolean; whatsappConfigured: boolean }> {
+): Promise<{
+  whatsappSent: boolean
+  whatsappConfigured: boolean
+  internalNotified?: boolean
+}> {
   const res = await apiFetch(`${base}/sales/${id}/send-receipt`, {
     method: 'POST',
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
-  return res.json() as Promise<{ whatsappSent: boolean; whatsappConfigured: boolean }>
+  return res.json() as Promise<{
+    whatsappSent: boolean
+    whatsappConfigured: boolean
+    internalNotified?: boolean
+  }>
 }
 
 export async function patchSale(

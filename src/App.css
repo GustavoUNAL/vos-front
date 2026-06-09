@@ -11864,6 +11864,98 @@ html.app--mobile-sheet-open body {
   scroll-margin-top: 5rem;
 }
 
+.data-loading-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.data-loading-splash__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  width: min(100%, 22rem);
+  padding: 1.75rem 1.5rem 1.35rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: var(--surface-elevated);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--shadow, #000) 18%, transparent);
+}
+
+.data-loading-splash__label {
+  margin: 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.data-loading-splash__track {
+  width: 100%;
+  height: 0.45rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.data-loading-splash__bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 85%, #fff),
+    var(--accent)
+  );
+  transition: width 0.35s ease;
+}
+
+.data-loading-splash__pct {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.sales-day-modal-backdrop {
+  z-index: 1100;
+}
+
+.sales-day-modal {
+  width: min(100%, 920px);
+  max-height: min(92vh, 860px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sales-day-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.sales-day-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.sales-day-modal__body {
+  overflow: auto;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.sales-invoice-party {
+  margin-bottom: 0.35rem;
+}
+
 .month-calendar__day--has-data {
   border-color: color-mix(in srgb, var(--berry, var(--accent)) 24%, var(--border));
   background: color-mix(in srgb, var(--berry, var(--accent)) 6%, var(--surface-elevated));
