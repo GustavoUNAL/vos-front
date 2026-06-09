@@ -1684,6 +1684,117 @@ html[data-shell='public'] #root {
   }
 }
 
+/* Landing v2 — colores sólidos, sin decoración animada */
+.landing-v2.public-shell {
+  background: var(--surface);
+}
+
+.landing-v2.public-shell::before,
+.landing-v2 .public-shell__grid-bg,
+.landing-v2 .public-shell__orbs {
+  display: none !important;
+}
+
+.landing-v2 .public-topbar {
+  background: var(--surface-elevated);
+  backdrop-filter: none;
+}
+
+.landing-v2 .public-section__head h2,
+.landing-v2 .landing-section__split-copy h2 {
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  color: var(--heading) !important;
+}
+
+.landing-v2 .public-cta {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+}
+
+.landing-v2 .public-cta::before {
+  display: none !important;
+}
+
+.landing-v2 .landing-plan,
+.landing-v2 .landing-compare-wrap,
+.landing-v2 .public-card,
+.landing-v2 .landing-results li,
+.landing-v2 .landing-questions li {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+}
+
+.landing-v2 .landing-plan--featured {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: none;
+}
+
+.landing-v2 .landing-chat {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--shadow-soft) 35%, transparent);
+}
+
+.landing-v2 .landing-chat__head {
+  background: var(--surface);
+  border-bottom-color: var(--border);
+}
+
+.landing-v2 .landing-chat__bubble--user {
+  background: var(--accent);
+}
+
+.landing-v2 .landing-chat__bubble--ai {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+
+.landing-v2 .landing-chip {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+}
+
+.landing-v2 .landing-section__kicker,
+.landing-v2 .landing-hero__category {
+  color: var(--accent);
+}
+
+.landing-v2 .landing-pillar h3 {
+  color: var(--accent);
+}
+
+.landing-v2 .public-btn--ghost {
+  background: var(--surface-elevated);
+  backdrop-filter: none;
+}
+
+.landing-v2 .public-btn:hover {
+  transform: none;
+}
+
+.landing-v2 .public-stat:hover,
+.landing-v2 .public-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.landing-v2 .public-section,
+.landing-v2 .public-cta,
+.landing-v2 .public-footer,
+.landing-v2 .public-topbar,
+.landing-v2 .public-grid .public-card,
+.landing-v2 .public-steps .public-step {
+  animation: none !important;
+}
+
+.landing-v2__wrap {
+  position: relative;
+  z-index: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .public-shell::before,
   .public-shell__grid-bg,

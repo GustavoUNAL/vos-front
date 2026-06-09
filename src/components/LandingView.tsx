@@ -200,13 +200,6 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
 
   return (
     <div className="public-shell landing-v2">
-      <div className="public-shell__grid-bg" aria-hidden />
-      <div className="public-shell__orbs" aria-hidden>
-        <span className="public-orb public-orb--a" />
-        <span className="public-orb public-orb--b" />
-        <span className="public-orb public-orb--c" />
-      </div>
-
       <header className="public-topbar public-topbar--minimal landing-v2__topbar">
         <BrandMark size="sm" />
         <div className="landing-v2__topbar-actions">

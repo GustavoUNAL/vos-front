@@ -136,6 +136,19 @@ function MessageBody({ text }: { text: string }) {
   )
 }
 
+function RobotIcon() {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" aria-hidden className="landing-sales-chat__robot">
+      <rect x="16" y="22" width="32" height="26" rx="8" stroke="currentColor" strokeWidth="2.5" />
+      <circle cx="26" cy="34" r="4" fill="currentColor" />
+      <circle cx="38" cy="34" r="4" fill="currentColor" />
+      <path d="M28 42h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M32 12v10M22 16h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="32" cy="10" r="3" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function LandingSalesChat() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -157,7 +170,7 @@ export function LandingSalesChat() {
     setInput('')
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: q }])
     setBusy(true)
-    await new Promise((r) => setTimeout(r, 380))
+    await new Promise((r) => setTimeout(r, 320))
     const answer = replyForQuestion(q)
     setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', text: answer }])
     setBusy(false)
@@ -181,9 +194,12 @@ export function LandingSalesChat() {
       {open ? (
         <div className="landing-sales-chat__panel" role="dialog" aria-label="Asistente comercial VOS AI">
           <header className="landing-sales-chat__head">
-            <div>
-              <strong>¿Tienes dudas?</strong>
-              <span>Te explicamos o te conectamos con un asesor</span>
+            <div className="landing-sales-chat__head-brand">
+              <RobotIcon />
+              <div>
+                <strong>{BRAND_NAME}</strong>
+                <span>Te explicamos o te conectamos con un asesor</span>
+              </div>
             </div>
             <button
               type="button"
@@ -206,7 +222,7 @@ export function LandingSalesChat() {
             ))}
             {busy ? (
               <div className="landing-sales-chat__bubble landing-sales-chat__bubble--assistant landing-sales-chat__typing">
-                <span /><span /><span />
+                Pensando…
               </div>
             ) : null}
           </div>
@@ -258,12 +274,14 @@ export function LandingSalesChat() {
       <button
         type="button"
         className="landing-sales-chat__fab"
-        aria-label={open ? 'Cerrar chat de ayuda' : 'Abrir chat: ¿Qué es VOS AI?'}
+        aria-label={open ? 'Cerrar chat de ayuda' : `Abrir chat ${BRAND_NAME}`}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span className="landing-sales-chat__fab-icon" aria-hidden>?</span>
-        <span className="landing-sales-chat__fab-label">¿Dudas?</span>
+        <span className="landing-sales-chat__fab-icon" aria-hidden>
+          <RobotIcon />
+        </span>
+        <span className="landing-sales-chat__fab-label">{BRAND_NAME}</span>
       </button>
     </div>
   )

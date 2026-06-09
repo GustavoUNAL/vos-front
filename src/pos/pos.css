@@ -3263,6 +3263,11 @@
   line-height: 1.45;
 }
 
+.pos-modal__text--warn {
+  font-weight: 600;
+  color: var(--destructive, #c0392b);
+}
+
 .pos-btn--subtle {
   opacity: 0.72;
 }

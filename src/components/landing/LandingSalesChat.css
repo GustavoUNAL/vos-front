@@ -1,6 +1,7 @@
 .landing-sales-chat {
   position: fixed;
-  left: max(0.85rem, env(safe-area-inset-left));
+  right: max(0.85rem, env(safe-area-inset-right));
+  left: auto;
   bottom: max(0.85rem, env(safe-area-inset-bottom));
   z-index: 11000;
   font-family: var(--sans, inherit);
@@ -17,62 +18,73 @@
   margin: 0;
   padding: 0;
   border: none;
-  background: color-mix(in srgb, var(--text) 14%, transparent);
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
   cursor: pointer;
   z-index: -1;
 }
 
 .landing-sales-chat__fab {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.45rem;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
-  border-radius: 999px;
-  padding: 0.45rem 0.85rem 0.45rem 0.5rem;
+  justify-content: center;
+  gap: 0.2rem;
+  min-width: 3.4rem;
+  padding: 0.5rem 0.55rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 14px;
   cursor: pointer;
   background: var(--surface-elevated);
   color: var(--heading);
-  box-shadow: 0 4px 18px color-mix(in srgb, var(--shadow-soft) 55%, transparent);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow-soft) 50%, transparent);
 }
 
 .landing-sales-chat__fab:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 22px color-mix(in srgb, var(--shadow-soft) 70%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 .landing-sales-chat__fab-icon {
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: 999px;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
   display: grid;
   place-items: center;
-  font-weight: 800;
-  font-size: 0.95rem;
   background: var(--accent);
   color: #fff;
 }
 
+.landing-sales-chat__robot {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
 .landing-sales-chat__fab-label {
-  font-size: 0.82rem;
-  font-weight: 650;
+  font-size: 0.58rem;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent-text, var(--accent));
+  line-height: 1.1;
+  text-align: center;
 }
 
 .landing-sales-chat__panel {
   position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  right: max(0.85rem, env(safe-area-inset-right));
+  left: auto;
+  bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  top: auto;
+  transform: none;
   width: min(22rem, calc(100vw - 1.5rem));
-  max-height: min(32rem, 85dvh);
+  height: min(28rem, calc(100dvh - 6.5rem));
+  max-height: calc(100dvh - 6.5rem);
   display: flex;
   flex-direction: column;
   border-radius: 16px;
   overflow: hidden;
   background: var(--surface-elevated);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  box-shadow: 0 16px 40px color-mix(in srgb, var(--shadow-soft) 75%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow-soft) 65%, transparent);
 }
 
 .landing-sales-chat__head {
@@ -81,25 +93,45 @@
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem 0.85rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--surface) 40%, var(--surface-elevated));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.landing-sales-chat__head-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.landing-sales-chat__head-brand .landing-sales-chat__fab-icon {
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+}
+
+.landing-sales-chat__head-brand .landing-sales-chat__robot {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .landing-sales-chat__head strong {
   display: block;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .landing-sales-chat__head span {
   display: block;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   color: var(--muted);
   margin-top: 0.1rem;
+  line-height: 1.3;
 }
 
 .landing-sales-chat__close {
   border: none;
-  background: color-mix(in srgb, var(--hover) 55%, transparent);
+  background: var(--hover);
   color: var(--muted);
   width: 1.6rem;
   height: 1.6rem;
@@ -111,11 +143,13 @@
 
 .landing-sales-chat__messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  background: var(--surface-elevated);
 }
 
 .landing-sales-chat__bubble {
@@ -141,8 +175,8 @@
 
 .landing-sales-chat__bubble--assistant {
   align-self: flex-start;
-  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-elevated));
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border));
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
 }
 
 .landing-sales-chat__bubble--user {
@@ -152,39 +186,9 @@
 }
 
 .landing-sales-chat__typing {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.65rem 0.75rem;
-}
-
-.landing-sales-chat__typing span {
-  width: 0.35rem;
-  height: 0.35rem;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.45;
-  animation: landing-sales-bounce 1.1s ease-in-out infinite;
-}
-
-.landing-sales-chat__typing span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.landing-sales-chat__typing span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes landing-sales-bounce {
-  0%,
-  80%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.35;
-  }
-  40% {
-    transform: translateY(-3px);
-    opacity: 0.9;
-  }
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .landing-sales-chat__suggestions {
@@ -192,13 +196,16 @@
   flex-wrap: wrap;
   gap: 0.35rem;
   padding: 0 0.75rem 0.5rem;
-  max-height: 4.5rem;
+  max-height: 4.25rem;
   overflow-y: auto;
+  flex-shrink: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--surface);
 }
 
 .landing-sales-chat__chip {
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background: var(--surface);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
   color: var(--text);
   border-radius: 999px;
   padding: 0.28rem 0.55rem;
@@ -206,18 +213,24 @@
   cursor: pointer;
 }
 
+.landing-sales-chat__chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
 .landing-sales-chat__form {
   display: flex;
   gap: 0.4rem;
   padding: 0.55rem 0.75rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface-elevated);
 }
 
 .landing-sales-chat__form input {
   flex: 1;
   min-width: 0;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border: 1px solid var(--border);
   padding: 0.45rem 0.6rem;
   font: inherit;
   font-size: 0.84rem;
@@ -248,23 +261,56 @@
   padding: 0.55rem 0.75rem 0.75rem;
   font-size: 0.78rem;
   font-weight: 650;
-  color: #128c7e;
+  color: #0d7a52;
   text-decoration: none;
-  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  background: color-mix(in srgb, #25d366 8%, var(--surface-elevated));
+  border-top: 1px solid var(--border);
+  background: #e8f7ef;
+  flex-shrink: 0;
+}
+
+:root[data-theme='dark'] .landing-sales-chat__wa {
+  background: color-mix(in srgb, #25d366 12%, var(--surface));
+  color: #3dd68c;
 }
 
 .landing-sales-chat__wa:hover {
   text-decoration: underline;
 }
 
-@media (max-width: 480px) {
-  .landing-sales-chat__fab-label {
-    display: none;
+@media (max-width: 640px) {
+  .landing-sales-chat__panel {
+    left: 50%;
+    right: auto;
+    bottom: calc(5.25rem + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(24rem, calc(100vw - 1rem));
+    height: min(72dvh, 26rem);
+    max-height: calc(100dvh - 5.5rem);
   }
 
   .landing-sales-chat__fab {
-    padding: 0.45rem;
-    border-radius: 999px;
+    min-width: 3.25rem;
+    padding: 0.48rem 0.5rem 0.38rem;
+  }
+
+  .landing-sales-chat__fab-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .landing-sales-chat__robot {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .landing-sales-chat__fab-label {
+    font-size: 0.54rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .landing-sales-chat__panel {
+    width: calc(100vw - 0.75rem);
+    height: min(70dvh, 24rem);
   }
 }
