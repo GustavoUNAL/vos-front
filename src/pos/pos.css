@@ -1114,7 +1114,87 @@
 
 .pos-root--light .pos-product-tile:focus-visible,
 .pos-root--dark .pos-product-tile:focus-visible,
-.pos-btn:focus-visible,
+.pos-btn:focus-visible {
+  outline: 2px solid var(--pos-accent);
+  outline-offset: 2px;
+}
+
+.pos-shop-order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pos-shop-order-card {
+  border: 1px solid var(--pos-border, #ddd);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: var(--pos-surface, #fff);
+}
+
+.pos-shop-order-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.pos-shop-order-lines {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 1rem;
+  font-size: 0.92rem;
+}
+
+.pos-shop-order-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pos-empty-inline {
+  padding: 1rem 0.75rem;
+}
+
+.pos-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  padding: 1rem;
+}
+
+.pos-modal {
+  width: min(420px, 100%);
+  background: var(--pos-surface, #fff);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+}
+
+.pos-modal__total {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.pos-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.pos-pay-methods {
+  border: 0;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
 .pos-chip:focus-visible {
   outline: 2px solid var(--pos-accent);
   outline-offset: 2px;

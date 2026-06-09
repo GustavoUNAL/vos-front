@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useMatchMedia } from './hooks/useMatchMedia'
+import { AccessRequestView } from './components/AccessRequestView'
+import { PlatformAdminView } from './components/PlatformAdminView'
 import {
+  exitToPlatformAdmin,
   fetchMe,
   getAccessToken,
   getApiBase,
@@ -10,6 +13,7 @@ import {
 } from './api'
 import { ProductsManager } from './components/ProductsManager'
 import { HomeDashboard } from './components/HomeDashboard'
+import { ShopAdminView } from './components/ShopAdminView'
 import { StaffManager } from './components/StaffManager'
 import { FinanceAnalyticsView } from './components/FinanceAnalyticsView'
 import { SalesManager } from './components/SalesManager'
@@ -32,50 +36,46 @@ import {
 import { useNavigation } from './NavigationContext'
 import { NavigationHub, type HubTargetView } from './components/NavigationHub'
 import { LoginView } from './components/LoginView'
+import { LandingView } from './components/LandingView'
 import { BrandMark } from './components/BrandMark'
 import { CompanyBrand } from './components/CompanyBrand'
 import {
   MobileAppChrome,
   type MobileChromeView,
 } from './components/MobileAppChrome'
-import { displayUserRole } from './lib/displayLabels'
+import { UserProfileCard } from './components/UserProfileCard'
 import type { NavGroupId } from './navTypes'
 import {
   setPendingPurchasesDate,
   setPendingSalesDate,
 } from './lib/pending-view-filter'
 import { setPendingPosTableId } from './lib/pending-pos-navigation'
+import {
+  isAccessRequestHash,
+  isLandingHash,
+  isLoginHash,
+  navigateAfterLogin,
+  navigateToAccessRequest,
+  navigateToLanding,
+  navigateToLogin,
+  navigateToPlatform,
+} from './lib/authRoutes'
+import {
+  buildCompanyViewHash,
+  getCompanySlugFromUser,
+  parseCompanyAppHash,
+  type AppView,
+} from './lib/companyRoutes'
 import './App.css'
 
-type View =
-  | 'home'
-  | 'menu'
-  | 'products'
-  | 'recipes'
-  | 'inventory'
-  | 'sales'
-  | 'pos'
-  | 'purchases'
-  | 'staff'
-  | 'analytics'
-  | 'costs'
-  | 'gastos'
-  | 'explorer'
+type View = AppView
 
-const VIEW_HASH: Record<View, string> = {
-  home: '#/home',
-  menu: '#/menu',
-  products: '#/products',
-  recipes: '#/recipes',
-  inventory: '#/inventory',
-  sales: '#/sales',
-  pos: '#/pos',
-  purchases: '#/purchases',
-  staff: '#/staff',
-  analytics: '#/analytics',
-  costs: '#/costs',
-  gastos: '#/gastos',
-  explorer: '#/explorer',
+function getViewFromHash(): View | null {
+  return parseCompanyAppHash().view
+}
+
+function companyViewHash(user: AuthUser, view: View): string {
+  return buildCompanyViewHash(getCompanySlugFromUser(user), view)
 }
 
 function ThemeSwitch({
@@ -113,6 +113,7 @@ const VIEW_TO_GROUP: Partial<Record<View, NavGroupId>> = {
   inventory: 'stock',
   sales: 'sales',
   pos: 'sales',
+  shop: 'sales',
   purchases: 'purchases',
   staff: 'staff',
   analytics: 'finance',
@@ -307,27 +308,6 @@ function SidebarCollapsedRail({
   )
 }
 
-function getViewFromHash(): View | null {
-  const raw = (window.location.hash ?? '').replace(/^#/, '')
-  const pathOnly = raw.split('?')[0] ?? ''
-  const parts = pathOnly.split('/').filter(Boolean)
-  const first = parts[0] ?? ''
-  if (first === 'home') return 'home'
-  if (first === 'products') return 'products'
-  if (first === 'recipes') return 'recipes'
-  if (first === 'inventory') return 'inventory'
-  if (first === 'sales') return 'sales'
-  if (first === 'pos') return 'pos'
-  if (first === 'purchases') return 'purchases'
-  if (first === 'staff') return 'staff'
-  if (first === 'analytics') return 'analytics'
-  if (first === 'costs') return 'costs'
-  if (first === 'gastos') return 'gastos'
-  if (first === 'explorer') return 'explorer'
-  if (first === 'menu') return 'menu'
-  return null
-}
-
 export default function App() {
   const {
     inventorySubtitle,
@@ -365,6 +345,7 @@ export default function App() {
   const [authInitializing, setAuthInitializing] = useState<boolean>(() =>
     Boolean(getAccessToken()),
   )
+  const [, setPublicRouteTick] = useState(0)
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -478,10 +459,34 @@ export default function App() {
       setCompanyId(null)
       setUser(null)
       setAuthError('Sesión expirada. Iniciá sesión nuevamente.')
+      navigateToLogin()
     }
     window.addEventListener('auth:logout', onLogout)
     return () => window.removeEventListener('auth:logout', onLogout)
   }, [])
+
+  useEffect(() => {
+    if (user) return
+    const onHash = () => setPublicRouteTick((n) => n + 1)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [user])
+
+  useEffect(() => {
+    if (authInitializing || user) return
+    if (isLoginHash() || isLandingHash() || isAccessRequestHash()) return
+    navigateToLanding()
+  }, [authInitializing, user])
+
+  useEffect(() => {
+    if (!user) return
+    if (user.isPlatformAdmin && user.platformView) return
+    const parsed = parseCompanyAppHash()
+    const slug = getCompanySlugFromUser(user)
+    if (parsed.companySlug !== slug) {
+      window.history.replaceState({}, '', companyViewHash(user, view))
+    }
+  }, [user, view])
 
   // Sync view from URL hash.
   useEffect(() => {
@@ -503,29 +508,89 @@ export default function App() {
 
   // Sync URL hash from view (without clobbering the recipeId deep link).
   useEffect(() => {
-    const desired = VIEW_HASH[view]
+    if (!user) return
+    if (user.isPlatformAdmin && user.platformView) return
+    const desired = companyViewHash(user, view)
     const current = window.location.hash ?? ''
-    if (view === 'recipes' && current.startsWith('#/recipes')) return
-    if (view === 'purchases' && current.startsWith('#/purchases')) return
+    const slug = getCompanySlugFromUser(user)
+    if (view === 'recipes' && (current.includes(`/${slug}/recipes`) || current.startsWith('#/recipes'))) {
+      return
+    }
+    if (
+      view === 'purchases' &&
+      (current.includes(`/${slug}/purchases`) || current.startsWith('#/purchases'))
+    ) {
+      return
+    }
     if (current === desired) return
     window.history.replaceState({}, '', desired)
-  }, [view])
+  }, [view, user])
 
   if (authInitializing) {
-    return <div className="login-shell" aria-busy="true" />
+    return (
+      <div className="login-shell" aria-busy="true" aria-label="Cargando">
+        <BrandMark size="lg" showTagline />
+      </div>
+    )
   }
 
   if (!user) {
+    if (isLandingHash()) {
+      return (
+        <LandingView
+          onLoginClick={() => navigateToLogin(false)}
+          onAccessRequestClick={() => navigateToAccessRequest(false)}
+        />
+      )
+    }
+    if (isAccessRequestHash()) {
+      return <AccessRequestView baseUrl={baseUrl} />
+    }
+    if (isLoginHash()) {
+      return (
+        <LoginView
+          baseUrl={baseUrl}
+          initialMessage={authError}
+          onLogin={(u) => {
+            setUser(u)
+            setAuthError(null)
+            setView('home')
+            navigateAfterLogin(u)
+          }}
+        />
+      )
+    }
+    navigateToLanding()
+    return null
+  }
+
+  if (user.isPlatformAdmin && user.platformView) {
     return (
-      <LoginView
+      <PlatformAdminView
         baseUrl={baseUrl}
-        initialMessage={authError}
-        onLogin={(u) => {
+        user={user}
+        onEnterCompany={(u, nextView) => {
           setUser(u)
           setAuthError(null)
+          setView(nextView)
+        }}
+        onLogout={() => {
+          setCompanyId(null)
+          setUser(null)
         }}
       />
     )
+  }
+
+  async function returnToPlatformPanel() {
+    try {
+      const res = await exitToPlatformAdmin(baseUrl)
+      setUser(res.user)
+      setAuthError(null)
+      navigateToPlatform(true)
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'No se pudo volver al panel admin')
+    }
   }
 
   return (
@@ -540,6 +605,16 @@ export default function App() {
           <span className="banner-warn">Auth: {authError}</span>
         </div>
       )}
+      {user.isPlatformAdmin && !user.platformView ? (
+        <div className="app-banner app-banner--platform" role="status">
+          <span>
+            Modo administrador — viendo <strong>{user.companyName}</strong>
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void returnToPlatformPanel()}>
+            Volver al panel admin
+          </button>
+        </div>
+      ) : null}
       {backendDown && (
         <div className="app-banner app-banner--api-down" role="alert">
           <span className="banner-warn">
@@ -557,6 +632,7 @@ export default function App() {
             <MobileAppChrome
               view={view}
               onNavigate={handleMobileNavigate}
+              onHome={() => setView(PLATFORM_MODE ? 'home' : 'menu')}
               theme={theme}
               onToggleTheme={() =>
                 setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
@@ -566,6 +642,7 @@ export default function App() {
                 setAccessToken(null)
                 setUser(null)
                 setAuthError(null)
+                navigateToLogin()
               }}
               sheetOpen={mobileSheetOpen}
               onSheetOpenChange={setMobileSheetOpen}
@@ -592,6 +669,7 @@ export default function App() {
           {PLATFORM_MODE && view === 'home' && (
             <HomeDashboard
               baseUrl={baseUrl}
+              companyName={user?.companyName}
               onOpenSales={(date) => {
                 setPendingSalesDate(date)
                 setView('sales')
@@ -604,6 +682,13 @@ export default function App() {
                 if (tableId) setPendingPosTableId(tableId)
                 setView('pos')
               }}
+            />
+          )}
+          {PLATFORM_MODE && view === 'shop' && (
+            <ShopAdminView
+              baseUrl={baseUrl}
+              onOpenProducts={() => setView('products')}
+              onOpenPos={() => setView('pos')}
             />
           )}
           {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
@@ -704,14 +789,8 @@ export default function App() {
           </div>
           <div className="app-sidebar__meta">
             {user && (
-              <div className="header-auth">
-                <span className="muted small" title={user.email}>
-                  {user.name}
-                  {(() => {
-                    const roleLabel = displayUserRole(user.role)
-                    return roleLabel ? ` · ${roleLabel}` : ''
-                  })()}
-                </span>
+              <div className="header-auth header-auth--profile">
+                <UserProfileCard user={user} compact />
                 <button
                   type="button"
                   className="btn-secondary btn-compact"
@@ -720,6 +799,7 @@ export default function App() {
                     setCompanyId(null)
                     setUser(null)
                     setAuthError(null)
+                    navigateToLogin()
                   }}
                 >
                   Salir
@@ -932,6 +1012,17 @@ export default function App() {
                       onClick={() => setView('pos')}
                     >
                       POS · Mesas
+                    </button>
+                  </li>
+                )}
+                {PLATFORM_MODE && (
+                  <li>
+                    <button
+                      type="button"
+                      className={view === 'shop' ? 'active' : ''}
+                      onClick={() => setView('shop')}
+                    >
+                      Tienda en línea
                     </button>
                   </li>
                 )}

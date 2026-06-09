@@ -8,6 +8,7 @@ import {
   saleRowTotalNumeric,
   type SaleListRow,
 } from '../api'
+import { BRAND_NAME } from '../lib/brand'
 import { MonthCalendar } from './MonthCalendar'
 import {
   getOpenPosTables,
@@ -53,6 +54,7 @@ type ProductAgg = {
 
 type HomeDashboardProps = {
   baseUrl: string
+  companyName?: string | null
   onOpenSales: (date: string) => void
   onOpenPurchases: (date: string) => void
   onOpenPos: (tableId?: string) => void
@@ -60,6 +62,7 @@ type HomeDashboardProps = {
 
 export function HomeDashboard({
   baseUrl,
+  companyName,
   onOpenSales,
   onOpenPurchases,
   onOpenPos,
@@ -181,11 +184,31 @@ export function HomeDashboard({
   return (
     <div className="home-dashboard">
       <header className="home-dashboard__hero">
-        <p className="home-dashboard__eyebrow muted small">Inicio · Arándano Café Bar</p>
+        <p className="home-dashboard__eyebrow muted small">
+          {BRAND_NAME} · {companyName?.trim() || 'Tu empresa'}
+        </p>
         <h1 className="home-dashboard__title">{formatLongDate(todayKey)}</h1>
         <p className="home-dashboard__subtitle muted">
           Resumen de ventas y actividad del día
         </p>
+        <div className="home-dashboard__hero-actions">
+          <button
+            type="button"
+            className="btn-secondary btn-compact"
+            onClick={() => {
+              window.location.hash = '#/shop'
+            }}
+          >
+            Tienda en línea
+          </button>
+          <button
+            type="button"
+            className="btn-secondary btn-compact"
+            onClick={() => onOpenPos()}
+          >
+            POS
+          </button>
+        </div>
       </header>
 
       {error && (

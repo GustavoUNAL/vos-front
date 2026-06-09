@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { formatCOP } from '../lib/money'
+import { BRAND_NAME } from '../lib/brand'
+import { PublicThemeSwitch } from '../components/PublicThemeSwitch'
+import '../public-shell.css'
 import {
   checkoutShop,
-  confirmShopPayment,
   fetchShopCatalog,
   fetchShopOrder,
   fetchShopOrderByCode,
   getShopSlugFromHash,
+  isShopEmbedMode,
+  navigateShop,
+  parseShopRoute,
+  shopCartStorageKey,
+  SHOP_STATUS_LABEL,
   type ShopCartLine,
   type ShopCatalog,
   type ShopOrder,
@@ -13,19 +21,9 @@ import {
 } from './shopApi'
 import './shop.css'
 
-const CART_KEY = 'vos_shop_cart'
-
-function formatCOP(n: number): string {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(n)
-}
-
-function loadCart(): ShopCartLine[] {
+function loadCart(key: string): ShopCartLine[] {
   try {
-    const raw = window.localStorage.getItem(CART_KEY)
+    const raw = window.localStorage.getItem(key)
     if (!raw) return []
     const parsed = JSON.parse(raw) as ShopCartLine[]
     return Array.isArray(parsed) ? parsed : []
@@ -34,56 +32,103 @@ function loadCart(): ShopCartLine[] {
   }
 }
 
-function saveCart(lines: ShopCartLine[]) {
-  window.localStorage.setItem(CART_KEY, JSON.stringify(lines))
+function saveCart(key: string, lines: ShopCartLine[]) {
+  window.localStorage.setItem(key, JSON.stringify(lines))
 }
 
-function parseShopRoute():
-  | { screen: 'catalog' }
-  | { screen: 'payment'; orderId?: string; orderCode?: string }
-  | { screen: 'success'; orderId: string } {
-  const raw = (window.location.hash ?? '').replace(/^#/, '')
-  const parts = raw.split('/').filter(Boolean)
-  if (parts[0] !== 'tienda') return { screen: 'catalog' }
-  if (parts[1] === 'pago') {
-    const token = parts[2] ?? ''
-    if (token.startsWith('SHOP-')) return { screen: 'payment', orderCode: token }
-    if (token) return { screen: 'payment', orderId: token }
-    return { screen: 'catalog' }
+function useVosTheme(): ['dark' | 'light', () => void] {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const stored = window.localStorage.getItem('vos_theme')
+    return stored === 'light' ? 'light' : 'dark'
+  })
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('vos_theme', theme)
+  }, [theme])
+  return [theme, () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))]
+}
+
+function ShopHomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ShopCartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
+      <path
+        d="M6 9h15l-1.5 9h-12L6 9Zm0 0L5 3H2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="9" cy="20" r="1.5" fill="currentColor" />
+      <circle cx="18" cy="20" r="1.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function orderStatusClass(status: ShopOrder['status']): string {
+  switch (status) {
+    case 'PREPARING':
+      return 'shop-status--preparing'
+    case 'DELIVERED':
+      return 'shop-status--delivered'
+    case 'PAID':
+      return 'shop-status--paid'
+    default:
+      return 'shop-status--pending'
   }
-  if (parts[1] === 'exito' && parts[2]) {
-    return { screen: 'success', orderId: parts[2] }
-  }
-  return { screen: 'catalog' }
 }
 
 export function PublicShopApp() {
   const slug = getShopSlugFromHash()
+  const cartKey = shopCartStorageKey(slug)
+  const embed = isShopEmbedMode()
   const [route, setRoute] = useState(parseShopRoute)
   const [catalog, setCatalog] = useState<ShopCatalog | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [cart, setCart] = useState<ShopCartLine[]>(() => loadCart())
+  const [cart, setCart] = useState<ShopCartLine[]>(() => loadCart(cartKey))
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'NEQUI' | 'BREB'>('NEQUI')
+  const [paymentMethod, setPaymentMethod] = useState<'NEQUI' | 'BREB' | 'CASH'>('NEQUI')
   const [submitting, setSubmitting] = useState(false)
   const [activeOrder, setActiveOrder] = useState<ShopOrder | null>(null)
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [theme, toggleTheme] = useVosTheme()
+  const [orderComment, setOrderComment] = useState('')
 
   const syncRoute = useCallback(() => setRoute(parseShopRoute()), [])
 
   useEffect(() => {
     window.addEventListener('hashchange', syncRoute)
-    return () => window.removeEventListener('hashchange', syncRoute)
+    window.addEventListener('popstate', syncRoute)
+    return () => {
+      window.removeEventListener('hashchange', syncRoute)
+      window.removeEventListener('popstate', syncRoute)
+    }
   }, [syncRoute])
 
   useEffect(() => {
-    saveCart(cart)
-  }, [cart])
+    setCart(loadCart(cartKey))
+  }, [cartKey])
+
+  useEffect(() => {
+    saveCart(cartKey, cart)
+  }, [cart, cartKey])
 
   useEffect(() => {
     let cancelled = false
@@ -105,28 +150,34 @@ export function PublicShopApp() {
   }, [slug])
 
   useEffect(() => {
-    if (route.screen !== 'payment' && route.screen !== 'success') return
+    if (route.screen !== 'pedido' && route.screen !== 'payment' && route.screen !== 'success') return
     let cancelled = false
     const load = async () => {
       try {
         let order: ShopOrder
-        if (route.screen === 'payment') {
-          if (route.orderId) {
-            order = await fetchShopOrder(route.orderId)
-          } else if (route.orderCode) {
-            order = await fetchShopOrderByCode(slug, route.orderCode)
-          } else return
-        } else {
+        if (route.screen === 'success') {
           order = await fetchShopOrder(route.orderId)
+        } else if (route.orderId) {
+          order = await fetchShopOrder(route.orderId)
+        } else if (route.orderCode) {
+          order = await fetchShopOrderByCode(slug, route.orderCode)
+        } else return
+        if (!cancelled) {
+          setActiveOrder(order)
+          if (order.status === 'PAID' && route.screen === 'pedido') {
+            navigateShop(`exito/${order.id}`)
+            setRoute({ screen: 'success', orderId: order.id })
+          }
         }
-        if (!cancelled) setActiveOrder(order)
       } catch (e) {
         if (!cancelled) setError((e as Error).message)
       }
     }
     void load()
+    const poll = window.setInterval(() => void load(), 8000)
     return () => {
       cancelled = true
+      window.clearInterval(poll)
     }
   }, [route, slug])
 
@@ -138,6 +189,46 @@ export function PublicShopApp() {
   const cartCount = useMemo(
     () => cart.reduce((s, l) => s + l.quantity, 0),
     [cart],
+  )
+
+  const renderShopHeader = (
+    companyName: string,
+    tag: string,
+    options?: { showCart?: boolean },
+  ) => (
+    <header className="shop-header">
+      <div className="shop-brand">
+        <span className="shop-brand__berry" aria-hidden />
+        <div>
+          <strong>{companyName}</strong>
+          <span className="shop-brand__tag">{tag}</span>
+        </div>
+      </div>
+      <div className="shop-header__actions">
+        <a href="#/" className="shop-header-btn" aria-label="Inicio VOS AI">
+          <ShopHomeIcon />
+        </a>
+        <PublicThemeSwitch
+          theme={theme}
+          onToggle={toggleTheme}
+          compact
+          className="shop-theme"
+        />
+        {options?.showCart !== false ? (
+          <button
+            type="button"
+            className="shop-cart-btn"
+            onClick={() => setCartOpen(true)}
+            aria-label={`Carrito, ${cartCount} productos`}
+          >
+            <ShopCartIcon />
+            {cartCount > 0 ? (
+              <span className="shop-cart-btn__badge">{cartCount}</span>
+            ) : null}
+          </button>
+        ) : null}
+      </div>
+    </header>
   )
 
   const products = useMemo(() => {
@@ -198,29 +289,15 @@ export function PublicShopApp() {
         customerPhone,
         customerName: customerName.trim() || undefined,
         paymentMethod,
+        customerNotes: orderComment.trim() || undefined,
       })
       setCart([])
       setCheckoutOpen(false)
       setCartOpen(false)
+      setOrderComment('')
       setActiveOrder(order)
-      window.location.hash = `#/tienda/pago/${order.id}`
-      setRoute({ screen: 'payment', orderId: order.id })
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const confirmPayment = async () => {
-    if (!activeOrder) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      const order = await confirmShopPayment(activeOrder.id)
-      setActiveOrder(order)
-      window.location.hash = `#/tienda/exito/${order.id}`
-      setRoute({ screen: 'success', orderId: order.id })
+      navigateShop(`pedido/${order.id}`)
+      setRoute({ screen: 'pedido', orderId: order.id })
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -230,18 +307,15 @@ export function PublicShopApp() {
 
   if (route.screen === 'success' && activeOrder) {
     return (
-      <div className="shop-app">
-        <header className="shop-header">
-          <div className="shop-brand">
-            <span className="shop-brand__berry" aria-hidden />
-            <div>
-              <strong>{activeOrder.companyName}</strong>
-              <span className="shop-brand__tag">Pedido confirmado</span>
-            </div>
-          </div>
-        </header>
+      <div className={`shop-app${embed ? ' shop-app--embed' : ''}`}>
+        {renderShopHeader(activeOrder.companyName, 'Pedido confirmado', {
+          showCart: false,
+        })}
         <main className="shop-main shop-main--center">
           <section className="shop-success">
+            <div className="shop-success__icon" aria-hidden>
+              ✓
+            </div>
             <h1>¡Gracias por tu compra!</h1>
             <p>
               Pedido <strong>{activeOrder.orderCode}</strong>
@@ -267,7 +341,7 @@ export function PublicShopApp() {
               type="button"
               className="shop-btn shop-btn--primary"
               onClick={() => {
-                window.location.hash = '#/tienda'
+                navigateShop(slug)
                 setRoute({ screen: 'catalog' })
                 setActiveOrder(null)
               }}
@@ -280,18 +354,14 @@ export function PublicShopApp() {
     )
   }
 
-  if (route.screen === 'payment' && activeOrder) {
+  if ((route.screen === 'pedido' || route.screen === 'payment') && activeOrder) {
     return (
-      <div className="shop-app">
-        <header className="shop-header">
-          <div className="shop-brand">
-            <span className="shop-brand__berry" aria-hidden />
-            <div>
-              <strong>{activeOrder.companyName}</strong>
-              <span className="shop-brand__tag">Pago · {activeOrder.orderCode}</span>
-            </div>
-          </div>
-        </header>
+      <div className={`shop-app${embed ? ' shop-app--embed' : ''}`}>
+        {renderShopHeader(
+          activeOrder.companyName,
+          `Pedido · ${activeOrder.orderCode}`,
+          { showCart: false },
+        )}
         <main className="shop-main shop-main--narrow">
           {error ? (
             <p className="error" role="alert">
@@ -299,12 +369,40 @@ export function PublicShopApp() {
             </p>
           ) : null}
           <section className="shop-payment">
-            <h1>Completa tu pago</h1>
+            <h1>Estado de tu pedido</h1>
             <p className="shop-payment__total">{formatCOP(activeOrder.total)}</p>
-            <p className="muted">
-              Método:{' '}
+            <p
+              className={`shop-status ${orderStatusClass(activeOrder.status)}`}
+              role="status"
+            >
+              {SHOP_STATUS_LABEL[activeOrder.status] ?? activeOrder.status}
+            </p>
+            <ul className="shop-cart-list">
+              {(activeOrder.items as ShopCartLine[]).map((ln) => (
+                <li key={ln.productId} className="shop-cart-item">
+                  <div className="shop-cart-item__info">
+                    <strong>
+                      {ln.quantity}× {ln.productName}
+                    </strong>
+                    <span className="shop-cart-item__unit">
+                      {formatCOP(ln.unitPrice)} c/u
+                    </span>
+                  </div>
+                  <span className="shop-cart-item__subtotal">
+                    {formatCOP(ln.quantity * ln.unitPrice)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="muted small">
+              Preferencia de pago:{' '}
               <strong>
-                {activeOrder.paymentMethod === 'NEQUI' ? 'Nequi' : 'Bre-B'}
+                {activeOrder.paymentMethodLabel ??
+                  (activeOrder.paymentMethod === 'CASH'
+                    ? 'Efectivo en caja'
+                    : activeOrder.paymentMethod === 'NEQUI'
+                      ? 'Nequi'
+                      : 'Bre-B')}
               </strong>
             </p>
             {activeOrder.paymentInstructions ? (
@@ -312,24 +410,17 @@ export function PublicShopApp() {
                 {activeOrder.paymentInstructions}
               </pre>
             ) : null}
-            {activeOrder.paymentLink ? (
-              <a
-                className="shop-btn shop-btn--secondary"
-                href={activeOrder.paymentLink}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Abrir enlace de pago
-              </a>
-            ) : null}
-            <button
-              type="button"
-              className="shop-btn shop-btn--primary"
-              disabled={submitting || activeOrder.status === 'PAID'}
-              onClick={() => void confirmPayment()}
-            >
-              {submitting ? 'Confirmando…' : 'Ya pagué — confirmar pedido'}
-            </button>
+            {activeOrder.status === 'DELIVERED' ? (
+              <p className="muted">
+                Tu pedido fue entregado. Acercate a caja para pagar (efectivo, Nequi o Bre-B).
+              </p>
+            ) : activeOrder.status === 'PAID' ? (
+              <p className="muted">Pago confirmado. Revisá tu WhatsApp para el comprobante.</p>
+            ) : (
+              <p className="muted">
+                El local recibió tu pedido y lo preparará. Esta pantalla se actualiza sola.
+              </p>
+            )}
           </section>
         </main>
       </div>
@@ -337,25 +428,11 @@ export function PublicShopApp() {
   }
 
   return (
-    <div className="shop-app">
-      <header className="shop-header">
-        <div className="shop-brand">
-          <span className="shop-brand__berry" aria-hidden />
-          <div>
-            <strong>{catalog?.company.name ?? 'Arándano Café Bar'}</strong>
-            <span className="shop-brand__tag">Tienda en línea</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="shop-cart-btn"
-          onClick={() => setCartOpen(true)}
-          aria-label={`Carrito, ${cartCount} productos`}
-        >
-          <span aria-hidden>🛒</span>
-          {cartCount > 0 ? <span className="shop-cart-btn__badge">{cartCount}</span> : null}
-        </button>
-      </header>
+    <div className={`shop-app${embed ? ' shop-app--embed' : ''}`}>
+      {renderShopHeader(
+        catalog?.company.name ?? 'Tienda',
+        `Tienda en línea · ${BRAND_NAME}`,
+      )}
 
       <main className="shop-main">
         {error ? (
@@ -363,7 +440,12 @@ export function PublicShopApp() {
             {error}
           </p>
         ) : null}
-        {loading ? <p className="muted">Cargando menú…</p> : null}
+        {loading ? (
+          <p className="shop-loading" aria-live="polite">
+            <span className="shop-loading__dot" aria-hidden />
+            Cargando menú…
+          </p>
+        ) : null}
 
         {!loading && catalog ? (
           <>
@@ -379,6 +461,7 @@ export function PublicShopApp() {
                 className="shop-filter"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
+                aria-label="Filtrar por categoría"
               >
                 <option value="">Todas las categorías</option>
                 {catalog.categories.map((c) => (
@@ -390,25 +473,41 @@ export function PublicShopApp() {
             </div>
 
             <ul className="shop-grid">
+              {products.length === 0 ? (
+                <li className="shop-empty-grid">
+                  No hay productos con ese filtro.
+                </li>
+              ) : null}
               {products.map((p) => (
                 <li key={p.id} className="shop-card">
+                  <div className="shop-card__media">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt="" loading="lazy" />
+                    ) : (
+                      <div className="shop-card__placeholder" aria-hidden />
+                    )}
+                  </div>
                   <div className="shop-card__body">
-                    <span className="shop-card__category muted small">
-                      {p.category.name}
-                    </span>
+                    <span className="shop-card__category">{p.category.name}</span>
                     <h2 className="shop-card__title">{p.name}</h2>
                     {p.description ? (
-                      <p className="shop-card__desc muted small">{p.description}</p>
-                    ) : null}
-                    <p className="shop-card__price">{formatCOP(p.price)}</p>
+                      <p className="shop-card__desc">{p.description}</p>
+                    ) : (
+                      <p className="shop-card__desc" aria-hidden>
+                        &nbsp;
+                      </p>
+                    )}
+                    <div className="shop-card__foot">
+                      <p className="shop-card__price">{formatCOP(p.price)}</p>
+                      <button
+                        type="button"
+                        className="shop-btn shop-btn--primary shop-btn--block"
+                        onClick={() => addToCart(p)}
+                      >
+                        Agregar
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="shop-btn shop-btn--primary shop-btn--block"
-                    onClick={() => addToCart(p)}
-                  >
-                    Agregar
-                  </button>
                 </li>
               ))}
             </ul>
@@ -432,31 +531,40 @@ export function PublicShopApp() {
               </button>
             </header>
             {cart.length === 0 ? (
-              <p className="muted">El carrito está vacío.</p>
+              <p className="shop-sheet__empty">El carrito está vacío.</p>
             ) : (
               <ul className="shop-cart-list">
                 {cart.map((line) => (
-                  <li key={line.productId} className="shop-cart-line">
-                    <div>
+                  <li key={line.productId} className="shop-cart-item">
+                    <div className="shop-cart-item__info">
                       <strong>{line.productName}</strong>
-                      <span className="muted small">{formatCOP(line.unitPrice)}</span>
+                      <span className="shop-cart-item__unit">
+                        {formatCOP(line.unitPrice)} c/u
+                      </span>
                     </div>
-                    <div className="shop-cart-line__qty">
-                      <button
-                        type="button"
-                        className="shop-icon-btn"
-                        onClick={() => updateQty(line.productId, line.quantity - 1)}
-                      >
-                        −
-                      </button>
-                      <span>{line.quantity}</span>
-                      <button
-                        type="button"
-                        className="shop-icon-btn"
-                        onClick={() => updateQty(line.productId, line.quantity + 1)}
-                      >
-                        +
-                      </button>
+                    <div className="shop-cart-item__actions">
+                      <div className="shop-qty">
+                        <button
+                          type="button"
+                          className="shop-icon-btn"
+                          aria-label="Quitar uno"
+                          onClick={() => updateQty(line.productId, line.quantity - 1)}
+                        >
+                          −
+                        </button>
+                        <span>{line.quantity}</span>
+                        <button
+                          type="button"
+                          className="shop-icon-btn"
+                          aria-label="Agregar uno"
+                          onClick={() => updateQty(line.productId, line.quantity + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="shop-cart-item__subtotal">
+                        {formatCOP(line.quantity * line.unitPrice)}
+                      </span>
                     </div>
                   </li>
                 ))}
@@ -475,7 +583,7 @@ export function PublicShopApp() {
                   setCheckoutOpen(true)
                 }}
               >
-                Ir a pagar
+                Enviar pedido al local
               </button>
             </footer>
           </aside>
@@ -492,7 +600,7 @@ export function PublicShopApp() {
         >
           <aside className="shop-sheet" role="dialog" aria-label="Checkout">
             <header className="shop-sheet__head">
-              <h2>Datos para el pago</h2>
+              <h2>Datos del pedido</h2>
               <button
                 type="button"
                 className="shop-icon-btn"
@@ -519,29 +627,35 @@ export function PublicShopApp() {
                 placeholder="300 123 4567"
               />
             </label>
-            <fieldset className="shop-pay-methods">
-              <legend>Método de pago</legend>
-              <label>
-                <input
-                  type="radio"
-                  name="pay"
-                  checked={paymentMethod === 'NEQUI'}
-                  onChange={() => setPaymentMethod('NEQUI')}
-                />
-                Nequi
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="pay"
-                  checked={paymentMethod === 'BREB'}
-                  onChange={() => setPaymentMethod('BREB')}
-                />
-                Bre-B
-              </label>
+            <label className="shop-field">
+              <span>Comentario (opcional)</span>
+              <input
+                value={orderComment}
+                onChange={(e) => setOrderComment(e.target.value)}
+                placeholder="Ej. sin cebolla, mesa 3, para llevar…"
+              />
+            </label>
+            <fieldset className="shop-pay-chips">
+              <legend className="sr-only">Preferencia de pago en caja</legend>
+              {(
+                [
+                  ['CASH', 'Efectivo'],
+                  ['NEQUI', 'Nequi'],
+                  ['BREB', 'Bre-B'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`shop-pay-chip${paymentMethod === value ? ' shop-pay-chip--active' : ''}`}
+                  onClick={() => setPaymentMethod(value)}
+                >
+                  {label}
+                </button>
+              ))}
             </fieldset>
-            <p className="muted small">
-              Total a pagar: <strong>{formatCOP(cartTotal)}</strong>
+            <p className="shop-checkout-note">
+              Total: <strong>{formatCOP(cartTotal)}</strong> · Pagás al recibir el pedido.
             </p>
             <button
               type="button"
@@ -549,7 +663,7 @@ export function PublicShopApp() {
               disabled={submitting || !customerPhone.trim()}
               onClick={() => void startCheckout()}
             >
-              {submitting ? 'Procesando…' : 'Generar link de pago'}
+              {submitting ? 'Enviando…' : 'Confirmar y enviar al POS'}
             </button>
           </aside>
         </div>

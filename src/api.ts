@@ -436,6 +436,7 @@ export type LoginPayload = { email: string; password: string }
 export type CompanySummary = {
   id: string
   name: string
+  slug: string
   role: string
   modules: string[]
 }
@@ -447,6 +448,9 @@ export type AuthUser = {
   role: string
   companyId: string
   companyName: string
+  companySlug: string
+  isPlatformAdmin?: boolean
+  platformView?: boolean
   permissions?: string[]
   companies: CompanySummary[]
 }
@@ -466,6 +470,68 @@ export async function login(
     auth: false,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const out = (await res.json()) as LoginResponse
+  setAccessToken(out.accessToken)
+  syncCompanyFromUser(out.user)
+  return out
+}
+
+export type RegisterPayload = {
+  name: string
+  email: string
+  password: string
+  companyName: string
+}
+
+export async function submitAccessRequest(
+  base: string,
+  payload: {
+    companyName: string
+    contactName: string
+    email: string
+    phone?: string
+    message?: string
+  },
+): Promise<{ ok: boolean; message: string }> {
+  const res = await apiFetch(`${base}/access-requests`, {
+    method: 'POST',
+    auth: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as { ok: boolean; message: string }
+}
+
+export async function register(
+  base: string,
+  payload: RegisterPayload,
+): Promise<LoginResponse> {
+  const res = await apiFetch(`${base}/auth/register`, {
+    method: 'POST',
+    auth: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const out = (await res.json()) as LoginResponse
+  setAccessToken(out.accessToken)
+  syncCompanyFromUser(out.user)
+  return out
+}
+
+export async function loginWithGoogle(
+  base: string,
+  idToken: string,
+  companyName?: string,
+): Promise<LoginResponse> {
+  const res = await apiFetch(`${base}/auth/google`, {
+    method: 'POST',
+    auth: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, companyName }),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   const out = (await res.json()) as LoginResponse
@@ -496,6 +562,148 @@ export async function switchCompany(
   setAccessToken(out.accessToken)
   syncCompanyFromUser(out.user)
   return out
+}
+
+export async function enterPlatformCompany(
+  base: string,
+  companyId: string,
+): Promise<LoginResponse> {
+  const res = await apiFetch(`${base}/auth/platform/enter-company`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ companyId }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const out = (await res.json()) as LoginResponse
+  setAccessToken(out.accessToken)
+  syncCompanyFromUser(out.user)
+  return out
+}
+
+export async function exitToPlatformAdmin(base: string): Promise<LoginResponse> {
+  const res = await apiFetch(`${base}/auth/platform/home`, { method: 'POST' })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const out = (await res.json()) as LoginResponse
+  setAccessToken(out.accessToken)
+  if (out.user.companyId) setCompanyId(out.user.companyId)
+  return out
+}
+
+export type PlatformOverview = {
+  companiesCount: number
+  activeCompanies: number
+  usersCount: number
+  pendingRequests: number
+  recentRequests: Array<{
+    id: string
+    companyName: string
+    contactName: string
+    email: string
+    phone: string | null
+    message: string | null
+    status: string
+    createdAt: string
+  }>
+}
+
+export type PlatformCompanyRow = {
+  id: string
+  name: string
+  slug: string
+  shopSlug: string | null
+  status: string
+  email: string | null
+  phone: string | null
+  membersCount: number
+  productsCount: number
+  salesCount: number
+  shopOrdersCount: number
+  modules: Array<{ slug: string; name: string }>
+}
+
+export type PlatformCompanyDetail = PlatformCompanyRow & {
+  address: string | null
+  counts: {
+    members: number
+    products: number
+    sales: number
+    inventoryItems: number
+    purchaseLots: number
+    staffMembers: number
+    shopOrders: number
+  }
+  members: Array<{
+    id: string
+    email: string
+    name: string
+    active: boolean
+    status: string
+    roles: string[]
+  }>
+}
+
+export type PlatformUserRow = {
+  id: string
+  email: string
+  name: string
+  active: boolean
+  isPlatformAdmin: boolean
+  createdAt: string
+  companies: Array<{
+    id: string
+    name: string
+    slug: string
+    role: string
+    status: string
+  }>
+}
+
+export type AccessRequestRow = {
+  id: string
+  companyName: string
+  contactName: string
+  email: string
+  phone: string | null
+  message: string | null
+  status: string
+  createdAt: string
+}
+
+export async function fetchPlatformOverview(base: string): Promise<PlatformOverview> {
+  const res = await apiFetch(`${base}/platform/overview`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PlatformOverview
+}
+
+export async function fetchPlatformCompanies(base: string): Promise<PlatformCompanyRow[]> {
+  const res = await apiFetch(`${base}/platform/companies`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PlatformCompanyRow[]
+}
+
+export async function fetchPlatformCompanyDetail(
+  base: string,
+  companyId: string,
+): Promise<PlatformCompanyDetail> {
+  const res = await apiFetch(`${base}/platform/companies/${encodeURIComponent(companyId)}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PlatformCompanyDetail
+}
+
+export async function fetchPlatformUsers(base: string): Promise<PlatformUserRow[]> {
+  const res = await apiFetch(`${base}/platform/users`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as PlatformUserRow[]
+}
+
+export async function fetchPlatformAccessRequests(
+  base: string,
+  status?: string,
+): Promise<AccessRequestRow[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await apiFetch(`${base}/platform/access-requests${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return (await res.json()) as AccessRequestRow[]
 }
 
 export type ProductListSort = 'name' | 'price_asc' | 'price_desc'
@@ -1831,48 +2039,153 @@ export async function fetchSale(base: string, id: string): Promise<SaleDetail> {
 async function downloadSaleInvoicePdfCopy(
   base: string,
   saleId: string,
-  copy: 'client' | 'business',
   code?: string | null,
 ): Promise<void> {
-  const path =
-    copy === 'business'
-      ? `${base}/sales/${saleId}/invoice/business.pdf`
-      : `${base}/sales/${saleId}/invoice/client.pdf`
-  const res = await apiFetch(path)
+  const res = await apiFetch(`${base}/sales/${saleId}/invoice.pdf`)
   if (!res.ok) throw new Error(await parseJsonError(res))
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  const suffix = copy === 'business' ? 'negocio' : 'cliente'
-  a.download = `factura-${suffix}-${code ?? saleId.slice(0, 8)}.pdf`
+  a.download = `comprobante-${code ?? saleId.slice(0, 8)}.pdf`
   a.click()
   URL.revokeObjectURL(url)
 }
 
-export async function downloadSaleInvoiceClientPdf(
+export async function downloadSaleReceiptTxt(
   base: string,
   saleId: string,
   code?: string | null,
 ): Promise<void> {
-  return downloadSaleInvoicePdfCopy(base, saleId, 'client', code)
+  const res = await apiFetch(`${base}/sales/${saleId}/receipt.txt`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `comprobante-${code ?? saleId.slice(0, 8)}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
-export async function downloadSaleInvoiceBusinessPdf(
-  base: string,
-  saleId: string,
-  code?: string | null,
-): Promise<void> {
-  return downloadSaleInvoicePdfCopy(base, saleId, 'business', code)
-}
-
-/** @deprecated Usar downloadSaleInvoiceClientPdf */
 export async function downloadSaleInvoicePdf(
   base: string,
   saleId: string,
   code?: string | null,
 ): Promise<void> {
-  return downloadSaleInvoiceClientPdf(base, saleId, code)
+  return downloadSaleInvoicePdfCopy(base, saleId, code)
+}
+
+/** @deprecated Usar downloadSaleInvoicePdf */
+export async function downloadSaleInvoiceClientPdf(
+  base: string,
+  saleId: string,
+  code?: string | null,
+): Promise<void> {
+  return downloadSaleInvoicePdf(base, saleId, code)
+}
+
+/** @deprecated Usar downloadSaleInvoicePdf */
+export async function downloadSaleInvoiceBusinessPdf(
+  base: string,
+  saleId: string,
+  code?: string | null,
+): Promise<void> {
+  return downloadSaleInvoicePdf(base, saleId, code)
+}
+
+export type PlatformShopOrder = {
+  id: string
+  orderCode: string
+  status: string
+  paymentMethod: 'NEQUI' | 'BREB' | 'CASH'
+  paymentMethodLabel: string
+  customerName: string | null
+  customerPhone: string
+  items: {
+    productId: string
+    productName: string
+    quantity: number
+    unitPrice: number
+  }[]
+  total: number
+  totalCOP: string
+  saleId: string | null
+  saleCode?: string | null
+  createdAt: string
+  preparingAt: string | null
+  deliveredAt: string | null
+  paidAt: string | null
+  whatsappSent?: boolean
+  internalNotified?: boolean
+}
+
+export async function fetchPlatformShopOrders(
+  base: string,
+  status?: string,
+): Promise<PlatformShopOrder[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await apiFetch(`${base}/shop-orders${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<PlatformShopOrder[]>
+}
+
+export async function updatePlatformShopOrderStatus(
+  base: string,
+  id: string,
+  status: 'PREPARING' | 'DELIVERED',
+): Promise<PlatformShopOrder> {
+  const res = await apiFetch(`${base}/shop-orders/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<PlatformShopOrder>
+}
+
+export async function collectPlatformShopOrderPayment(
+  base: string,
+  id: string,
+  paymentMethod: 'NEQUI' | 'BREB' | 'CASH',
+): Promise<PlatformShopOrder> {
+  const res = await apiFetch(`${base}/shop-orders/${id}/collect-payment`, {
+    method: 'POST',
+    body: JSON.stringify({ paymentMethod }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<PlatformShopOrder>
+}
+
+export type ShopSettings = {
+  companyId: string
+  companyName: string
+  shopSlug: string | null
+  enabled: boolean
+  activeProducts: number
+  pendingOrders: number
+  frontBase: string
+  catalogUrlHash: string | null
+  catalogUrlPath: string | null
+  embedIframeHtml: string | null
+  apiCatalogPath: string | null
+}
+
+export async function fetchShopSettings(base: string): Promise<ShopSettings> {
+  const res = await apiFetch(`${base}/shop-settings`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<ShopSettings>
+}
+
+export async function updateShopSettings(
+  base: string,
+  payload: { shopSlug?: string | null },
+): Promise<Partial<ShopSettings>> {
+  const res = await apiFetch(`${base}/shop-settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<Partial<ShopSettings>>
 }
 
 export type DailyCashClose = {
@@ -1892,10 +2205,22 @@ export type DailyCashClose = {
     id: string
     code: string | null
     customer: string
+    customerPhone?: string | null
+    mesa?: string | null
+    notes?: string | null
+    source?: string
     saleDate: string
     total: number
     paymentMethod: string
     lineCount: number
+    lines: {
+      id: string
+      productName: string
+      quantity: number
+      unitPrice: number
+      lineTotal: number
+      lineUnit?: string | null
+    }[]
   }[]
   purchases: {
     id: string
@@ -1961,6 +2286,17 @@ export async function createSale(
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return res.json() as Promise<SaleDetail>
+}
+
+export async function sendSaleReceiptWhatsApp(
+  base: string,
+  id: string,
+): Promise<{ whatsappSent: boolean; whatsappConfigured: boolean }> {
+  const res = await apiFetch(`${base}/sales/${id}/send-receipt`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<{ whatsappSent: boolean; whatsappConfigured: boolean }>
 }
 
 export async function patchSale(

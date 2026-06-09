@@ -97,6 +97,15 @@ export function TablesDashboard({ baseUrl }: Props) {
           >
             Ventas
           </button>
+          {PLATFORM_MODE ? (
+            <button
+              type="button"
+              className="pos-btn pos-btn--primary"
+              onClick={() => navigate('shop-orders')}
+            >
+              Pedidos web
+            </button>
+          ) : null}
         </div>
       </header>
 

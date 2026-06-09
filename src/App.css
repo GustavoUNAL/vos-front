@@ -1316,16 +1316,25 @@
 }
 
 .brand-mark__tagline {
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  display: block;
+  max-width: 22rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 1.45;
   color: var(--muted, #9a8fa8);
+  text-align: center;
 }
 
 .brand-mark--lg .brand-mark__tagline {
+  font-size: 1rem;
+  margin-top: 0.5rem;
+}
+
+.brand-mark--sm .brand-mark__tagline {
   font-size: 0.72rem;
-  margin-top: 0.35rem;
+  max-width: 14rem;
 }
 
 .app-sidebar__logo-btn .brand-mark {
@@ -1396,6 +1405,100 @@
   background:
     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(122, 78, 170, 0.22), transparent),
     var(--bg, #0f0d12);
+}
+
+.login-form {
+  width: 100%;
+  max-width: 420px;
+}
+
+.login-form__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  padding-bottom: 0.25rem;
+}
+
+.login-form__session-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--heading);
+}
+
+.login-form__title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.35rem;
+}
+
+.login-form__lead {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.login-form__back {
+  margin: 0;
+  text-align: center;
+}
+
+.login-tenant-demo {
+  width: 100%;
+  max-width: 420px;
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--berry, #0ea5e9) 25%, var(--border));
+  background: color-mix(in srgb, var(--surface-elevated) 92%, var(--berry, #0ea5e9) 4%);
+}
+
+.login-tenant-demo__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.login-tenant-demo__name {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.login-tenant-demo__text {
+  margin: 0 0 0.75rem;
+  line-height: 1.4;
+}
+
+.login-tenant-demo__creds {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.login-tenant-demo__creds div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+}
+
+.login-tenant-demo__creds dt {
+  margin: 0;
+  color: var(--muted);
+}
+
+.login-tenant-demo__creds dd {
+  margin: 0;
+}
+
+.login-tenant-demo__creds code {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.82rem;
 }
 
 .login-card {
@@ -11743,6 +11846,24 @@ html.app--mobile-sheet-open body {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+.month-calendar__day--selected {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.month-calendar-hint {
+  margin: 0.65rem 0 0.25rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  text-align: center;
+}
+
+.sales-day-panel-anchor {
+  scroll-margin-top: 5rem;
+}
+
 .month-calendar__day--has-data {
   border-color: color-mix(in srgb, var(--berry, var(--accent)) 24%, var(--border));
   background: color-mix(in srgb, var(--berry, var(--accent)) 6%, var(--surface-elevated));
@@ -11825,6 +11946,13 @@ html.app--mobile-sheet-open body {
 
 .home-dashboard__subtitle {
   margin: 0.35rem 0 0;
+}
+
+.home-dashboard__hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
 }
 
 .home-dashboard__kpi-grid {
@@ -12866,4 +12994,137 @@ html.app--mobile-sheet-open body {
     margin-inline: -0.35rem;
     overflow-x: auto;
   }
+}
+
+.shop-admin {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0.5rem 0 2rem;
+}
+
+.shop-admin__hero {
+  margin-bottom: 1.25rem;
+}
+
+.shop-admin__eyebrow {
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+}
+
+.shop-admin__title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.shop-admin__subtitle {
+  margin: 0.4rem 0 0;
+  max-width: 52ch;
+}
+
+.shop-admin__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.shop-admin__card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface-elevated);
+}
+
+.shop-admin__card--wide {
+  margin-top: 0.25rem;
+}
+
+.shop-admin__card h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+}
+
+.shop-admin__stats {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+}
+
+.shop-admin__stats div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.92rem;
+}
+
+.shop-admin__stats dt {
+  margin: 0;
+  color: var(--muted);
+}
+
+.shop-admin__stats dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.shop-admin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.shop-admin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+}
+
+.shop-admin__field input {
+  width: 100%;
+  max-width: 280px;
+}
+
+.shop-admin__url-block {
+  margin-top: 1rem;
+}
+
+.shop-admin__url-block label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.shop-admin__copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.shop-admin__copy-row input,
+.shop-admin__copy-row textarea {
+  flex: 1 1 280px;
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.shop-admin__copy-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.shop-admin__hint {
+  margin-top: 1rem;
+}
+
+.shop-admin__hint code {
+  word-break: break-all;
 }

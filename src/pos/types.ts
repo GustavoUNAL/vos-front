@@ -88,4 +88,4 @@ export type PosWsEvent =
   | { type: 'order.updated'; order: PosOrder }
   | { type: 'order.closed'; orderId: string; tableId: string }
 
-export type PosScreen = 'tables' | 'order' | 'payment' | 'history'
+export type PosScreen = 'tables' | 'order' | 'payment' | 'history' | 'shop-orders'

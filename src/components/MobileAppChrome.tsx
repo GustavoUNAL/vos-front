@@ -1,10 +1,11 @@
-import { Menu, Moon, Sun, X } from 'lucide-react'
-import { useEffect } from 'react'
+import { Home, Menu, Moon, Sun, User, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { AuthUser } from '../api'
 import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
-import { displayCompanyName, displayUserRole } from '../lib/displayLabels'
+import { displayCompanyName } from '../lib/displayLabels'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
+import { UserProfileCard } from './UserProfileCard'
 
 export type MobileChromeView =
   | 'home'
@@ -14,6 +15,7 @@ export type MobileChromeView =
   | 'inventory'
   | 'sales'
   | 'pos'
+  | 'shop'
   | 'purchases'
   | 'staff'
   | 'analytics'
@@ -29,6 +31,7 @@ const SCREEN_TITLE: Record<MobileChromeView, string> = {
   inventory: 'Inventario',
   sales: 'Ventas',
   pos: 'POS',
+  shop: 'Tienda',
   purchases: 'Compras',
   staff: 'Personal',
   analytics: 'Finanzas',
@@ -48,6 +51,7 @@ const PLATFORM_SHEET_LINKS: SheetLink[] = [
   { view: 'inventory', label: 'Inventario' },
   { view: 'sales', label: 'Ventas' },
   { view: 'pos', label: 'POS · Mesas' },
+  { view: 'shop', label: 'Tienda en línea' },
   { view: 'purchases', label: 'Compras' },
   { view: 'staff', label: 'Personal' },
   { view: 'analytics', label: 'Análisis financiero' },
@@ -121,6 +125,7 @@ function MobileDockIcon({ id }: { id: DockTabId }) {
         </svg>
       )
     case 'sales':
+    case 'shop':
       return (
         <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
           <path
@@ -191,6 +196,7 @@ function MobileDockIcon({ id }: { id: DockTabId }) {
 export function MobileAppChrome({
   view,
   onNavigate,
+  onHome,
   theme,
   onToggleTheme,
   user,
@@ -200,6 +206,7 @@ export function MobileAppChrome({
 }: {
   view: MobileChromeView
   onNavigate: (v: MobileChromeView) => void
+  onHome?: () => void
   theme: 'dark' | 'light'
   onToggleTheme: () => void
   user: AuthUser | null
@@ -207,6 +214,7 @@ export function MobileAppChrome({
   sheetOpen: boolean
   onSheetOpenChange: (open: boolean) => void
 }) {
+  const [profileOpen, setProfileOpen] = useState(false)
   const compactChrome = PLATFORM_MODE || SALES_FLOOR_ONLY
   const dockTabs = PLATFORM_MODE
     ? DOCK_TABS_PLATFORM
@@ -227,6 +235,11 @@ export function MobileAppChrome({
   const companyLabel = displayCompanyName(user?.companyName)
   const showMenuButton = sheetLinks.length > 0 || Boolean(user)
   const headerTitle = SCREEN_TITLE[view]
+  const homeView: MobileChromeView = PLATFORM_MODE ? 'home' : 'menu'
+
+  useEffect(() => {
+    if (!sheetOpen) setProfileOpen(false)
+  }, [sheetOpen])
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -258,35 +271,73 @@ export function MobileAppChrome({
   return (
     <>
       <header className="vos-mobile-header">
-        <div className="vos-mobile-header__bar vos-mobile-header__bar--menu-right">
+        <div className="vos-mobile-header__bar vos-mobile-header__bar--actions">
           <div className="vos-mobile-header__leading">
-            {companyLabel ? (
-              <span className="vos-mobile-header__brand" title={companyLabel}>
-                {companyLabel}
-              </span>
-            ) : (
-              <span className="vos-mobile-header__spacer" aria-hidden />
-            )}
+            <Button
+              type="button"
+              variant={view === homeView ? 'accent' : 'ghost'}
+              size="icon-sm"
+              className="vos-mobile-header__home"
+              aria-label="Inicio"
+              aria-current={view === homeView ? 'page' : undefined}
+              onClick={() => {
+                if (onHome) onHome()
+                else onNavigate(homeView)
+              }}
+            >
+              <Home className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+            </Button>
           </div>
 
           <h1 className="vos-mobile-header__title">{headerTitle}</h1>
 
-          {showMenuButton ? (
+          <div className="vos-mobile-header__trailing">
             <Button
               type="button"
-              variant={sheetOpen ? 'accent' : 'ghost'}
+              variant="ghost"
               size="icon-sm"
-              className="vos-mobile-header__menu"
-              aria-expanded={sheetOpen}
-              aria-haspopup="dialog"
-              aria-label="Menú y cuenta"
-              onClick={() => onSheetOpenChange(!sheetOpen)}
+              className="vos-mobile-header__theme"
+              aria-label={`Cambiar a tema ${themeLabel.toLowerCase()}`}
+              onClick={onToggleTheme}
             >
-              <Menu className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+              <ThemeIcon className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
             </Button>
-          ) : (
-            <span className="vos-mobile-header__spacer" aria-hidden />
-          )}
+            {user ? (
+              <Button
+                type="button"
+                variant={profileOpen ? 'accent' : 'ghost'}
+                size="icon-sm"
+                className="vos-mobile-header__profile"
+                aria-expanded={sheetOpen && profileOpen}
+                aria-label="Mi perfil"
+                onClick={() => {
+                  setProfileOpen(true)
+                  onSheetOpenChange(true)
+                }}
+              >
+                <User className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+              </Button>
+            ) : null}
+            {showMenuButton ? (
+              <Button
+                type="button"
+                variant={sheetOpen && !profileOpen ? 'accent' : 'ghost'}
+                size="icon-sm"
+                className="vos-mobile-header__menu"
+                aria-expanded={sheetOpen && !profileOpen}
+                aria-haspopup="dialog"
+                aria-label="Menú de módulos"
+                onClick={() => {
+                  setProfileOpen(false)
+                  onSheetOpenChange(!sheetOpen || profileOpen)
+                }}
+              >
+                <Menu className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+              </Button>
+            ) : (
+              <span className="vos-mobile-header__spacer" aria-hidden />
+            )}
+          </div>
         </div>
       </header>
 
@@ -344,7 +395,7 @@ export function MobileAppChrome({
           >
             <header className="vos-sheet__head">
               <h2 id="mobile-sheet-title" className="vos-sheet__title">
-                {companyLabel || 'Menú'}
+                {profileOpen ? 'Mi perfil' : companyLabel || 'Menú'}
               </h2>
               <Button
                 type="button"
@@ -357,7 +408,24 @@ export function MobileAppChrome({
               </Button>
             </header>
             <div className="vos-sheet__body">
-              {sheetLinks.length > 0 ? (
+              {profileOpen && user ? (
+                <div className="flex flex-col gap-3">
+                  <UserProfileCard user={user} />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    block
+                    onClick={() => {
+                      onSheetOpenChange(false)
+                      onLogout()
+                    }}
+                  >
+                    Salir
+                  </Button>
+                </div>
+              ) : null}
+              {!profileOpen && sheetLinks.length > 0 ? (
                 <ul className="m-0 flex list-none flex-col gap-2 p-0">
                   {sheetLinks.map((link) => (
                     <li key={link.view}>
@@ -375,21 +443,20 @@ export function MobileAppChrome({
                   ))}
                 </ul>
               ) : null}
-              {user ? (
+              {!profileOpen && user ? (
                 <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-3">
-                  {companyLabel ? (
-                    <p className="vos-sheet__company">{companyLabel}</p>
-                  ) : null}
-                  <p className="vos-sheet__user">
-                    {user.name}
-                    {displayUserRole(user.role) ? (
-                      <span className="text-[color-mix(in_srgb,var(--muted)_80%,transparent)]">
-                        {' '}
-                        · {displayUserRole(user.role)}
-                      </span>
-                    ) : null}
-                  </p>
-                  {compactChrome ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    block
+                    className="justify-start"
+                    onClick={() => setProfileOpen(true)}
+                  >
+                    <User className="h-4 w-4" strokeWidth={2} aria-hidden />
+                    Mi perfil · {companyLabel || user.name}
+                  </Button>
+                  {compactChrome ? null : (
                     <Button
                       type="button"
                       variant="secondary"
@@ -400,7 +467,7 @@ export function MobileAppChrome({
                       <ThemeIcon className="h-4 w-4" strokeWidth={2} aria-hidden />
                       Tema {themeLabel.toLowerCase()}
                     </Button>
-                  ) : null}
+                  )}
                   <Button
                     type="button"
                     variant="secondary"

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createSale,
-  downloadSaleInvoiceBusinessPdf,
-  downloadSaleInvoiceClientPdf,
+  downloadSaleInvoicePdf,
+  downloadSaleReceiptTxt,
   fetchProducts,
   fetchSale,
   fetchSales,
@@ -10,6 +10,7 @@ import {
   formatPurchaseLotDate,
   patchSale,
   replaceSaleLines,
+  sendSaleReceiptWhatsApp,
   type ProductRow,
   type SalesCalendarResponse,
   saleListRowLineCount,
@@ -317,14 +318,17 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   )
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [calendarError, setCalendarError] = useState<string | null>(null)
-  const [cashCloseDate, setCashCloseDate] = useState<string | null>(null)
+  const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null)
+  const [dayPanelRefresh, setDayPanelRefresh] = useState(0)
+  const dayPanelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const date = consumePendingSalesDate()
     if (!date) return
     setFilterDateFrom(date)
     setFilterDateTo(date)
-    setViewMode('list')
+    setSelectedDayDate(date)
+    setViewMode('calendar')
     setPage(1)
     const [y, m] = date.split('-').map(Number)
     if (y && m) {
@@ -332,6 +336,14 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       setCalendarMonth(m)
     }
   }, [])
+
+  useEffect(() => {
+    if (!selectedDayDate) return
+    const t = window.setTimeout(() => {
+      dayPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+    return () => window.clearTimeout(t)
+  }, [selectedDayDate])
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -343,6 +355,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saleNotice, setSaleNotice] = useState<string | null>(null)
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false)
   const [saveBannerVisible, setSaveBannerVisible] = useState(false)
   const saveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [headerBaseline, setHeaderBaseline] = useState<string | null>(null)
@@ -508,6 +521,41 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     [loadDetail],
   )
 
+  const openCreateForDay = useCallback((dateKey: string) => {
+    setCreating(true)
+    setSelectedId(null)
+    setDetail(null)
+    setDetailError(null)
+    setSaveError(null)
+    setHeaderBaseline(null)
+    setLinesBaseline(null)
+    setSaleDetailOpen(true)
+    setAuditOpen(false)
+    setAdvancedMode(false)
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const local = `${dateKey}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+    setHeader({
+      saleDateLocal: local,
+      paymentMethod: '',
+      mesa: '',
+      customerPhone: '',
+      notes: '',
+      source: 'MANUAL',
+    })
+    setLineRows([emptyLine()])
+    setProductSearch('')
+  }, [])
+
+  const refreshDayAndCalendar = useCallback(() => {
+    if (selectedDayDate) setDayPanelRefresh((k) => k + 1)
+    if (viewMode === 'calendar') {
+      void fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
+        .then(setCalendarData)
+        .catch(() => {})
+    }
+  }, [baseUrl, calendarMonth, calendarYear, selectedDayDate, viewMode])
+
   const openCreate = useCallback(() => {
     setCreating(true)
     setSelectedId(null)
@@ -633,12 +681,13 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       setList(res.data)
       setMeta(res.meta)
       openSale(created.id)
+      refreshDayAndCalendar()
       showSavedBanner()
       if (created.whatsappSent) {
         setSaleNotice('Comprobante enviado por WhatsApp al cliente.')
       } else if (phone && created.whatsappConfigured === false) {
         setSaleNotice(
-          'Venta guardada. Configure WHATSAPP_ACCESS_TOKEN en el servidor para enviar WhatsApp.',
+          'Venta guardada. Configure TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN (o WHATSAPP_ACCESS_TOKEN) en el servidor para enviar WhatsApp.',
         )
       } else if (phone) {
         setSaleNotice(
@@ -652,7 +701,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     } finally {
       setSaving(false)
     }
-  }, [baseUrl, header, lineRows, openSale, salesListQuery, showSavedBanner])
+  }, [baseUrl, header, lineRows, openSale, refreshDayAndCalendar, salesListQuery, showSavedBanner])
 
   const buildLinePayload = useCallback(() => {
     const payloadLines = []
@@ -731,6 +780,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       })
       setList(res.data)
       setMeta(res.meta)
+      refreshDayAndCalendar()
       showSavedBanner()
     } catch (e) {
       setSaveError((e as Error).message)
@@ -747,10 +797,49 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     isLinesDirty,
     isSaleDirty,
     page,
+    refreshDayAndCalendar,
     salesListQuery,
     saveNewSale,
     selectedId,
     showSavedBanner,
+  ])
+
+  const sendWhatsAppReceipt = useCallback(async () => {
+    if (!selectedId || creating) return
+    const phone = header?.customerPhone.trim() ?? ''
+    if (!phone) {
+      setSaleNotice('Agregá el celular del cliente y guardá antes de enviar WhatsApp.')
+      return
+    }
+    if (isHeaderDirty || isLinesDirty) {
+      setSaleNotice('Guardá los cambios antes de enviar el comprobante por WhatsApp.')
+      return
+    }
+    setSendingWhatsApp(true)
+    setSaleNotice(null)
+    try {
+      const result = await sendSaleReceiptWhatsApp(baseUrl, selectedId)
+      if (result.whatsappSent) {
+        setSaleNotice('Comprobante enviado por WhatsApp al cliente.')
+      } else if (result.whatsappConfigured === false) {
+        setSaleNotice(
+          'WhatsApp no configurado en el servidor (TWILIO_* o WHATSAPP_ACCESS_TOKEN).',
+        )
+      } else {
+        setSaleNotice('No se pudo enviar WhatsApp. Verificá el número del cliente.')
+      }
+    } catch (e) {
+      setSaveError((e as Error).message)
+    } finally {
+      setSendingWhatsApp(false)
+    }
+  }, [
+    baseUrl,
+    creating,
+    header?.customerPhone,
+    isHeaderDirty,
+    isLinesDirty,
+    selectedId,
   ])
 
   const updateLine = useCallback(
@@ -846,8 +935,8 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             <div>
               <h2 className="page-title">Ventas</h2>
               <p className="muted small">
-                Registro de transacciones por día. Usá el calendario para ver el
-                detalle diario.
+                Calendario mensual: elegí un día para ver todas las comandas, su
+                detalle y editarlas.
               </p>
             </div>
             <div
@@ -1009,7 +1098,8 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           </p>
         )}
 
-        {viewMode === 'calendar' && !cashCloseDate ? (
+        {viewMode === 'calendar' ? (
+          <>
           <MonthCalendar
             year={calendarYear}
             month={calendarMonth}
@@ -1017,6 +1107,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             loading={calendarLoading}
             error={calendarError}
             countLabel="venta"
+            selectedDate={selectedDayDate}
             onPrevMonth={() => {
               const prev = new Date(calendarYear, calendarMonth - 2, 1)
               setCalendarYear(prev.getFullYear())
@@ -1035,19 +1126,31 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             onDayClick={(date) => {
               setFilterDateFrom(date)
               setFilterDateTo(date)
-              setCashCloseDate(date)
+              setSelectedDayDate((prev) => (prev === date ? null : date))
               setPage(1)
-              setViewMode('list')
             }}
           />
-        ) : null}
 
-        {cashCloseDate ? (
-          <CashClosePanel
-            baseUrl={baseUrl}
-            date={cashCloseDate}
-            onClose={() => setCashCloseDate(null)}
-          />
+          {!selectedDayDate ? (
+            <p className="muted small month-calendar-hint">
+              Hacé clic en un día del calendario para ver todas las ventas, editarlas
+              o crear una nueva.
+            </p>
+          ) : null}
+
+          {selectedDayDate ? (
+            <div ref={dayPanelRef} className="sales-day-panel-anchor">
+            <CashClosePanel
+              baseUrl={baseUrl}
+              date={selectedDayDate}
+              refreshKey={dayPanelRefresh}
+              onClose={() => setSelectedDayDate(null)}
+              onEditSale={openSale}
+              onCreateSale={() => openCreateForDay(selectedDayDate)}
+            />
+            </div>
+          ) : null}
+          </>
         ) : null}
 
         {viewMode === 'list' ? (
@@ -1321,31 +1424,42 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                         <>
                           <Button
                             type="button"
-                            variant="secondary"
+                            variant="accent"
                             size="sm"
-                            onClick={() =>
-                              void downloadSaleInvoiceClientPdf(
-                                baseUrl,
-                                selectedId,
-                                detail?.code ?? undefined,
-                              )
+                            disabled={
+                              sendingWhatsApp || !header.customerPhone.trim()
                             }
+                            onClick={() => void sendWhatsAppReceipt()}
                           >
-                            PDF Cliente
+                            {sendingWhatsApp ? 'Enviando…' : 'Enviar WhatsApp'}
                           </Button>
                           <Button
                             type="button"
                             variant="secondary"
                             size="sm"
                             onClick={() =>
-                              void downloadSaleInvoiceBusinessPdf(
+                              void downloadSaleReceiptTxt(
                                 baseUrl,
                                 selectedId,
                                 detail?.code ?? undefined,
                               )
                             }
                           >
-                            PDF Negocio
+                            Descargar TXT
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              void downloadSaleInvoicePdf(
+                                baseUrl,
+                                selectedId,
+                                detail?.code ?? undefined,
+                              )
+                            }
+                          >
+                            Descargar PDF
                           </Button>
                         </>
                       ) : null}
@@ -1426,26 +1540,44 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                         </ul>
                       </header>
 
-                      {creating ? (
-                        <label className="field sales-invoice-phone">
-                          <span>Celular cliente (WhatsApp) *</span>
-                          <input
-                            type="tel"
-                            inputMode="tel"
-                            autoComplete="tel"
-                            value={header.customerPhone}
-                            onChange={(e) =>
-                              setHeader({
-                                ...header,
-                                customerPhone: e.target.value,
-                              })
-                            }
-                            placeholder="300 123 4567"
-                          />
-                          <span className="muted small">
-                            Al guardar se envía el comprobante por WhatsApp.
-                          </span>
-                        </label>
+                      {header ? (
+                        <>
+                          <label className="field sales-invoice-phone">
+                            <span>
+                              Celular cliente (WhatsApp)
+                              {creating ? ' *' : ''}
+                            </span>
+                            <input
+                              type="tel"
+                              inputMode="tel"
+                              autoComplete="tel"
+                              value={header.customerPhone}
+                              onChange={(e) =>
+                                setHeader({
+                                  ...header,
+                                  customerPhone: e.target.value,
+                                })
+                              }
+                              placeholder="300 123 4567"
+                            />
+                            <span className="muted small">
+                              {creating
+                                ? 'Al guardar se envía el comprobante por WhatsApp.'
+                                : 'Guardá la venta y usá «Enviar WhatsApp» para reenviar el comprobante.'}
+                            </span>
+                          </label>
+                          <label className="field sales-invoice-comment">
+                            <span>Comentario</span>
+                            <textarea
+                              rows={2}
+                              value={header.notes}
+                              onChange={(e) =>
+                                setHeader({ ...header, notes: e.target.value })
+                              }
+                              placeholder="Ej. mesa, preferencias, observaciones del pedido…"
+                            />
+                          </label>
+                        </>
                       ) : null}
 
                       <div className="sales-invoice__add">
@@ -1577,7 +1709,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                       <footer className="sales-invoice__footer">
                         {header.notes.trim() ? (
                           <p className="sales-invoice__notes">
-                            <span className="sales-invoice__notes-label">Notas</span>
+                            <span className="sales-invoice__notes-label">Comentario</span>
                             {header.notes.trim()}
                           </p>
                         ) : null}
@@ -1963,13 +2095,14 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                       ) : null}
                     </label>
                     <label className="field">
-                      <span>Notas</span>
+                      <span>Comentario</span>
                       <textarea
                         rows={2}
                         value={header.notes}
                         onChange={(e) =>
                           setHeader({ ...header, notes: e.target.value })
                         }
+                        placeholder="Observaciones de la venta…"
                       />
                     </label>
                   </div>

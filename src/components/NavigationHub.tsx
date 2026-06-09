@@ -1,4 +1,5 @@
 import { SALES_FLOOR_ONLY } from '../appScope'
+import { BRAND_NAME } from '../lib/brand'
 import type { NavGroupId } from '../navTypes'
 
 export type HubTargetView =
@@ -275,7 +276,7 @@ export function NavigationHub({
 
   return (
     <div className="nav-hub nav-hub--dashboard">
-      <h1 className="sr-only">vos.ai — inicio</h1>
+      <h1 className="sr-only">{BRAND_NAME} — inicio</h1>
 
       <div className="nav-hub__sections">
         {sections.map((section) => (

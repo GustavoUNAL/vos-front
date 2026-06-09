@@ -20,6 +20,8 @@ type MonthCalendarProps = {
   onNextMonth: () => void
   onToday: () => void
   onDayClick: (date: string) => void
+  /** Resalta el día seleccionado (YYYY-MM-DD). */
+  selectedDate?: string | null
 }
 
 const MONTH_NAMES = [
@@ -65,6 +67,7 @@ export function MonthCalendar({
   onNextMonth,
   onToday,
   onDayClick,
+  selectedDate = null,
 }: MonthCalendarProps) {
   const dayMap = useMemo(
     () => new Map(days.map((d) => [d.date, d])),
@@ -151,6 +154,7 @@ export function MonthCalendar({
           const count = cell.data?.count ?? 0
           const hasData = count > 0
           const isToday = cell.date === todayKey
+          const isSelected = selectedDate === cell.date
           const isPastOrToday = cell.date <= todayKey
           const showZero =
             showZeroForPastDays && isPastOrToday && !hasData
@@ -163,6 +167,7 @@ export function MonthCalendar({
                 hasData ? 'month-calendar__day--has-data' : '',
                 showZero ? 'month-calendar__day--no-sales' : '',
                 isToday ? 'month-calendar__day--today' : '',
+                isSelected ? 'month-calendar__day--selected' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
