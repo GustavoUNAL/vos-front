@@ -13,6 +13,10 @@ import {
   type NavigationPayload,
 } from './api'
 import { ensureBackendProbe, isBackendDown, resetBackendProbe } from './backendHealth'
+import { readApiCache, writeApiCache } from './lib/apiCache'
+
+const NAVIGATION_CACHE_KEY = 'app:navigation'
+const NAVIGATION_TTL_MS = 30 * 60 * 1000
 
 type NavigationContextValue = {
   navigation: NavigationPayload | null
@@ -39,18 +43,27 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     const base = getApiBase()
 
     async function load() {
-      setLoading(true)
+      const cached = readApiCache<NavigationPayload | null>(NAVIGATION_CACHE_KEY)
+      if (cached) {
+        setNavigation(cached.data)
+        setLoading(false)
+        setApiReady(true)
+      } else {
+        setLoading(true)
+        setApiReady(false)
+      }
       setError(null)
-      setApiReady(false)
 
       const up = await ensureBackendProbe(base)
       if (cancelled) return
 
       if (!up) {
-        setNavigation(null)
-        setError(
-          'API apagado o inaccesible. Levantá vos-api en http://localhost:3000 y recargá.',
-        )
+        if (!cached) {
+          setNavigation(null)
+          setError(
+            'API apagado o inaccesible. Levantá vos-api en http://localhost:3000 y recargá.',
+          )
+        }
         setLoading(false)
         setApiReady(true)
         return
@@ -58,9 +71,12 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
       try {
         const n = await fetchNavigation(base)
-        if (!cancelled) setNavigation(n)
-      } catch (e) {
         if (!cancelled) {
+          writeApiCache(NAVIGATION_CACHE_KEY, n, NAVIGATION_TTL_MS)
+          setNavigation(n)
+        }
+      } catch (e) {
+        if (!cancelled && !cached) {
           setNavigation(null)
           setError(e instanceof Error ? e.message : 'Error al cargar navegación')
         }

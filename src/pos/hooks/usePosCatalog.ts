@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
-import {
-  fetchProductCategories,
-  fetchProducts,
-  type CategoryRef,
-  type ProductRow,
-} from '../../api'
+import { useCallback, useMemo } from 'react'
+import type { CategoryRef, ProductRow } from '../../api'
 import { isBackendDown } from '../../backendHealth'
+import { useStaleCache } from '../../hooks/useStaleCache'
+import {
+  fetchPosActiveCatalog,
+  POS_ACTIVE_CATALOG_CACHE_KEY,
+  POS_ACTIVE_CATALOG_TTL_MS,
+  type PosActiveCatalog,
+} from '../../lib/posCatalogLoader'
 import { getDemoCatalog } from '../services/demoCatalog'
 
 function isApiUnreachableError(e: unknown): boolean {
@@ -16,71 +18,51 @@ function isApiUnreachableError(e: unknown): boolean {
   return false
 }
 
-export function usePosCatalog(baseUrl: string) {
-  const [products, setProducts] = useState<ProductRow[]>([])
-  const [categories, setCategories] = useState<CategoryRef[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [usingDemoCatalog, setUsingDemoCatalog] = useState(false)
+function demoCatalogPayload(): PosActiveCatalog {
+  const demo = getDemoCatalog()
+  return {
+    categories: demo.categories,
+    products: demo.products,
+    source: 'demo',
+  }
+}
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    setUsingDemoCatalog(false)
-    if (isBackendDown()) {
-      const demo = getDemoCatalog()
-      setCategories(demo.categories)
-      setProducts(demo.products)
-      setUsingDemoCatalog(true)
-      setError(null)
-      setLoading(false)
-      return
-    }
+export function usePosCatalog(baseUrl: string) {
+  const fetcher = useCallback(async (): Promise<PosActiveCatalog> => {
+    if (isBackendDown()) return demoCatalogPayload()
     try {
-      const cats = await fetchProductCategories(baseUrl)
-      const all: ProductRow[] = []
-      let page = 1
-      while (page <= 50) {
-        const res = await fetchProducts(baseUrl, {
-          page,
-          limit: 100,
-          active: true,
-        })
-        all.push(...res.data)
-        if (!res.meta.hasNextPage) break
-        page++
-      }
-      setCategories(cats)
-      setProducts(all)
-      if (all.length === 0) {
-        setError(
-          'No hay productos activos en la carta. Activá productos en «Productos a la venta».',
-        )
-      }
+      return await fetchPosActiveCatalog(baseUrl)
     } catch (e) {
-      if (isApiUnreachableError(e) || isBackendDown()) {
-        const demo = getDemoCatalog()
-        setCategories(demo.categories)
-        setProducts(demo.products)
-        setUsingDemoCatalog(true)
-        setError(null)
-        return
-      }
-      setProducts([])
-      setCategories([])
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'No se pudo cargar el catálogo. Revisá la conexión con el API.',
-      )
-    } finally {
-      setLoading(false)
+      if (isApiUnreachableError(e) || isBackendDown()) return demoCatalogPayload()
+      throw e
     }
   }, [baseUrl])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const { data, loading, refreshing, error, reload } = useStaleCache(
+    POS_ACTIVE_CATALOG_CACHE_KEY,
+    fetcher,
+    { ttlMs: POS_ACTIVE_CATALOG_TTL_MS },
+  )
 
-  return { products, categories, loading, error, usingDemoCatalog, reload: load }
+  const products = data?.products ?? []
+  const categories = data?.categories ?? []
+  const usingDemoCatalog = data?.source === 'demo'
+
+  const catalogError = useMemo(() => {
+    if (error) return error
+    if (!loading && !refreshing && products.length === 0 && !usingDemoCatalog) {
+      return 'No hay productos activos en la carta. Activá productos en «Productos a la venta».'
+    }
+    return null
+  }, [error, loading, refreshing, products.length, usingDemoCatalog])
+
+  return {
+    products: products as ProductRow[],
+    categories: categories as CategoryRef[],
+    loading,
+    refreshing,
+    error: catalogError,
+    usingDemoCatalog,
+    reload,
+  }
 }

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { formatCOP } from '../../lib/money'
 import {
   collectPlatformShopOrderPayment,
-  fetchPlatformShopOrders,
   updatePlatformShopOrderStatus,
   type PlatformShopOrder,
 } from '../../../api'
+import { useShopOrdersFeed } from '../../hooks/useShopOrdersFeed'
 import { PosErrorBanner } from '../ui/PosErrorBanner'
 import { PosLoader } from '../ui/PosLoader'
 
@@ -21,42 +21,26 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export function ShopOrdersView({ baseUrl, onBack }: Props) {
-  const [orders, setOrders] = useState<PlatformShopOrder[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    orders,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = useShopOrdersFeed(baseUrl)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [payOrder, setPayOrder] = useState<PlatformShopOrder | null>(null)
   const [payMethod, setPayMethod] = useState<'CASH' | 'NEQUI' | 'BREB'>('CASH')
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const rows = await fetchPlatformShopOrders(baseUrl)
-      setOrders(
-        rows.filter((o) => !['PAID', 'CANCELLED', 'EXPIRED'].includes(o.status)),
-      )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error cargando pedidos')
-    } finally {
-      setLoading(false)
-    }
-  }, [baseUrl])
-
-  useEffect(() => {
-    void refresh()
-    const t = window.setInterval(() => void refresh(), 12_000)
-    return () => window.clearInterval(t)
-  }, [refresh])
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const run = async (id: string, fn: () => Promise<void>) => {
     setBusyId(id)
-    setError(null)
+    setActionError(null)
     try {
       await fn()
-      await refresh()
+      await refresh(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error')
+      setActionError(e instanceof Error ? e.message : 'Error')
     } finally {
       setBusyId(null)
     }
@@ -70,6 +54,10 @@ export function ShopOrdersView({ baseUrl, onBack }: Props) {
     })
   }
 
+  const handleRefresh = useCallback(() => {
+    void refresh(true)
+  }, [refresh])
+
   return (
     <div className="pos-screen pos-screen--shop-orders">
       <header className="pos-topbar">
@@ -77,6 +65,7 @@ export function ShopOrdersView({ baseUrl, onBack }: Props) {
           <h1 className="pos-topbar__title">Pedidos tienda</h1>
           <p className="pos-topbar__sub muted">
             Recibidos desde el carrito en línea
+            {refreshing ? ' · actualizando…' : ' · en vivo'}
           </p>
         </div>
         <div className="pos-topbar__actions">
@@ -89,7 +78,7 @@ export function ShopOrdersView({ baseUrl, onBack }: Props) {
           >
             Ver tienda
           </button>
-          <button type="button" className="pos-btn pos-btn--ghost" onClick={() => void refresh()}>
+          <button type="button" className="pos-btn pos-btn--ghost" onClick={handleRefresh}>
             Actualizar
           </button>
           <button type="button" className="pos-btn pos-btn--ghost" onClick={onBack}>
@@ -98,7 +87,7 @@ export function ShopOrdersView({ baseUrl, onBack }: Props) {
         </div>
       </header>
 
-      <PosErrorBanner message={error ?? ''} />
+      <PosErrorBanner message={actionError ?? error ?? ''} />
 
       {loading && orders.length === 0 ? <PosLoader label="Cargando pedidos…" /> : null}
 

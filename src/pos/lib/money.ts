@@ -1,4 +1,4 @@
-export const DEFAULT_TAX_RATE = 0.08
+export const DEFAULT_TAX_RATE = 0
 
 export function parseMoney(v: string | number | null | undefined): number {
   if (v == null || v === '') return 0

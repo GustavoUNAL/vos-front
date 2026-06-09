@@ -1,4 +1,6 @@
+import { BarChart3 } from 'lucide-react'
 import { useEffect, useId, useState, type ReactNode } from 'react'
+import { Button } from './ui/button'
 import { createPortal } from 'react-dom'
 import {
   sectionSummaryHeading,
@@ -53,17 +55,19 @@ export function SectionSummaryDeck({
       )}
 
       {showDetailTrigger && (
-        <button
+        <Button
           type="button"
-          className="btn-summary-detail btn-summary-detail--magnifier"
+          variant="secondary"
+          size="icon-sm"
+          className="btn-summary-detail shrink-0"
           aria-expanded={detailOpen}
           aria-controls={detailDialogId}
           aria-label={`Ver resumen: ${title}`}
           title="Ver resumen"
           onClick={() => setDetailOpen(true)}
         >
-          <span className="btn-summary-detail__icon" aria-hidden />
-        </button>
+          <BarChart3 className="h-[1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+        </Button>
       )}
 
       {showDetailTrigger &&

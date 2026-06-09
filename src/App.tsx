@@ -11,6 +11,7 @@ import {
   setCompanyId,
   type AuthUser,
 } from './api'
+import { inaugurationDateForUser } from './config/systemSettings'
 import { ProductsManager } from './components/ProductsManager'
 import { HomeDashboard } from './components/HomeDashboard'
 import { ShopAdminView } from './components/ShopAdminView'
@@ -44,6 +45,7 @@ import {
   type MobileChromeView,
 } from './components/MobileAppChrome'
 import { UserProfileCard } from './components/UserProfileCard'
+import { VosAssistantWidget } from './components/VosAssistantWidget'
 import type { NavGroupId } from './navTypes'
 import {
   setPendingPurchasesDate,
@@ -461,9 +463,31 @@ export default function App() {
       setAuthError('Sesión expirada. Iniciá sesión nuevamente.')
       navigateToLogin()
     }
+    const onTenantDenied = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ message?: string }>).detail
+      const msg = detail?.message?.trim()
+      setAuthError(
+        msg ||
+          'Sin acceso a esta empresa. Volvé a iniciar sesión o elegí la empresa desde el panel admin.',
+      )
+      if (user?.isPlatformAdmin) {
+        void exitToPlatformAdmin(baseUrl)
+          .then((res) => {
+            setUser(res.user)
+            navigateToPlatform(true)
+          })
+          .catch(() => navigateToLogin())
+      } else {
+        navigateToLogin()
+      }
+    }
     window.addEventListener('auth:logout', onLogout)
-    return () => window.removeEventListener('auth:logout', onLogout)
-  }, [])
+    window.addEventListener('auth:tenant-denied', onTenantDenied)
+    return () => {
+      window.removeEventListener('auth:logout', onLogout)
+      window.removeEventListener('auth:tenant-denied', onTenantDenied)
+    }
+  }, [baseUrl, user?.isPlatformAdmin])
 
   useEffect(() => {
     if (user) return
@@ -528,8 +552,8 @@ export default function App() {
 
   if (authInitializing) {
     return (
-      <div className="login-shell" aria-busy="true" aria-label="Cargando">
-        <BrandMark size="lg" showTagline />
+      <div className="app-initial-boot" aria-busy="true" aria-label="Cargando VOS AI">
+        <BrandMark size="lg" className="brand-mark--splash" />
       </div>
     )
   }
@@ -564,7 +588,11 @@ export default function App() {
     return null
   }
 
-  if (user.isPlatformAdmin && user.platformView) {
+  const showPlatformAdmin =
+    user.isPlatformAdmin &&
+    (user.platformView === true || !user.companyId?.trim())
+
+  if (showPlatformAdmin) {
     return (
       <PlatformAdminView
         baseUrl={baseUrl}
@@ -595,7 +623,7 @@ export default function App() {
 
   return (
     <div
-      className={`app-shell${isMobileNav ? ' app-shell--mobile-dock' : ''}${isMobileNav && PLATFORM_MODE ? ' app-shell--mobile-compact' : ''}`}
+      className={`app-shell${isMobileNav ? ' app-shell--mobile-dock' : ''}`}
     >
       <a href="#main-content" className="skip-to-main">
         Saltar al contenido
@@ -670,6 +698,7 @@ export default function App() {
             <HomeDashboard
               baseUrl={baseUrl}
               companyName={user?.companyName}
+              inaugurationDate={inaugurationDateForUser(user)}
               onOpenSales={(date) => {
                 setPendingSalesDate(date)
                 setView('sales')
@@ -698,10 +727,21 @@ export default function App() {
           {!SALES_FLOOR_ONLY && view === 'inventory' && (
             <InventoryManager baseUrl={baseUrl} />
           )}
-          {view === 'sales' && <SalesManager baseUrl={baseUrl} />}
+          {view === 'sales' && (
+            <SalesManager
+              baseUrl={baseUrl}
+              inaugurationDate={inaugurationDateForUser(user)}
+              companyName={user.companyName}
+            />
+          )}
           {!SALES_FLOOR_ONLY && view === 'pos' && <PosApp />}
           {(PLATFORM_MODE || (!SALES_FLOOR_ONLY && !PLATFORM_MODE)) &&
-            view === 'purchases' && <PurchaseLotsView baseUrl={baseUrl} />}
+            view === 'purchases' && (
+              <PurchaseLotsView
+                baseUrl={baseUrl}
+                inaugurationDate={inaugurationDateForUser(user)}
+              />
+            )}
           {PLATFORM_MODE && view === 'staff' && (
             <StaffManager baseUrl={baseUrl} />
           )}
@@ -1187,6 +1227,7 @@ export default function App() {
         </aside>
         ) : null}
       </div>
+      {PLATFORM_MODE ? <VosAssistantWidget baseUrl={baseUrl} /> : null}
     </div>
   )
 }

@@ -19,8 +19,6 @@ type Props = {
 
 export function CartPanel({
   lines,
-  subtotalCOP,
-  taxCOP,
   totalCOP,
   tableName,
   onQty,
@@ -127,14 +125,6 @@ export function CartPanel({
 
       <footer className="pos-cart__footer">
         <dl className="pos-totals">
-          <div>
-            <dt>Subtotal</dt>
-            <dd>{formatCOP(subtotalCOP)}</dd>
-          </div>
-          <div>
-            <dt>Impuestos</dt>
-            <dd>{formatCOP(taxCOP)}</dd>
-          </div>
           <div className="pos-totals__grand">
             <dt>Total</dt>
             <dd>
@@ -144,7 +134,7 @@ export function CartPanel({
         </dl>
         <button
           type="button"
-          className="pos-btn pos-btn--accent pos-btn--block pos-btn--xl"
+          className="pos-btn pos-btn--primary pos-btn--block pos-btn--xl"
           disabled={lines.length === 0}
           onClick={onPay}
         >

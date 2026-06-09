@@ -1,5 +1,7 @@
 import { useCallback, useEffect } from 'react'
+import { readApiCache, writeApiCache } from '../../lib/apiCache'
 import {
+  cancelPosOrder,
   closeTableAccount,
   createPosTable,
   fetchPosOrder,
@@ -15,19 +17,29 @@ import type { CreateTablePayload, UpdateTablePayload } from '../types'
 import { usePosStore } from '../store/posStore'
 import type { PosTable } from '../types'
 
+const POS_TABLES_CACHE_KEY = 'pos:tables'
+const POS_TABLES_TTL_MS = 90 * 1000
+
 export function usePosTables(baseUrl: string) {
   const { state, dispatch, setTables, navigate, setActiveOrder } = usePosStore()
 
-  const refresh = useCallback(async () => {
-    dispatch({ type: 'SET_TABLES_LOADING', loading: true })
+  const refresh = useCallback(async (force = false) => {
+    const cached = !force ? readApiCache<PosTable[]>(POS_TABLES_CACHE_KEY) : null
+    if (cached) {
+      setTables(cached.data)
+      dispatch({ type: 'SET_TABLES_LOADING', loading: false })
+    } else {
+      dispatch({ type: 'SET_TABLES_LOADING', loading: true })
+    }
     dispatch({ type: 'SET_TABLES_ERROR', error: null })
     try {
       await probePosApi(baseUrl)
       dispatch({ type: 'SET_DEMO_MODE', demo: isPosDemoMode() })
       const tables = await fetchPosTables(baseUrl)
+      writeApiCache(POS_TABLES_CACHE_KEY, tables, POS_TABLES_TTL_MS)
       setTables(tables)
     } catch (e) {
-      if (!isPosDemoMode()) {
+      if (!cached && !isPosDemoMode()) {
         dispatch({
           type: 'SET_TABLES_ERROR',
           error: e instanceof Error ? e.message : 'Error al cargar mesas',
@@ -39,8 +51,10 @@ export function usePosTables(baseUrl: string) {
   }, [baseUrl, dispatch, setTables])
 
   useEffect(() => {
+    const cached = readApiCache<PosTable[]>(POS_TABLES_CACHE_KEY)
+    if (cached) setTables(cached.data)
     void refresh()
-  }, [refresh])
+  }, [refresh, setTables])
 
   const openAccount = useCallback(
     async (table: PosTable) => {
@@ -82,23 +96,55 @@ export function usePosTables(baseUrl: string) {
     [baseUrl, dispatch, navigate, openAccount, setActiveOrder],
   )
 
-  const closeTable = useCallback(
+  const closeTableWithoutPay = useCallback(
     async (table: PosTable) => {
-      if (table.orderId) {
-        navigate('payment', table.id)
+      if (!table.orderId) {
+        try {
+          await closeTableAccount(baseUrl, table.id)
+          await refresh()
+        } catch (e) {
+          dispatch({
+            type: 'SET_TABLES_ERROR',
+            error: e instanceof Error ? e.message : 'No se pudo cerrar la mesa',
+          })
+        }
         return
       }
       try {
-        await closeTableAccount(baseUrl, table.id)
+        await cancelPosOrder(baseUrl, table.orderId)
+        setActiveOrder(null)
         await refresh()
       } catch (e) {
         dispatch({
           type: 'SET_TABLES_ERROR',
-          error: e instanceof Error ? e.message : 'No se pudo cerrar la mesa',
+          error: e instanceof Error ? e.message : 'No se pudo cancelar la cuenta',
         })
       }
     },
-    [baseUrl, dispatch, navigate, refresh],
+    [baseUrl, dispatch, refresh, setActiveOrder],
+  )
+
+  const closeTableWithPay = useCallback(
+    async (table: PosTable) => {
+      if (!table.orderId) {
+        await openAccount(table)
+        return
+      }
+      dispatch({ type: 'SET_ORDER_LOADING', loading: true })
+      try {
+        const order = await fetchPosOrder(baseUrl, table.orderId)
+        setActiveOrder(order)
+        navigate('order', table.id)
+      } catch (e) {
+        dispatch({
+          type: 'SET_ORDER_ERROR',
+          error: e instanceof Error ? e.message : 'No se pudo cargar la cuenta',
+        })
+      } finally {
+        dispatch({ type: 'SET_ORDER_LOADING', loading: false })
+      }
+    },
+    [baseUrl, dispatch, navigate, openAccount, setActiveOrder],
   )
 
   const toggleReserve = useCallback(
@@ -160,7 +206,8 @@ export function usePosTables(baseUrl: string) {
     refresh,
     openAccount,
     enterAccount,
-    closeTable,
+    closeTableWithoutPay,
+    closeTableWithPay,
     toggleReserve,
     saveTable,
     addTable,

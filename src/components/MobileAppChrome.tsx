@@ -2,6 +2,7 @@ import { Home, Menu, Moon, Sun, User, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { AuthUser } from '../api'
 import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
+import { BRAND_NAME } from '../lib/brand'
 import { displayCompanyName } from '../lib/displayLabels'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
@@ -26,7 +27,7 @@ export type MobileChromeView =
 const SCREEN_TITLE: Record<MobileChromeView, string> = {
   home: 'Inicio',
   menu: 'Inicio',
-  products: 'Productos',
+  products: 'Productos a la venta',
   recipes: 'Recetas',
   inventory: 'Inventario',
   sales: 'Ventas',
@@ -48,11 +49,11 @@ type SheetLink = {
 const PLATFORM_SHEET_LINKS: SheetLink[] = [
   { view: 'home', label: 'Inicio' },
   { view: 'products', label: 'Productos a la venta' },
-  { view: 'inventory', label: 'Inventario' },
-  { view: 'sales', label: 'Ventas' },
   { view: 'pos', label: 'POS · Mesas' },
-  { view: 'shop', label: 'Tienda en línea' },
+  { view: 'sales', label: 'Ventas' },
   { view: 'purchases', label: 'Compras' },
+  { view: 'inventory', label: 'Inventario' },
+  { view: 'shop', label: 'Tienda en línea' },
   { view: 'staff', label: 'Personal' },
   { view: 'analytics', label: 'Análisis financiero' },
 ]
@@ -60,11 +61,11 @@ const PLATFORM_SHEET_LINKS: SheetLink[] = [
 const FULL_SHEET_LINKS: SheetLink[] = [
   { view: 'menu', label: 'Inicio' },
   { view: 'products', label: 'Productos a la venta' },
+  { view: 'pos', label: 'POS · Mesas' },
+  { view: 'sales', label: 'Ventas' },
+  { view: 'purchases', label: 'Compras' },
   { view: 'recipes', label: 'Recetas' },
   { view: 'inventory', label: 'Inventario' },
-  { view: 'sales', label: 'Ventas' },
-  { view: 'pos', label: 'POS · Mesas' },
-  { view: 'purchases', label: 'Compras' },
   { view: 'staff', label: 'Personal' },
   { view: 'analytics', label: 'Análisis financiero' },
   { view: 'costs', label: 'Costos' },
@@ -221,7 +222,7 @@ export function MobileAppChrome({
     : SALES_FLOOR_ONLY
       ? DOCK_TABS_SALES
       : DOCK_TABS_FULL
-  const showDock = !PLATFORM_MODE && dockTabs.length > 0
+  const showDock = dockTabs.length > 0
 
   const sheetLinks: SheetLink[] = PLATFORM_MODE
     ? PLATFORM_SHEET_LINKS
@@ -234,8 +235,12 @@ export function MobileAppChrome({
 
   const companyLabel = displayCompanyName(user?.companyName)
   const showMenuButton = sheetLinks.length > 0 || Boolean(user)
-  const headerTitle = SCREEN_TITLE[view]
   const homeView: MobileChromeView = PLATFORM_MODE ? 'home' : 'menu'
+  const isHomeScreen = view === homeView
+  const brandLine = companyLabel
+    ? `${BRAND_NAME} · ${companyLabel}`
+    : BRAND_NAME
+  const headerTitle = isHomeScreen ? brandLine : SCREEN_TITLE[view]
 
   useEffect(() => {
     if (!sheetOpen) setProfileOpen(false)
@@ -270,59 +275,82 @@ export function MobileAppChrome({
 
   return (
     <>
-      <header className="vos-mobile-header">
+      <header
+        className={cn(
+          'vos-mobile-header',
+          showDock && 'vos-mobile-header--dock',
+          isHomeScreen && 'vos-mobile-header--home-brand',
+        )}
+      >
         <div className="vos-mobile-header__bar vos-mobile-header__bar--actions">
           <div className="vos-mobile-header__leading">
-            <Button
-              type="button"
-              variant={view === homeView ? 'accent' : 'ghost'}
-              size="icon-sm"
-              className="vos-mobile-header__home"
-              aria-label="Inicio"
-              aria-current={view === homeView ? 'page' : undefined}
-              onClick={() => {
-                if (onHome) onHome()
-                else onNavigate(homeView)
-              }}
-            >
-              <Home className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
-            </Button>
-          </div>
-
-          <h1 className="vos-mobile-header__title">{headerTitle}</h1>
-
-          <div className="vos-mobile-header__trailing">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="vos-mobile-header__theme"
-              aria-label={`Cambiar a tema ${themeLabel.toLowerCase()}`}
-              onClick={onToggleTheme}
-            >
-              <ThemeIcon className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
-            </Button>
-            {user ? (
+            {showDock ? (
+              <span className="vos-mobile-header__spacer" aria-hidden />
+            ) : (
               <Button
                 type="button"
-                variant={profileOpen ? 'accent' : 'ghost'}
+                variant={view === homeView ? 'accent' : 'ghost'}
                 size="icon-sm"
-                className="vos-mobile-header__profile"
-                aria-expanded={sheetOpen && profileOpen}
-                aria-label="Mi perfil"
+                className="vos-mobile-header__home"
+                aria-label="Inicio"
+                aria-current={view === homeView ? 'page' : undefined}
                 onClick={() => {
-                  setProfileOpen(true)
-                  onSheetOpenChange(true)
+                  if (onHome) onHome()
+                  else onNavigate(homeView)
                 }}
               >
-                <User className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+                <Home className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
               </Button>
+            )}
+          </div>
+
+          <div className="vos-mobile-header__center">
+            <h1
+              className={cn(
+                'vos-mobile-header__title',
+                isHomeScreen && 'vos-mobile-header__title--brand',
+              )}
+            >
+              {headerTitle}
+            </h1>
+          </div>
+
+          <div className="vos-mobile-header__trailing">
+            {!showDock ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="vos-mobile-header__theme"
+                  aria-label={`Cambiar a tema ${themeLabel.toLowerCase()}`}
+                  onClick={onToggleTheme}
+                >
+                  <ThemeIcon className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+                </Button>
+                {user ? (
+                  <Button
+                    type="button"
+                    variant={profileOpen ? 'accent' : 'ghost'}
+                    size="icon-sm"
+                    className="vos-mobile-header__profile"
+                    aria-expanded={sheetOpen && profileOpen}
+                    aria-label="Mi perfil"
+                    onClick={() => {
+                      setProfileOpen(true)
+                      onSheetOpenChange(true)
+                    }}
+                  >
+                    <User className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+                  </Button>
+                ) : null}
+              </>
             ) : null}
             {showMenuButton ? (
               <Button
                 type="button"
                 variant={sheetOpen && !profileOpen ? 'accent' : 'ghost'}
-                size="icon-sm"
+                size="icon"
                 className="vos-mobile-header__menu"
                 aria-expanded={sheetOpen && !profileOpen}
                 aria-haspopup="dialog"
@@ -332,7 +360,7 @@ export function MobileAppChrome({
                   onSheetOpenChange(!sheetOpen || profileOpen)
                 }}
               >
-                <Menu className="h-[1.1rem] w-[1.1rem]" strokeWidth={2} aria-hidden />
+                <Menu className="h-[1.25rem] w-[1.25rem]" strokeWidth={2.25} aria-hidden />
               </Button>
             ) : (
               <span className="vos-mobile-header__spacer" aria-hidden />
@@ -348,11 +376,9 @@ export function MobileAppChrome({
             {dockTabs.map((tab) => {
               const active = view === tab.view
               return (
-                <Button
+                <button
                   key={tab.id}
                   type="button"
-                  variant={active ? 'accent' : 'ghost'}
-                  size="icon"
                   className={cn(
                     'app-mobile-dock__tab',
                     active && 'app-mobile-dock__tab--active',
@@ -361,20 +387,13 @@ export function MobileAppChrome({
                   aria-label={tab.label}
                   onClick={() => onNavigate(tab.view)}
                 >
-                  <MobileDockIcon id={tab.id} />
-                </Button>
+                  <span className="app-mobile-dock__icon-wrap">
+                    <MobileDockIcon id={tab.id} />
+                  </span>
+                  <span className="app-mobile-dock__label">{tab.label}</span>
+                </button>
               )
             })}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="app-mobile-dock__tab app-mobile-dock__tab--theme"
-              aria-label={`Cambiar a tema ${themeLabel.toLowerCase()}`}
-              onClick={onToggleTheme}
-            >
-              <ThemeIcon className="h-[1.15rem] w-[1.15rem]" strokeWidth={2} aria-hidden />
-            </Button>
           </div>
         </nav>
       ) : null}
@@ -426,19 +445,19 @@ export function MobileAppChrome({
                 </div>
               ) : null}
               {!profileOpen && sheetLinks.length > 0 ? (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                <ul className="vos-sheet__nav-grid m-0 list-none p-0">
                   {sheetLinks.map((link) => (
                     <li key={link.view}>
-                      <Button
+                      <button
                         type="button"
-                        variant={view === link.view ? 'accent' : 'secondary'}
-                        size="md"
-                        block
-                        className="justify-start"
+                        className={cn(
+                          'vos-sheet__nav-tile',
+                          view === link.view && 'vos-sheet__nav-tile--active',
+                        )}
                         onClick={() => pickView(link.view)}
                       >
-                        {link.label}
-                      </Button>
+                        <span className="vos-sheet__nav-tile-label">{link.label}</span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -456,7 +475,7 @@ export function MobileAppChrome({
                     <User className="h-4 w-4" strokeWidth={2} aria-hidden />
                     Mi perfil · {companyLabel || user.name}
                   </Button>
-                  {compactChrome ? null : (
+                  {showDock || !compactChrome ? (
                     <Button
                       type="button"
                       variant="secondary"
@@ -467,7 +486,7 @@ export function MobileAppChrome({
                       <ThemeIcon className="h-4 w-4" strokeWidth={2} aria-hidden />
                       Tema {themeLabel.toLowerCase()}
                     </Button>
-                  )}
+                  ) : null}
                   <Button
                     type="button"
                     variant="secondary"

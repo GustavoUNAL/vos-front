@@ -21,6 +21,7 @@ export type PosState = {
   wsStatus: PosWsStatus
   offline: boolean
   demoMode: boolean
+  checkoutSuccess: { saleId: string; dailyCount: number } | null
 }
 
 type PosAction =
@@ -35,6 +36,10 @@ type PosAction =
   | { type: 'SET_WS_STATUS'; status: PosWsStatus }
   | { type: 'SET_OFFLINE'; offline: boolean }
   | { type: 'SET_DEMO_MODE'; demo: boolean }
+  | {
+      type: 'SET_CHECKOUT_SUCCESS'
+      value: { saleId: string; dailyCount: number } | null
+    }
 
 const initialState: PosState = {
   tables: [],
@@ -48,6 +53,7 @@ const initialState: PosState = {
   wsStatus: 'idle',
   offline: !navigator.onLine,
   demoMode: false,
+  checkoutSuccess: null,
 }
 
 function reducer(state: PosState, action: PosAction): PosState {
@@ -74,6 +80,8 @@ function reducer(state: PosState, action: PosAction): PosState {
       return { ...state, offline: action.offline }
     case 'SET_DEMO_MODE':
       return { ...state, demoMode: action.demo }
+    case 'SET_CHECKOUT_SUCCESS':
+      return { ...state, checkoutSuccess: action.value }
     default:
       return state
   }
@@ -84,6 +92,9 @@ type PosStoreContextValue = {
   dispatch: React.Dispatch<PosAction>
   setTables: (tables: PosTable[]) => void
   setActiveOrder: (order: PosOrder | null) => void
+  setCheckoutSuccess: (
+    value: { saleId: string; dailyCount: number } | null,
+  ) => void
   navigate: (screen: PosScreen, tableId?: string | null) => void
 }
 
@@ -100,6 +111,13 @@ export function PosStoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_ORDER', order })
   }, [])
 
+  const setCheckoutSuccess = useCallback(
+    (value: { saleId: string; dailyCount: number } | null) => {
+      dispatch({ type: 'SET_CHECKOUT_SUCCESS', value })
+    },
+    [],
+  )
+
   const navigate = useCallback(
     (screen: PosScreen, tableId?: string | null) => {
       dispatch({ type: 'SET_SCREEN', screen })
@@ -114,9 +132,10 @@ export function PosStoreProvider({ children }: { children: ReactNode }) {
       dispatch,
       setTables,
       setActiveOrder,
+      setCheckoutSuccess,
       navigate,
     }),
-    [state, setTables, setActiveOrder, navigate],
+    [state, setTables, setActiveOrder, setCheckoutSuccess, navigate],
   )
 
   return (

@@ -88,12 +88,45 @@ export function setAccessToken(token: string | null): void {
   try {
     if (!token?.trim()) {
       window.localStorage.removeItem(TOKEN_KEY)
+      setCompanyId(null)
     } else {
       window.localStorage.setItem(TOKEN_KEY, token.trim())
+      const fromJwt = companyIdFromAccessToken(token.trim())
+      if (fromJwt) setCompanyId(fromJwt)
+      else if (!decodeJwtPayload(token.trim())?.isPlatformAdmin) setCompanyId(null)
     }
   } catch {
     /* ignore */
   }
+}
+
+type JwtCompanyPayload = {
+  companyId?: string
+  isPlatformAdmin?: boolean
+  platformView?: boolean
+}
+
+function decodeJwtPayload(token: string): JwtCompanyPayload | null {
+  try {
+    const part = token.split('.')[1]
+    if (!part) return null
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(json) as JwtCompanyPayload
+  } catch {
+    return null
+  }
+}
+
+/** Empresa activa del JWT (fuente de verdad; evita X-Company-Id obsoleto en localStorage). */
+export function companyIdFromAccessToken(token: string | null): string | null {
+  if (!token?.trim()) return null
+  const payload = decodeJwtPayload(token.trim())
+  const id = payload?.companyId?.trim()
+  return id || null
+}
+
+function resolveAuthCompanyId(token: string | null): string | null {
+  return companyIdFromAccessToken(token) ?? getCompanyId()
 }
 
 export type TableInfo = {
@@ -417,7 +450,7 @@ async function apiFetch(
   }
   const auth = init?.auth !== false
   const token = auth ? getAccessToken() : null
-  const companyId = auth ? getCompanyId() : null
+  const companyId = auth ? resolveAuthCompanyId(token) : null
   const headers = new Headers(init?.headers ?? undefined)
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (companyId) headers.set('X-Company-Id', companyId)
@@ -427,6 +460,27 @@ async function apiFetch(
     setAccessToken(null)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth:logout'))
+    }
+  }
+  if (auth && token && res.status === 403 && companyId) {
+    const msg = await res
+      .clone()
+      .json()
+      .then((body) => formatApiErrorFromBody(body, ''))
+      .catch(() => '')
+    if (
+      /Seleccioná una empresa|Sin acceso a esta empresa|Contexto de empresa|X-Company-Id/i.test(
+        msg,
+      ) &&
+      typeof window !== 'undefined'
+    ) {
+      const jwtCompany = companyIdFromAccessToken(token)
+      if (!jwtCompany || jwtCompany !== companyId) {
+        setCompanyId(jwtCompany)
+      }
+      window.dispatchEvent(
+        new CustomEvent('auth:tenant-denied', { detail: { message: msg } }),
+      )
     }
   }
   return res
@@ -441,6 +495,10 @@ export type CompanySummary = {
   modules: string[]
 }
 
+export type SystemSettings = {
+  inaugurationDate: string | null
+}
+
 export type AuthUser = {
   sub: string
   email: string
@@ -453,12 +511,19 @@ export type AuthUser = {
   platformView?: boolean
   permissions?: string[]
   companies: CompanySummary[]
+  systemSettings?: SystemSettings
 }
 
 export type LoginResponse = { accessToken: string; user: AuthUser }
 
 function syncCompanyFromUser(user: AuthUser): void {
-  if (user.companyId) setCompanyId(user.companyId)
+  if (user.isPlatformAdmin && user.platformView) {
+    setCompanyId(null)
+    return
+  }
+  const id = user.companyId?.trim()
+  if (id) setCompanyId(id)
+  else setCompanyId(null)
 }
 
 export async function login(
@@ -1676,6 +1741,10 @@ export type SaleCartUserRef = {
 
 export type SaleListRow = {
   id: string
+  /** Código legible de la venta (ej. comprobante POS). */
+  code?: string | null
+  /** Cliente vinculado en CRM, si aplica. */
+  clientName?: string | null
   saleDate: string
   /** `YYYY-MM-DD` (día civil); preferido para columna “solo fecha”. */
   saleDateOnly?: string | null
@@ -1995,7 +2064,21 @@ export type CreateSalePayload = {
   customerPhone?: string
   notes?: string
   userId?: string
+  receiptImageDataUrl?: string
   lines: SaleLineInputPayload[]
+}
+
+export async function askBusinessAssistant(
+  base: string,
+  question: string,
+): Promise<{ answer: string }> {
+  const res = await apiFetch(`${base}/assistant/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<{ answer: string }>
 }
 
 export type PatchSalePayload = {
@@ -2292,6 +2375,7 @@ export async function createSale(
 export async function sendSaleReceiptWhatsApp(
   base: string,
   id: string,
+  customerPhone?: string,
 ): Promise<{
   whatsappSent: boolean
   whatsappConfigured: boolean
@@ -2299,6 +2383,10 @@ export async function sendSaleReceiptWhatsApp(
 }> {
   const res = await apiFetch(`${base}/sales/${id}/send-receipt`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(
+      customerPhone?.trim() ? { customerPhone: customerPhone.trim() } : {},
+    ),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return res.json() as Promise<{

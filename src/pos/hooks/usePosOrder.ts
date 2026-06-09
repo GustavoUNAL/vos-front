@@ -1,8 +1,14 @@
 import { useCallback, useMemo } from 'react'
 import { computeOrderTotals } from '../lib/money'
-import { fetchPosOrder, updatePosOrder } from '../services/posApi'
+import {
+  mergeOrderMeta,
+  pickOrderMeta,
+  writeCachedOrderMeta,
+} from '../lib/orderMetaCache'
+import { fetchPosOrder, isPosDemoMode, updatePosOrder } from '../services/posApi'
+import { localPosApi } from '../services/offlineStorage'
 import { usePosStore } from '../store/posStore'
-import type { OrderLine } from '../types'
+import type { OrderLine, PaymentMethod, PosOrder, PosStaffMember } from '../types'
 
 function newLineId(): string {
   return `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -23,9 +29,11 @@ export function usePosOrder(baseUrl: string) {
         ...next,
         ...computeOrderTotals(next.lines, next.taxRate),
       }
+      writeCachedOrderMeta(withTotals.id, pickOrderMeta(withTotals))
       const saved = await updatePosOrder(baseUrl, withTotals)
-      setActiveOrder(saved)
-      return saved
+      const merged = mergeOrderMeta({ ...saved, ...pickOrderMeta(withTotals) })
+      setActiveOrder(merged)
+      return merged
     },
     [baseUrl, setActiveOrder],
   )
@@ -98,11 +106,85 @@ export function usePosOrder(baseUrl: string) {
     [order, persist],
   )
 
+  const updateMeta = useCallback(
+    (patch: {
+      mesa?: string
+      customerPhone?: string
+      paymentMethod?: PaymentMethod | null
+      transferReference?: string | null
+      transferReceiptDataUrl?: string | null
+      notes?: string
+      attendedBy?: PosStaffMember | null
+      cashTenderedCOP?: number | null
+    }) => {
+      if (!order) return
+      const next: PosOrder = {
+        ...order,
+        mesa: patch.mesa !== undefined ? patch.mesa : order.mesa,
+        customerPhone:
+          patch.customerPhone !== undefined
+            ? patch.customerPhone
+            : order.customerPhone,
+        paymentMethod:
+          patch.paymentMethod !== undefined
+            ? patch.paymentMethod
+            : order.paymentMethod,
+        transferReference:
+          patch.transferReference !== undefined
+            ? patch.transferReference
+            : patch.paymentMethod === 'cash'
+              ? null
+              : order.transferReference,
+        transferReceiptDataUrl:
+          patch.transferReceiptDataUrl !== undefined
+            ? patch.transferReceiptDataUrl
+            : patch.paymentMethod === 'cash'
+              ? null
+              : order.transferReceiptDataUrl,
+        notes: patch.notes !== undefined ? patch.notes : order.notes,
+        attendedBy:
+          patch.attendedBy !== undefined ? patch.attendedBy : order.attendedBy,
+        cashTenderedCOP:
+          patch.cashTenderedCOP !== undefined
+            ? patch.cashTenderedCOP
+            : patch.paymentMethod === 'transfer'
+              ? null
+              : order.cashTenderedCOP,
+      }
+      writeCachedOrderMeta(next.id, pickOrderMeta(next))
+      setActiveOrder(next)
+      if (isPosDemoMode()) {
+        localPosApi.updateOrder({
+          ...next,
+          ...computeOrderTotals(next.lines, next.taxRate),
+        })
+      }
+    },
+    [order, setActiveOrder],
+  )
+
+  const meta = useMemo(
+    () =>
+      order
+        ? {
+            mesa: order.mesa ?? order.tableName ?? '',
+            customerPhone: order.customerPhone ?? '',
+            paymentMethod: order.paymentMethod ?? null,
+            transferReference: order.transferReference ?? '',
+            transferReceiptDataUrl: order.transferReceiptDataUrl ?? null,
+            notes: order.notes ?? '',
+            attendedBy: order.attendedBy ?? 'David',
+            cashTenderedCOP: order.cashTenderedCOP ?? 0,
+          }
+        : null,
+    [order],
+  )
+
   const reload = useCallback(async () => {
     if (!order?.id) return
     dispatch({ type: 'SET_ORDER_LOADING', loading: true })
     try {
-      const fresh = await fetchPosOrder(baseUrl, order.id)
+      const fresh = mergeOrderMeta(await fetchPosOrder(baseUrl, order.id))
       setActiveOrder(fresh)
     } catch (e) {
       dispatch({
@@ -117,12 +199,14 @@ export function usePosOrder(baseUrl: string) {
   return {
     order,
     totals,
+    meta,
     loading: state.orderLoading,
     error: state.orderError,
     addProduct,
     setQuantity,
     setLineNotes,
     removeLine,
+    updateMeta,
     reload,
   }
 }

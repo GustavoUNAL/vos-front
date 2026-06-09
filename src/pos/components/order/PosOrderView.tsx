@@ -1,93 +1,107 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { MOBILE_FILTER_BREAKPOINT } from '../../../components/MobileAwareFilterBar'
 import { useMatchMedia } from '../../../hooks/useMatchMedia'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { usePosCatalog } from '../../hooks/usePosCatalog'
+import { usePosCheckout } from '../../hooks/usePosCheckout'
+import { usePosSalesRanking } from '../../hooks/usePosSalesRanking'
 import { usePosOrder } from '../../hooks/usePosOrder'
 import { usePosStore } from '../../store/posStore'
+import type { PaymentMethod } from '../../types'
 import { PosErrorBanner } from '../ui/PosErrorBanner'
 import { PosLoader } from '../ui/PosLoader'
-import { CartPanel } from './CartPanel'
-import { ProductGrid } from './ProductGrid'
+import { PosOrderComanda } from './PosOrderComanda'
 
 type Props = { baseUrl: string }
-type MobilePanel = 'products' | 'cart'
 
 export function PosOrderView({ baseUrl }: Props) {
   const { state, navigate } = usePosStore()
   const table = state.tables.find((t) => t.id === state.selectedTableId)
-  const isMobile = useMatchMedia('(max-width: 959px)')
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('products')
+  const isDockMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
 
   const {
     order,
     totals,
+    meta,
     error: orderError,
     loading: orderSaving,
     addProduct,
     setQuantity,
     setLineNotes,
     removeLine,
+    updateMeta,
   } = usePosOrder(baseUrl)
+
+  const { busy: confirmBusy, confirmSale } = usePosCheckout(baseUrl)
 
   const {
     products,
     categories,
     loading: catalogLoading,
+    refreshing: catalogRefreshing,
     error: catalogError,
     usingDemoCatalog,
-    reload: reloadCatalog,
   } = usePosCatalog(baseUrl)
+
+  const { unitsSoldByProductId, topProductIds, hasRanking } =
+    usePosSalesRanking(baseUrl)
 
   const catalogHint = usingDemoCatalog
     ? 'Carta de demostración (sin API). Cuando levantes vos-api verás tus productos reales.'
     : null
 
-  const [search, setSearch] = useState('')
-  const [categoryId, setCategoryId] = useState<string | null>(null)
   const [addedFlash, setAddedFlash] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!order?.lines.length) setMobilePanel('products')
-  }, [order?.id])
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+  const [transferSheetOpen, setTransferSheetOpen] = useState(false)
 
   const handleAdd = useCallback(
     async (p: { id: string; name: string; price: number }) => {
       await addProduct(p)
       setAddedFlash(p.id)
       window.setTimeout(() => setAddedFlash(null), 400)
-      if (isMobile && order && order.lines.length === 0) {
-        setMobilePanel('cart')
-      }
     },
-    [addProduct, isMobile, order],
+    [addProduct],
   )
 
-  const goPay = useCallback(
-    () => navigate('payment', state.selectedTableId),
-    [navigate, state.selectedTableId],
-  )
+  const handleConfirm = useCallback(async () => {
+    if (!order || !meta) return
+    setConfirmError(null)
+
+    const paymentMethod: PaymentMethod = meta.paymentMethod ?? 'cash'
+    const result = await confirmSale({
+      order,
+      totalCOP: totals.totalCOP,
+      paymentMethod,
+      attendedBy: meta.attendedBy,
+      cashTenderedCOP: meta.cashTenderedCOP,
+      transferReceiptDataUrl: meta.transferReceiptDataUrl,
+      notes: meta.notes,
+    })
+
+    if (result.ok) return
+
+    setConfirmError(result.message)
+    if (result.reason === 'transfer') setTransferSheetOpen(true)
+  }, [confirmSale, meta, order, totals.totalCOP])
 
   useKeyboardShortcuts(
     {
       '/': () => {
-        setMobilePanel('products')
         window.requestAnimationFrame(() => {
-          document.querySelector<HTMLInputElement>('.pos-input--search')?.focus()
+          document.querySelector<HTMLInputElement>('.pos-order-cart .pos-input--search')?.focus()
         })
       },
-      'mod+enter': goPay,
+      'mod+enter': () => void handleConfirm(),
       escape: () => navigate('tables'),
     },
     Boolean(order),
   )
 
-  if (!order) {
+  if (!order || !meta) {
     return <PosLoader label="Cargando cuenta…" />
   }
 
   const tableLabel = table?.name ?? order.tableName ?? 'Mesa'
-  const showProducts = !isMobile || mobilePanel === 'products'
-  const showCart = !isMobile || mobilePanel === 'cart'
 
   return (
     <div className="pos-screen pos-screen--order">
@@ -99,34 +113,14 @@ export function PosOrderView({ baseUrl }: Props) {
         >
           ← Mesas
         </button>
-        <div className="pos-order-header__title-wrap">
-          <h1 className="pos-order-header__title">{tableLabel}</h1>
-          <p className="pos-order-header__sub muted">
-            Agregá productos de la carta al pedido
-          </p>
-        </div>
-        {isMobile && (
-          <div className="pos-order-tabs" role="tablist" aria-label="Vista del pedido">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobilePanel === 'products'}
-              className={`pos-order-tab${mobilePanel === 'products' ? ' pos-order-tab--active' : ''}`}
-              onClick={() => setMobilePanel('products')}
-            >
-              Productos
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobilePanel === 'cart'}
-              className={`pos-order-tab${mobilePanel === 'cart' ? ' pos-order-tab--active' : ''}`}
-              onClick={() => setMobilePanel('cart')}
-            >
-              Cuenta ({order.lines.length})
-            </button>
+        {!isDockMobile ? (
+          <div className="pos-order-header__title-wrap">
+            <h1 className="pos-order-header__title">{tableLabel}</h1>
+            <p className="pos-order-header__sub muted">
+              Agregá productos y confirmá la venta
+            </p>
           </div>
-        )}
+        ) : null}
       </header>
 
       <PosErrorBanner message={orderError ?? ''} />
@@ -136,43 +130,60 @@ export function PosOrderView({ baseUrl }: Props) {
           {catalogHint}
         </p>
       )}
+      {catalogRefreshing && !catalogLoading ? (
+        <p className="pos-banner pos-banner--info pos-banner--subtle" role="status">
+          Actualizando carta…
+        </p>
+      ) : null}
 
-      <div className="pos-order-layout">
-        {showProducts && (
-          <section className="pos-order-main" aria-label="Catálogo de productos">
-            {catalogLoading ? (
-              <PosLoader label="Cargando productos…" />
-            ) : (
-              <ProductGrid
-                products={products}
-                categories={categories}
-                activeCategoryId={categoryId}
-                search={search}
-                highlightId={addedFlash}
-                onSearch={setSearch}
-                onCategory={setCategoryId}
-                onAdd={(p) => void handleAdd(p)}
-                onRetry={() => void reloadCatalog()}
-                catalogError={catalogError}
-              />
-            )}
-          </section>
-        )}
-        {showCart && (
-          <CartPanel
-            lines={order.lines}
-            subtotalCOP={totals.subtotalCOP}
-            taxCOP={totals.taxCOP}
-            totalCOP={totals.totalCOP}
+      <div className="pos-order-layout pos-order-layout--comanda pos-order-layout--cart-only">
+        <section className="pos-order-comanda-wrap" aria-label="Datos del pedido">
+          <PosOrderComanda
+            order={order}
             tableName={tableLabel}
+            totalCOP={totals.totalCOP}
+            mesa={meta.mesa}
+            paymentMethod={meta.paymentMethod ?? 'cash'}
+            transferReceiptDataUrl={meta.transferReceiptDataUrl}
+            transferReference={meta.transferReference}
+            cashTenderedCOP={meta.cashTenderedCOP}
+            attendedBy={meta.attendedBy}
+            catalogProducts={products}
+            catalogCategories={categories}
+            catalogLoading={catalogLoading}
+            topProductIds={hasRanking ? topProductIds : []}
+            unitsSoldByProductId={unitsSoldByProductId}
+            highlightId={addedFlash}
+            transferSheetOpen={transferSheetOpen}
+            onTransferSheetOpenChange={setTransferSheetOpen}
+            onMesa={(value) => updateMeta({ mesa: value })}
+            onPaymentMethod={(method) => {
+              updateMeta({
+                paymentMethod: method,
+                ...(method === 'cash'
+                  ? { transferReceiptDataUrl: null, transferReference: null }
+                  : { cashTenderedCOP: null }),
+              })
+              if (method === 'transfer') setTransferSheetOpen(true)
+              else setTransferSheetOpen(false)
+            }}
+            onTransferReceipt={(dataUrl) =>
+              updateMeta({ transferReceiptDataUrl: dataUrl })
+            }
+            onTransferReference={(value) =>
+              updateMeta({ transferReference: value.trim() || null })
+            }
+            onCashTendered={(value) => updateMeta({ cashTenderedCOP: value })}
+            onAttendedBy={(staff) => updateMeta({ attendedBy: staff })}
+            onAddProduct={(p) => void handleAdd(p)}
             onQty={(id, q) => void setQuantity(id, q)}
-            onNotes={(id, n) => void setLineNotes(id, n)}
+            onLineNotes={(id, n) => void setLineNotes(id, n)}
             onRemove={(id) => void removeLine(id)}
-            onPay={goPay}
-            onBack={() => (isMobile ? setMobilePanel('products') : navigate('tables'))}
-            backLabel={isMobile ? '← Productos' : undefined}
+            onConfirm={() => void handleConfirm()}
+            confirmBusy={confirmBusy}
+            confirmError={confirmError}
           />
-        )}
+        </section>
       </div>
       {orderSaving && <div className="pos-saving-indicator" aria-hidden />}
     </div>

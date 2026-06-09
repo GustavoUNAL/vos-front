@@ -1,4 +1,9 @@
 import { useMemo } from 'react'
+import {
+  canNavigateToMonth,
+  isDateBeforeInauguration,
+} from '../lib/calendarBounds'
+import { InlineLoader } from './InlineLoader'
 
 export type MonthCalendarDay = {
   date: string
@@ -16,12 +21,16 @@ type MonthCalendarProps = {
   countLabel: string
   /** Días pasados/hoy sin movimiento: mostrar 0 y fondo rojo suave. */
   showZeroForPastDays?: boolean
-  onPrevMonth: () => void
-  onNextMonth: () => void
-  onToday: () => void
+  onPrevMonth?: () => void
+  onNextMonth?: () => void
+  onToday?: () => void
   onDayClick: (date: string) => void
   /** Resalta el día seleccionado (YYYY-MM-DD). */
   selectedDate?: string | null
+  /** Sin flechas de mes (p. ej. feed vertical en móvil). */
+  hideNav?: boolean
+  /** No mostrar ni permitir días anteriores a la inauguración (YYYY-MM-DD). */
+  inaugurationDate?: string | null
 }
 
 const MONTH_NAMES = [
@@ -68,6 +77,8 @@ export function MonthCalendar({
   onToday,
   onDayClick,
   selectedDate = null,
+  hideNav = false,
+  inaugurationDate = null,
 }: MonthCalendarProps) {
   const dayMap = useMemo(
     () => new Map(days.map((d) => [d.date, d])),
@@ -97,7 +108,16 @@ export function MonthCalendar({
     return { count, total }
   }, [days])
 
-  if (loading) return <p className="muted month-calendar-loading">Cargando calendario…</p>
+  if (loading) {
+    return (
+      <InlineLoader
+        layout="block"
+        size="sm"
+        label="Cargando calendario…"
+        className="month-calendar-loading"
+      />
+    )
+  }
   if (error) return <p className="error-text month-calendar-error">{error}</p>
 
   const today = new Date()
@@ -107,20 +127,36 @@ export function MonthCalendar({
     today.getDate(),
   )
 
+  const canGoPrev = canNavigateToMonth(year, month - 1, inaugurationDate)
+
   return (
-    <section className="month-calendar" aria-label={`Calendario ${MONTH_NAMES[month - 1]} ${year}`}>
+    <section
+      className={['month-calendar', hideNav ? 'month-calendar--embedded' : '']
+        .filter(Boolean)
+        .join(' ')}
+      aria-label={`Calendario ${MONTH_NAMES[month - 1]} ${year}`}
+    >
       <header className="month-calendar__head">
-        <div className="month-calendar__nav">
-          <button type="button" className="btn-secondary btn-compact" onClick={onPrevMonth}>
-            ‹
-          </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={onToday}>
-            Hoy
-          </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={onNextMonth}>
-            ›
-          </button>
-        </div>
+        {!hideNav ? (
+          <div className="month-calendar__nav">
+            <button
+              type="button"
+              className="btn-secondary btn-compact"
+              onClick={onPrevMonth}
+              disabled={!canGoPrev}
+              aria-disabled={!canGoPrev}
+              title={!canGoPrev ? 'Inicio de operación' : 'Mes anterior'}
+            >
+              ‹
+            </button>
+            <button type="button" className="btn-secondary btn-compact" onClick={onToday}>
+              Hoy
+            </button>
+            <button type="button" className="btn-secondary btn-compact" onClick={onNextMonth}>
+              ›
+            </button>
+          </div>
+        ) : null}
         <h3 className="month-calendar__title">
           {MONTH_NAMES[month - 1]} {year}
         </h3>
@@ -147,6 +183,15 @@ export function MonthCalendar({
               <div
                 key={`blank-${idx}`}
                 className="month-calendar__day month-calendar__day--blank"
+                aria-hidden
+              />
+            )
+          }
+          if (isDateBeforeInauguration(cell.date, inaugurationDate)) {
+            return (
+              <div
+                key={`pre-${cell.date}`}
+                className="month-calendar__day month-calendar__day--blank month-calendar__day--pre-inauguration"
                 aria-hidden
               />
             )

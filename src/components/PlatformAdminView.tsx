@@ -22,6 +22,7 @@ import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
 import { usePublicTheme } from '../hooks/usePublicTheme'
 import '../public-shell.css'
+import { ViewBootSplash } from './DataLoadingSplash'
 import '../platform-admin.css'
 
 type Tab = 'overview' | 'companies' | 'users' | 'requests'
@@ -405,6 +406,8 @@ export function PlatformAdminView({ baseUrl, user, onEnterCompany, onLogout }: P
           ) : null}
         </div>
       )}
+
+      <ViewBootSplash ready={!loading} label="Cargando panel de administración…" />
     </div>
   )
 }

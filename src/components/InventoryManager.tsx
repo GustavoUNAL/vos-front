@@ -25,6 +25,7 @@ import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
+import { ViewBootSplash } from './DataLoadingSplash'
 import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
@@ -1172,6 +1173,8 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
         </aside>
         </>
       )}
+
+      <ViewBootSplash ready={!loading} label="Cargando inventario…" />
     </div>
   )
 }

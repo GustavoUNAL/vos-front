@@ -1,8 +1,9 @@
 import { getApiBase } from '../api'
+import { mobileViewClass } from '../components/mobile/mobileView'
 import { PLATFORM_MODE } from '../appScope'
 import { HistoryView } from './components/history/HistoryView'
 import { PosOrderView } from './components/order/PosOrderView'
-import { PaymentView } from './components/payment/PaymentView'
+import { PaymentRedirect } from './components/payment/PaymentRedirect'
 import { PosPendingEntry } from './components/PosPendingEntry'
 import { ShopOrdersView } from './components/shop/ShopOrdersView'
 import { TablesDashboard } from './components/tables/TablesDashboard'
@@ -29,7 +30,7 @@ function PosRouter() {
           case 'order':
             return <PosOrderView baseUrl={baseUrl} />
           case 'payment':
-            return <PaymentView baseUrl={baseUrl} />
+            return <PaymentRedirect />
           case 'history':
             return <HistoryView baseUrl={baseUrl} />
           case 'shop-orders':
@@ -51,7 +52,10 @@ function PosRouter() {
 function PosRoot() {
   const theme = useAppTheme()
   return (
-    <div className={`pos-root pos-root--${theme}`} data-theme={theme}>
+    <div
+      className={mobileViewClass('pos', `pos-root pos-root--${theme}`)}
+      data-theme={theme}
+    >
       <PosRouter />
     </div>
   )

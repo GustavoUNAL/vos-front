@@ -36,10 +36,26 @@ import {
   isCapitalAssetBehavior,
   resolveLotLineInventoryBehavior,
 } from '../inventorySemantics'
-import { MobileAwareFilterBar } from './MobileAwareFilterBar'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import {
+  MobileAwareFilterBar,
+  MOBILE_FILTER_BREAKPOINT,
+} from './MobileAwareFilterBar'
+import { MobileModuleToolbar } from './MobileModuleToolbar'
+import { SectionSummaryDeck } from './SectionSummaryDeck'
+import { type SectionSummaryItem } from './SectionSummaryBar'
 import { MonthCalendar } from './MonthCalendar'
+import { MonthCalendarScrollFeed } from './MonthCalendarScrollFeed'
 import { consumePendingPurchasesDate } from '../lib/pending-view-filter'
+import {
+  invalidateDayPurchases,
+  peekPurchaseLot,
+  storePurchaseLot,
+} from '../lib/entityCache'
 import { CreateDailyPurchaseModal } from './CreateDailyPurchaseModal'
+import { DayPurchasesModal } from './DayPurchasesModal'
+import { ViewBootSplash } from './DataLoadingSplash'
+import { mobileViewClass } from './mobile/mobileView'
 
 type PurchaseLotInvoiceItem = NonNullable<PurchaseLotRow['items']>[number]
 
@@ -536,7 +552,13 @@ function purchaseLotSecondaryLine(row: {
   return null
 }
 
-export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
+export function PurchaseLotsView({
+  baseUrl,
+  inaugurationDate = null,
+}: {
+  baseUrl: string
+  inaugurationDate?: string | null
+}) {
   const [list, setList] = useState<PurchaseLotRow[]>([])
   const [meta, setMeta] = useState<PurchaseLotsListMeta | null>(null)
   const [page, setPage] = useState(1)
@@ -567,15 +589,20 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   )
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0)
+  const [dayModalDate, setDayModalDate] = useState<string | null>(null)
+  const [dayPanelRefresh, setDayPanelRefresh] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
   const [createInitialDate, setCreateInitialDate] = useState<string | undefined>()
+  const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
 
   useEffect(() => {
     const date = consumePendingPurchasesDate()
     if (!date) return
     setFilterDateFrom(date)
     setFilterDateTo(date)
-    setViewMode('list')
+    setDayModalDate(date)
+    setViewMode('calendar')
     setPage(1)
     const [y, m] = date.split('-').map(Number)
     if (y && m) {
@@ -716,7 +743,7 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   }, [baseUrl, page, searchDebounced, filterDateFrom, filterDateTo, listRefreshKey])
 
   useEffect(() => {
-    if (viewMode !== 'calendar') return
+    if (viewMode !== 'calendar' || isMobileFilters) return
     let cancelled = false
     setCalendarLoading(true)
     setCalendarError(null)
@@ -733,12 +760,33 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     return () => {
       cancelled = true
     }
-  }, [baseUrl, viewMode, calendarYear, calendarMonth])
+  }, [baseUrl, viewMode, calendarYear, calendarMonth, isMobileFilters])
+
+  const openCreatePurchase = useCallback((dateKey?: string) => {
+    setCreateInitialDate(dateKey || filterDateFrom || undefined)
+    setCreateOpen(true)
+  }, [filterDateFrom])
+
+  const draftFromLot = useCallback((d: PurchaseLotRow) => ({
+    lotName: d.name?.trim() ?? '',
+    purchaseDate: purchaseLotDateToInputValue(d.purchaseDate),
+    supplier: d.supplier ?? '',
+    notes: d.notes ?? '',
+    totalValue: d.totalValue != null ? String(num(d.totalValue)) : '',
+    isDepleted: purchaseLotInitialDepleted(d),
+    traceModifiedLocal: isoInstantToDatetimeLocalValue(d.traceModifiedAt),
+  }), [])
 
   const openLot = useCallback(
     async (id: string, row?: PurchaseLotRow, updateHash = false) => {
       if (updateHash) pushRouteToPurchaseLot(id)
-      if (row) setSelectedLotRow(row)
+      const bootstrap = peekPurchaseLot(id) ?? row
+      if (bootstrap) {
+        setSelectedLotRow(bootstrap)
+        setDraft(draftFromLot(bootstrap))
+      } else if (row) {
+        setSelectedLotRow(row)
+      }
       setLotMetaEditOpen(false)
       setLotInventory([])
       setDeductDraft({})
@@ -746,30 +794,24 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
       setLotItemError(null)
       setSelectedId(id)
       setSaveError(null)
-      setDetailLoading(true)
+      setDetailLoading(!bootstrap)
       try {
         const d = await fetchPurchaseLot(baseUrl, id)
+        storePurchaseLot(id, d)
         setSelectedLotRow(d)
-        setDraft({
-          lotName: d.name?.trim() ?? '',
-          purchaseDate: purchaseLotDateToInputValue(d.purchaseDate),
-          supplier: d.supplier ?? '',
-          notes: d.notes ?? '',
-          totalValue:
-            d.totalValue != null ? String(num(d.totalValue)) : '',
-          isDepleted: purchaseLotInitialDepleted(d),
-          traceModifiedLocal: isoInstantToDatetimeLocalValue(d.traceModifiedAt),
-        })
+        setDraft(draftFromLot(d))
       } catch (e) {
-        setSaveError((e as Error).message)
-        setDraft(null)
-        setSelectedId(null)
-        setSelectedLotRow(null)
+        if (!bootstrap) {
+          setSaveError((e as Error).message)
+          setDraft(null)
+          setSelectedId(null)
+          setSelectedLotRow(null)
+        }
       } finally {
         setDetailLoading(false)
       }
     },
-    [baseUrl],
+    [baseUrl, draftFromLot],
   )
 
   const closePanelState = useCallback(() => {
@@ -1060,6 +1102,9 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
 
         if (selectedId) {
           const freshLot = await fetchPurchaseLot(baseUrl, selectedId)
+          storePurchaseLot(selectedId, freshLot)
+          const dayKey = freshLot.purchaseDate?.slice(0, 10)
+          if (dayKey) invalidateDayPurchases(dayKey)
           setSelectedLotRow(freshLot)
           const lotCode = freshLot.code?.trim()
           if (lotCode) {
@@ -1340,6 +1385,36 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
     })
     return arr
   }, [list, listSort])
+
+  const purchasesSummaryItems = useMemo((): SectionSummaryItem[] => {
+    let pageTotal = 0
+    for (const row of list) {
+      const t = purchaseLotRowTotalCOP(row)
+      if (Number.isFinite(t)) pageTotal += t
+    }
+    const items: SectionSummaryItem[] = []
+    if (meta != null) {
+      items.push({
+        label: 'Lotes',
+        value: meta.total,
+        title: 'Total de lotes registrados',
+      })
+    }
+    items.push(
+      {
+        label: 'En página',
+        value: list.length,
+        title: 'Filas en esta página',
+      },
+      {
+        label: 'Total página',
+        value: formatCOP(pageTotal),
+        title: 'Suma de totales visibles en la página',
+      },
+    )
+    return items
+  }, [list, meta])
+
   /** Índice global de fila en el listado paginado (para columna #). */
   const purchaseLotsListRowOffset = useMemo(
     () =>
@@ -3052,42 +3127,46 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
   }
 
   return (
-    <div className="purchase-lots-view">
+    <div className={mobileViewClass('purchases', 'purchase-lots-view')}>
     <div className="products-layout">
       <div className="products-list-pane products-list-pane--purchases page-pane--floating-gear-dock">
         <div className="page-intro page-intro--tight purchases-intro">
           <div className="purchases-intro__head">
-            <div>
-              <h2 className="page-title">Compras</h2>
-              <p className="muted small purchases-intro__description">
-                Registro diario de compras por lote. Calendario para ver el detalle
-                de cada día.
-              </p>
-            </div>
-            <div
-              className="view-toggle module-view-toggle"
-              role="tablist"
-              aria-label="Vista de compras"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'calendar'}
-                className={viewMode === 'calendar' ? 'active' : ''}
-                onClick={() => setViewMode('calendar')}
+            {!isMobileFilters ? (
+              <div>
+                <h2 className="page-title">Compras</h2>
+                <p className="muted small purchases-intro__description">
+                  Registro diario de compras por lote. Calendario para ver el detalle
+                  de cada día.
+                </p>
+              </div>
+            ) : null}
+            {!isMobileFilters ? (
+              <div
+                className="view-toggle module-view-toggle"
+                role="tablist"
+                aria-label="Vista de compras"
               >
-                Calendario
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'list'}
-                className={viewMode === 'list' ? 'active' : ''}
-                onClick={() => setViewMode('list')}
-              >
-                Lista
-              </button>
-            </div>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === 'calendar'}
+                  className={viewMode === 'calendar' ? 'active' : ''}
+                  onClick={() => setViewMode('calendar')}
+                >
+                  Calendario
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === 'list'}
+                  className={viewMode === 'list' ? 'active' : ''}
+                  onClick={() => setViewMode('list')}
+                >
+                  Lista
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -3103,7 +3182,35 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
           </div>
         ) : null}
 
-        <MobileAwareFilterBar hasActiveFilters={purchaseListFiltersActive}>
+        <MobileAwareFilterBar
+          hasActiveFilters={purchaseListFiltersActive}
+          trailing={
+            isMobileFilters ? (
+              <MobileModuleToolbar
+                onAdd={() => openCreatePurchase()}
+                addTitle="Nueva compra"
+                addAriaLabel="Nueva compra"
+                summary={
+                  <SectionSummaryDeck
+                    section="purchases"
+                    items={purchasesSummaryItems}
+                    loading={loading}
+                    suspendDetailWhileLoading
+                  />
+                }
+                viewMode={viewMode}
+                onViewModeChange={(mode) => {
+                  if (mode === 'calendar' || mode === 'list') setViewMode(mode)
+                }}
+                primaryViewLabel="Calendario"
+                secondaryViewLabel="Lista"
+                primaryViewValue="calendar"
+                secondaryViewValue="list"
+                viewToggleAriaLabel="Vista de compras"
+              />
+            ) : undefined
+          }
+        >
         <div className="inventory-filter-bar inventory-filter-bar--purchases-catalog">
           <div className="inventory-filter-bar__controls" role="search">
             <label className="inventory-filter">
@@ -3179,10 +3286,8 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
             <button
               type="button"
               className="btn-primary"
-              onClick={() => {
-                setCreateInitialDate(filterDateFrom || undefined)
-                setCreateOpen(true)
-              }}
+              data-mobile-filter-primary="inside"
+              onClick={() => openCreatePurchase()}
             >
               Nueva compra
             </button>
@@ -3191,35 +3296,85 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         </MobileAwareFilterBar>
 
         {viewMode === 'calendar' ? (
-          <MonthCalendar
-            year={calendarYear}
-            month={calendarMonth}
-            days={calendarData?.days ?? []}
-            loading={calendarLoading}
-            error={calendarError}
-            countLabel="compra"
-            onPrevMonth={() => {
-              const prev = new Date(calendarYear, calendarMonth - 2, 1)
-              setCalendarYear(prev.getFullYear())
-              setCalendarMonth(prev.getMonth() + 1)
-            }}
-            onNextMonth={() => {
-              const next = new Date(calendarYear, calendarMonth, 1)
-              setCalendarYear(next.getFullYear())
-              setCalendarMonth(next.getMonth() + 1)
-            }}
-            onToday={() => {
-              const now = new Date()
-              setCalendarYear(now.getFullYear())
-              setCalendarMonth(now.getMonth() + 1)
-            }}
-            onDayClick={(date) => {
-              setFilterDateFrom(date)
-              setFilterDateTo(date)
-              setPage(1)
-              setViewMode('list')
-            }}
-          />
+          <>
+          {isMobileFilters ? (
+            <MonthCalendarScrollFeed
+              baseUrl={baseUrl}
+              cacheNamespace="purchases"
+              countLabel="compra"
+              selectedDate={dayModalDate}
+              refreshKey={calendarRefreshKey}
+              inaugurationDate={inaugurationDate}
+              ariaLabel="Calendario de compras por mes"
+              fetchMonth={fetchPurchaseLotsCalendar}
+              onDayClick={(date) => {
+                setFilterDateFrom(date)
+                setFilterDateTo(date)
+                setDayModalDate(date)
+                setPage(1)
+                const [y, m] = date.split('-').map(Number)
+                if (y && m) {
+                  setCalendarYear(y)
+                  setCalendarMonth(m)
+                }
+              }}
+              onGoToToday={(date) => {
+                setFilterDateFrom(date)
+                setFilterDateTo(date)
+                setDayModalDate(date)
+                setPage(1)
+                const [y, m] = date.split('-').map(Number)
+                if (y && m) {
+                  setCalendarYear(y)
+                  setCalendarMonth(m)
+                }
+              }}
+            />
+          ) : (
+            <MonthCalendar
+              year={calendarYear}
+              month={calendarMonth}
+              days={calendarData?.days ?? []}
+              loading={calendarLoading}
+              error={calendarError}
+              countLabel="compra"
+              inaugurationDate={inaugurationDate}
+              selectedDate={dayModalDate}
+              onPrevMonth={() => {
+                const prev = new Date(calendarYear, calendarMonth - 2, 1)
+                setCalendarYear(prev.getFullYear())
+                setCalendarMonth(prev.getMonth() + 1)
+              }}
+              onNextMonth={() => {
+                const next = new Date(calendarYear, calendarMonth, 1)
+                setCalendarYear(next.getFullYear())
+                setCalendarMonth(next.getMonth() + 1)
+              }}
+              onToday={() => {
+                const now = new Date()
+                setCalendarYear(now.getFullYear())
+                setCalendarMonth(now.getMonth() + 1)
+              }}
+              onDayClick={(date) => {
+                setFilterDateFrom(date)
+                setFilterDateTo(date)
+                setDayModalDate(date)
+                setPage(1)
+                const [y, m] = date.split('-').map(Number)
+                if (y && m) {
+                  setCalendarYear(y)
+                  setCalendarMonth(m)
+                }
+              }}
+            />
+          )}
+          {!isMobileFilters ? (
+            <p className="muted small month-calendar-hint">
+              Hacé clic en un día del calendario para abrir un popup con todas las
+              compras del día.
+            </p>
+          ) : null}
+          </>
         ) : (
           <>
         {listError && (
@@ -3441,10 +3596,35 @@ export function PurchaseLotsView({ baseUrl }: { baseUrl: string }) {
         onClose={() => setCreateOpen(false)}
         onCreated={(lotId) => {
           setListRefreshKey((k) => k + 1)
+          setCalendarRefreshKey((k) => k + 1)
+          if (dayModalDate) setDayPanelRefresh((k) => k + 1)
           void openLot(lotId, undefined, true)
         }}
       />
     ) : null}
+
+      {dayModalDate ? (
+        <DayPurchasesModal
+          baseUrl={baseUrl}
+          date={dayModalDate}
+          refreshKey={dayPanelRefresh}
+          onClose={() => setDayModalDate(null)}
+          onEditLot={(id, row) => {
+            setDayModalDate(null)
+            void openLot(id, row, true)
+          }}
+          onCreatePurchase={() => {
+            const dateKey = dayModalDate
+            setDayModalDate(null)
+            openCreatePurchase(dateKey)
+          }}
+        />
+      ) : null}
+
+      <ViewBootSplash
+        ready={!loading && (viewMode !== 'calendar' || isMobileFilters || !calendarLoading)}
+        label="Cargando compras…"
+      />
     </div>
   )
 }

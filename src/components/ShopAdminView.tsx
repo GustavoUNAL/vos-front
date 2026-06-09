@@ -6,6 +6,7 @@ import {
 } from '../api'
 import { openPublicShop } from '../shop/shopApi'
 import { BRAND_NAME } from '../lib/brand'
+import { ViewBootSplash } from './DataLoadingSplash'
 
 type Props = {
   baseUrl: string
@@ -252,6 +253,8 @@ export function ShopAdminView({ baseUrl, onOpenProducts, onOpenPos }: Props) {
           )}
         </>
       ) : null}
+
+      <ViewBootSplash ready={!loading} label="Cargando tienda en línea…" />
     </div>
   )
 }

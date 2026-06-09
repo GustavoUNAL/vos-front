@@ -15,6 +15,7 @@ import {
   type StaffShiftRow,
   type StaffSummary,
 } from '../api'
+import { ViewBootSplash } from './DataLoadingSplash'
 
 function formatCOP(value: string | number | null | undefined): string {
   const n =
@@ -896,6 +897,8 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
           </section>
         </div>
       )}
+
+      <ViewBootSplash ready={!loading} label="Cargando personal…" />
     </div>
   )
 }

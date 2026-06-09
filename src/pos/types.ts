@@ -11,6 +11,8 @@ export type PaymentMethod =
   | 'daviplata'
   | 'other'
 
+export type PosStaffMember = 'David' | 'Gustavo' | 'Sonia'
+
 export type PosTable = {
   id: string
   number: number
@@ -65,6 +67,24 @@ export type PosOrder = {
   openedAt: string
   closedAt?: string | null
   paidAt?: string | null
+  /** Código corto: 2 letras + 4 números (ej. AB3847). */
+  code?: string | null
+  /** Cliente o mesa (etiqueta de la venta). */
+  mesa?: string | null
+  /** Celular del cliente para comprobante WhatsApp. */
+  customerPhone?: string | null
+  /** Forma de pago prevista al armar el pedido. */
+  paymentMethod?: PaymentMethod | null
+  /** @deprecated Usar transferReceiptDataUrl */
+  transferReference?: string | null
+  /** Foto del comprobante de transferencia (data URL). */
+  transferReceiptDataUrl?: string | null
+  /** Comentario libre sobre la venta. */
+  notes?: string | null
+  /** Quién atendió el pedido en salón. */
+  attendedBy?: PosStaffMember | null
+  /** Efectivo recibido configurado en comanda/cobro. */
+  cashTenderedCOP?: number | null
 }
 
 export type PaymentSplit = {
@@ -76,10 +96,16 @@ export type PayOrderPayload = {
   splits: PaymentSplit[]
   tipCOP: number
   printReceipt?: boolean
-  /** Celular del cliente para comprobante WhatsApp (obligatorio en POS). */
-  customerPhone: string
+  /** Celular del cliente para comprobante WhatsApp (opcional). */
+  customerPhone?: string
   /** Comentario libre sobre la venta. */
   saleComment?: string
+  /** Quién atendió la venta. */
+  attendedBy?: PosStaffMember
+  /** Billete recibido en efectivo (para cambio). */
+  cashTenderedCOP?: number
+  /** Comprobante de transferencia (data URL). */
+  transferReceiptDataUrl?: string
 }
 
 export type PosHistoryOrder = PosOrder & {
@@ -91,5 +117,7 @@ export type PosWsEvent =
   | { type: 'tables.updated'; tables: PosTable[] }
   | { type: 'order.updated'; order: PosOrder }
   | { type: 'order.closed'; orderId: string; tableId: string }
+  | { type: 'shop-order.created'; order: Record<string, unknown> }
+  | { type: 'shop-order.updated'; order: Record<string, unknown> }
 
 export type PosScreen = 'tables' | 'order' | 'payment' | 'history' | 'shop-orders'

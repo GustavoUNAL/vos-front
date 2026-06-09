@@ -9,6 +9,14 @@ import {
 } from '../../../api'
 import { ORDER_STATUS_LABEL } from '../../constants'
 import { formatCOP } from '../../lib/money'
+import { formatPosOrderCode } from '../../lib/orderCode'
+import {
+  saleDisplayClient,
+  saleDisplayCode,
+  saleDisplayExtras,
+  saleDisplayTime,
+  saleRowFromListRow,
+} from '../../../lib/saleListDisplay'
 import { todayISO } from '../../lib/time'
 import { fetchPosOrders } from '../../services/posApi'
 import { usePosStore } from '../../store/posStore'
@@ -41,10 +49,6 @@ type HistoryRow =
       totalCOP: number
       sale: SaleListRow
     }
-
-function shortId(id: string): string {
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id
-}
 
 function formatDateTime(iso: string): { date: string; time: string } {
   const d = new Date(iso)
@@ -129,7 +133,6 @@ export function HistoryView({ baseUrl }: Props) {
               limit: 100,
               dateFrom,
               dateTo,
-              source: 'CART',
             }).catch(() => null)
           : Promise.resolve(null),
       ])
@@ -283,33 +286,46 @@ export function HistoryView({ baseUrl }: Props) {
           <table className="pos-sales-table">
             <thead>
               <tr>
-                <th>Ref.</th>
-                <th>Fecha</th>
-                <th>Mesa</th>
-                <th>Estado</th>
-                <th className="num">Líneas</th>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Hora</th>
+                <th>Detalle</th>
                 <th className="num">Total</th>
-                <th>Origen</th>
+                <th>Estado</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
                 const rowKey = `${row.kind}:${row.id}`
-                const { date, time } = formatDateTime(row.at)
+                const { date } = formatDateTime(row.at)
                 const expanded = expandedId === rowKey
                 const statusLabel =
                   row.kind === 'pos'
                     ? ORDER_STATUS_LABEL[row.status] ?? row.status
                     : 'Pagada'
+                const saleDisplay =
+                  row.kind === 'sale'
+                    ? saleRowFromListRow(row.sale)
+                    : {
+                        id: row.id,
+                        code: formatPosOrderCode(row.order),
+                        saleDate: row.at,
+                        mesa: row.order.mesa ?? row.tableLabel,
+                        paymentMethod: row.order.paymentMethod ?? undefined,
+                        notes: row.order.attendedBy
+                          ? `Atendió: ${row.order.attendedBy}`
+                          : row.order.notes,
+                        source: 'POS',
+                        lineCount: row.lineCount,
+                      }
+                const client = saleDisplayClient(saleDisplay)
+                const extras = saleDisplayExtras(saleDisplay)
                 return (
                   <Fragment key={rowKey}>
                     <tr
                       className={`pos-sales-row${expanded ? ' pos-sales-row--expanded' : ''}`}
                     >
-                      <td className="mono muted" title={row.id}>
-                        {shortId(row.id)}
-                      </td>
-                      <td>
+                      <td className="mono" title={row.id}>
                         <button
                           type="button"
                           className="pos-sales-datetime"
@@ -317,11 +333,16 @@ export function HistoryView({ baseUrl }: Props) {
                             setExpandedId(expanded ? null : rowKey)
                           }
                         >
-                          <span>{date}</span>
-                          {time && <span className="muted">{time}</span>}
+                          <strong>{saleDisplayCode(saleDisplay)}</strong>
+                          <span className="muted small">{date}</span>
                         </button>
                       </td>
-                      <td>{row.tableLabel}</td>
+                      <td>{client}</td>
+                      <td className="mono">{saleDisplayTime(row.at)}</td>
+                      <td className="muted small">
+                        {extras.length > 0 ? extras.join(' · ') : '—'}
+                      </td>
+                      <td className="num pos-sales-total">{formatCOP(row.totalCOP)}</td>
                       <td>
                         <span
                           className={`pos-status-tag pos-status-tag--${row.status}`}
@@ -329,17 +350,10 @@ export function HistoryView({ baseUrl }: Props) {
                           {statusLabel}
                         </span>
                       </td>
-                      <td className="num">{row.lineCount}</td>
-                      <td className="num pos-sales-total">{formatCOP(row.totalCOP)}</td>
-                      <td>
-                        <span className="pos-origin-pill">
-                          {row.kind === 'pos' ? 'POS' : row.sale.source}
-                        </span>
-                      </td>
                     </tr>
                     {expanded && row.kind === 'pos' && row.order.lines.length > 0 && (
                       <tr className="pos-sales-detail-row">
-                        <td colSpan={7}>
+                        <td colSpan={6}>
                           <ul className="pos-sales-lines">
                             {row.order.lines.map((l) => (
                               <li key={l.id}>
@@ -360,7 +374,7 @@ export function HistoryView({ baseUrl }: Props) {
                     )}
                     {expanded && row.kind === 'sale' && (
                       <tr className="pos-sales-detail-row">
-                        <td colSpan={7}>
+                        <td colSpan={6}>
                           <p className="muted small">
                             {row.sale.paymentMethod && (
                               <>Pago: {row.sale.paymentMethod} · </>

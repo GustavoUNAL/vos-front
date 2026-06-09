@@ -1,5 +1,6 @@
 import { getAccessToken, formatApiErrorFromBody } from '../../api'
 import { isBackendDown } from '../../backendHealth'
+import { mergeOrderMeta } from '../lib/orderMetaCache'
 import type {
   CreateTablePayload,
   PayOrderPayload,
@@ -128,7 +129,7 @@ export async function openTableAccount(
   base: string,
   tableId: string,
 ): Promise<PosOrder> {
-  return withFallback(
+  const order = await withFallback(
     async () => {
       const res = await posFetch(base, `/pos/tables/${encodeURIComponent(tableId)}/open`, {
         method: 'POST',
@@ -136,6 +137,26 @@ export async function openTableAccount(
       return handleRes<PosOrder>(res)
     },
     () => localPosApi.openTable(tableId),
+  )
+  return mergeOrderMeta(order)
+}
+
+export async function cancelPosOrder(base: string, orderId: string): Promise<void> {
+  return withFallback(
+    async () => {
+      const res = await posFetch(
+        base,
+        `/pos/orders/${encodeURIComponent(orderId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'closed' }),
+        },
+      )
+      await handleRes<PosOrder>(res)
+    },
+    () => {
+      localPosApi.cancelTableOrder(orderId)
+    },
   )
 }
 
@@ -162,7 +183,7 @@ export async function fetchPosOrder(
   base: string,
   orderId: string,
 ): Promise<PosOrder> {
-  return withFallback(
+  const order = await withFallback(
     async () => {
       const res = await posFetch(
         base,
@@ -176,6 +197,7 @@ export async function fetchPosOrder(
       return o
     },
   )
+  return mergeOrderMeta(order)
 }
 
 export async function updatePosOrder(

@@ -6,6 +6,7 @@ import {
   type TableInfo,
   type TableRowsResponse,
 } from '../api'
+import { ViewBootSplash } from './DataLoadingSplash'
 import { SectionSummaryBar } from './SectionSummaryBar'
 
 const PAGE_SIZE = 75
@@ -311,6 +312,8 @@ export function TableExplorer({ baseUrl }: { baseUrl: string }) {
           </>
         )}
       </div>
+
+      <ViewBootSplash ready={!tablesLoading} label="Cargando explorador…" />
     </div>
   )
 }

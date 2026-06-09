@@ -1,0 +1,619 @@
+/**
+ * Sistema móvil unificado (Inicio, Productos, Ventas, POS, Compras).
+ * Usa tokens de espaciado y tarjetas consistentes en pantallas ≤720px.
+ * Se activa con la clase .mobile-view en cada vista raíz.
+ */
+
+.inline-loader {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+}
+
+.inline-loader--block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1.75rem 1rem;
+  width: 100%;
+}
+
+.inline-loader__icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.inline-loader__label {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .app-shell--mobile-dock {
+    --mv-gap: 0.55rem;
+    --mv-gap-lg: 0.75rem;
+    --mv-pad-x: max(0.65rem, env(safe-area-inset-left, 0px));
+    --mv-pad-bottom: calc(4.35rem + env(safe-area-inset-bottom, 0px));
+    --mv-card-radius: 14px;
+    --mv-card-pad: 0.72rem 0.8rem;
+    --mv-card-border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    --mv-card-bg: color-mix(in srgb, var(--surface-elevated) 93%, var(--heading));
+    --mv-card-shadow: 0 1px 8px color-mix(in srgb, var(--shadow-soft) 42%, transparent);
+  }
+
+  /* ——— Contenedor de página ——— */
+  .mobile-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mv-gap-lg);
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  .app-shell--mobile-dock .app-main > .mobile-view {
+    padding-inline: var(--mv-pad-x);
+    padding-bottom: var(--mv-pad-bottom);
+  }
+
+  .mobile-view .page-pane--floating-gear-dock {
+    padding-bottom: 0;
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view .page-intro--tight {
+    margin: 0;
+    padding: 0;
+  }
+
+  .mobile-view .page-title {
+    margin: 0;
+    font-size: 1.08rem;
+    line-height: 1.25;
+  }
+
+  /* ——— Tarjeta genérica (utilidad) ——— */
+  .mv-card {
+    padding: var(--mv-card-pad);
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+    box-shadow: var(--mv-card-shadow);
+  }
+
+  .mv-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mv-gap);
+    min-width: 0;
+  }
+
+  .mv-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--mv-gap);
+  }
+
+  /* ——— Inicio ——— */
+  .mobile-view--home {
+    gap: var(--mv-gap-lg);
+  }
+
+  .mobile-view--home .home-dashboard__hero {
+    padding: 0;
+  }
+
+  .mobile-view--home .home-dashboard__title {
+    font-size: 1.2rem;
+    line-height: 1.28;
+  }
+
+  .mobile-view--home .home-dashboard__subtitle {
+    font-size: 0.82rem;
+    margin-top: 0.25rem;
+  }
+
+  .mobile-view--home .home-dashboard__hero-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--mv-gap);
+    margin-top: 0.65rem;
+  }
+
+  .mobile-view--home .home-dashboard__hero-actions .btn-compact {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.5rem;
+  }
+
+  .mobile-view--home .home-dashboard__kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view--home .home-dashboard__kpi {
+    padding: var(--mv-card-pad);
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+    box-shadow: none;
+  }
+
+  .mobile-view--home .home-dashboard__kpi-value {
+    font-size: 0.95rem;
+    word-break: break-word;
+  }
+
+  .mobile-view--home .home-dashboard__panel {
+    padding: var(--mv-card-pad);
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+    box-shadow: var(--mv-card-shadow);
+  }
+
+  .mobile-view--home .home-dashboard__pos-alert {
+    margin-bottom: 0;
+    padding: var(--mv-card-pad);
+    border-radius: var(--mv-card-radius);
+  }
+
+  .mobile-view--home .home-dashboard__open-table {
+    padding: 0.65rem 0.7rem;
+    border-radius: 12px;
+    border: var(--mv-card-border);
+    background: color-mix(in srgb, var(--surface) 88%, var(--heading));
+  }
+
+  .mobile-view--home .home-dashboard__columns,
+  .mobile-view--home .home-dashboard__calendars {
+    gap: var(--mv-gap-lg);
+  }
+
+  /* ——— Productos ——— */
+  .mobile-view--products .products-list-pane {
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view--products .products-catalog-grid-wrap {
+    gap: var(--mv-gap-lg);
+  }
+
+  .mobile-view--products .products-catalog-grid {
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view--products .products-catalog-grid .product-card--subtle {
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    box-shadow: none;
+  }
+
+  .mobile-view--products .catalog-category-block {
+    border-radius: var(--mv-card-radius);
+    overflow: hidden;
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+  }
+
+  .mobile-view--products .catalog-category-block__summary {
+    padding: 0.55rem 0.65rem;
+  }
+
+  .mobile-view--products .mobile-list-toolbar__actions--products,
+  .mobile-view--products .mobile-list-toolbar__actions--module,
+  .mobile-view--sales .mobile-list-toolbar__actions--module,
+  .mobile-view--purchases .mobile-list-toolbar__actions--module,
+  .mobile-view--pos .mobile-list-toolbar__actions--module {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-view--products .mobile-list-toolbar__tail,
+  .mobile-view--sales .mobile-list-toolbar__tail,
+  .mobile-view--purchases .mobile-list-toolbar__tail,
+  .mobile-view--pos .mobile-list-toolbar__tail {
+    margin-left: auto;
+    gap: 0.28rem;
+  }
+
+  .mobile-view--products .mobile-filter-sheet__trigger,
+  .mobile-view--sales .mobile-filter-sheet__trigger,
+  .mobile-view--purchases .mobile-filter-sheet__trigger {
+    padding-inline: 0;
+  }
+
+  .mobile-view--sales .sales-page-intro__head .module-view-toggle,
+  .mobile-view--purchases .purchases-intro__head .module-view-toggle {
+    display: none;
+  }
+
+  /* ——— Ventas y Compras (intro + calendario) ——— */
+  .mobile-view--sales .sales-page-intro__head,
+  .mobile-view--purchases .purchases-intro__head {
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view--sales .sales-page-intro .page-title,
+  .mobile-view--sales .sales-page-intro .muted.small,
+  .mobile-view--purchases .purchases-intro .page-title,
+  .mobile-view--purchases .purchases-intro__description {
+    display: none;
+  }
+
+  .mobile-view--sales .sales-page-intro__head,
+  .mobile-view--purchases .purchases-intro__head {
+    margin-top: 0;
+  }
+
+  .month-calendar-scroll-feed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mv-gap-lg);
+    width: 100%;
+    min-width: 0;
+  }
+
+  .month-calendar-scroll-feed__jump {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    position: sticky;
+    top: 3.1rem;
+    z-index: 3;
+    padding: 0.15rem 0 0.25rem;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 65%, transparent) 70%,
+      transparent 100%
+    );
+  }
+
+  .month-calendar-scroll-feed__sync {
+    margin: 0;
+    font-size: 0.72rem;
+  }
+
+  .month-calendar-scroll-feed__month {
+    scroll-margin-top: 5.5rem;
+  }
+
+  .month-calendar--embedded {
+    margin-top: 0;
+  }
+
+  .month-calendar--embedded .month-calendar__head {
+    margin-bottom: 0.55rem;
+  }
+
+  .month-calendar--embedded .month-calendar__title {
+    flex: 1 1 100%;
+  }
+
+  .month-calendar-scroll-feed__loader {
+    min-height: 8rem;
+  }
+
+  .month-calendar-scroll-feed__month-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 6.5rem;
+    padding: 0.75rem;
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+  }
+
+  .month-calendar-scroll-feed__month-title {
+    margin: 0;
+    font-size: 0.82rem;
+    text-transform: capitalize;
+  }
+
+  .month-calendar-scroll-feed__sentinel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    text-align: center;
+  }
+
+  .month-calendar-scroll-feed__end {
+    margin: 0;
+    padding: 0.35rem 0.5rem 0.65rem;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+
+  .mobile-view--sales
+    .mobile-list-toolbar__actions--module
+    .module-view-toggle,
+  .mobile-view--purchases
+    .mobile-list-toolbar__actions--module
+    .module-view-toggle,
+  .mobile-view--pos
+    .mobile-list-toolbar__actions--module
+    .module-view-toggle {
+    flex-shrink: 0;
+  }
+
+  .mobile-view .month-calendar {
+    margin-top: 0;
+    padding: 0.65rem 0.55rem 0.75rem;
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+    box-shadow: var(--mv-card-shadow);
+  }
+
+  .mobile-view .month-calendar__head {
+    gap: 0.35rem 0.5rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .mobile-view .month-calendar__title {
+    font-size: 0.95rem;
+  }
+
+  .mobile-view .month-calendar__summary {
+    font-size: 0.72rem;
+  }
+
+  .mobile-view .month-calendar__grid {
+    gap: 0.22rem;
+  }
+
+  .mobile-view .month-calendar__weekdays {
+    gap: 0.22rem;
+    margin-bottom: 0.28rem;
+  }
+
+  .mobile-view .month-calendar__weekday {
+    font-size: 0.6rem;
+  }
+
+  .mobile-view .month-calendar__day {
+    min-height: 3.15rem;
+    padding: 0.22rem 0.2rem 0.26rem;
+    border-radius: 8px;
+  }
+
+  .mobile-view .month-calendar__day-num {
+    font-size: 0.72rem;
+  }
+
+  .mobile-view .month-calendar__day-count {
+    font-size: 0.58rem;
+  }
+
+  .mobile-view .month-calendar__day-total {
+    font-size: 0.52rem;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .mobile-view .month-calendar-hint {
+    margin: 0.35rem 0 0;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.72rem;
+    border-radius: 10px;
+  }
+
+  /* ——— Ventas: lista como tarjetas ——— */
+  .mobile-view--sales .sales-table-wrap {
+    margin-top: 0;
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .mobile-view--sales table.data-table--sales-list {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .mobile-view--sales .data-table--sales-list thead {
+    display: none;
+  }
+
+  .mobile-view--sales .data-table--sales-list tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view--sales .data-table--sales-list tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'sale total'
+      'source action';
+    gap: 0.35rem 0.65rem;
+    align-items: center;
+    padding: var(--mv-card-pad);
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    background: var(--mv-card-bg);
+    box-shadow: var(--mv-card-shadow);
+  }
+
+  .mobile-view--sales .data-table--sales-list tbody tr:hover {
+    background: color-mix(in srgb, var(--accent) 4%, var(--mv-card-bg));
+  }
+
+  .mobile-view--sales .data-table--sales-list tbody tr.sales-table-row--active {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, var(--mv-card-bg));
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .mobile-view--sales .data-table--sales-list td {
+    display: block;
+    width: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    vertical-align: middle;
+  }
+
+  .mobile-view--sales .sales-table-cell--sale {
+    grid-area: sale;
+    min-width: 0;
+  }
+
+  .mobile-view--sales .sales-table-cell--total {
+    grid-area: total;
+    text-align: right;
+    font-size: 0.88rem !important;
+  }
+
+  .mobile-view--sales .sales-table-cell--source {
+    grid-area: source;
+    text-align: left;
+  }
+
+  .mobile-view--sales .sales-table-cell--action {
+    grid-area: action;
+    text-align: right;
+  }
+
+  .mobile-view--sales .sales-table-link__date {
+    font-size: 0.82rem;
+  }
+
+  .mobile-view--sales .sales-table-action {
+    min-height: 2rem;
+    padding: 0.28rem 0.55rem;
+    font-size: 0.72rem;
+    border-radius: 8px;
+  }
+
+  /* ——— Compras: lista alineada con el sistema ——— */
+  .mobile-view--purchases .products-list-pane--purchases {
+    padding-inline: 0;
+    gap: var(--mv-gap);
+  }
+
+  .mobile-view--purchases .purchases-intro {
+    padding-inline: 0;
+  }
+
+  .mobile-view--purchases .purchases-list-table-wrap {
+    border-radius: var(--mv-card-radius);
+    border: var(--mv-card-border);
+    box-shadow: var(--mv-card-shadow);
+    overflow: hidden;
+  }
+
+  .mobile-view--purchases .purchases-list-table tbody tr {
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+
+  .mobile-view--purchases .purchases-list-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* ——— POS (mismo ancho que Productos / Ventas / Compras) ——— */
+  .mobile-view--pos {
+    gap: var(--mv-gap);
+    padding-bottom: 0 !important;
+    width: 100%;
+    max-width: none;
+  }
+
+  .mobile-view--pos .pos-screen {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    padding: 0.35rem 0 max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-view--pos .pos-mobile-module-bar {
+    padding-inline: 0;
+    width: 100%;
+  }
+
+  .mobile-view--pos .pos-tables-grid--salon {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  .mobile-view--pos .pos-table-card,
+  .mobile-view--pos .pos-product-tile--subtle {
+    border-radius: var(--mv-card-radius);
+  }
+
+  .mobile-view--pos .pos-cart-panel {
+    border-radius: var(--mv-card-radius) var(--mv-card-radius) 0 0;
+  }
+
+  /* Filtros y paginación */
+  .mobile-view .mobile-filter-sheet,
+  .mobile-view .inventory-filter-bar {
+    border-radius: var(--mv-card-radius);
+  }
+
+  .mobile-view .pagination-bar {
+    padding-inline: 0;
+    gap: var(--mv-gap);
+  }
+}
+
+@media (max-width: 400px) {
+  .app-shell--mobile-dock {
+    --mv-pad-x: max(0.5rem, env(safe-area-inset-left, 0px));
+    --mv-gap: 0.45rem;
+    --mv-gap-lg: 0.6rem;
+  }
+
+  .mobile-view .month-calendar__day {
+    min-height: 2.85rem;
+  }
+
+  .mobile-view .month-calendar__day-total {
+    display: none;
+  }
+
+  .mobile-view--home .home-dashboard__kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-view--products .products-catalog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-view--sales .data-table--sales-list tbody tr {
+    grid-template-areas:
+      'sale sale'
+      'total source'
+      'action action';
+    grid-template-columns: 1fr auto;
+  }
+
+  .mobile-view--sales .sales-table-cell--action {
+    text-align: stretch;
+  }
+
+  .mobile-view--sales .sales-table-action {
+    width: 100%;
+    justify-content: center;
+  }
+}

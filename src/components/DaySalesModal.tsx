@@ -1,14 +1,25 @@
 import { useEffect } from 'react'
-import { CashClosePanel } from './CashClosePanel'
+import { DaySalesListPanel } from './DaySalesListPanel'
 import { Button } from './ui/button'
+
+function formatModalDate(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const dt = new Date(y, m - 1, d, 12, 0, 0)
+  return new Intl.DateTimeFormat('es-CO', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(dt)
+}
 
 type Props = {
   baseUrl: string
   date: string
   refreshKey?: number
   onClose: () => void
-  onEditSale: (saleId: string) => void
   onCreateSale: () => void
+  onEditSale?: (saleId: string) => void
+  companyName?: string | null
 }
 
 export function DaySalesModal({
@@ -16,8 +27,9 @@ export function DaySalesModal({
   date,
   refreshKey = 0,
   onClose,
-  onEditSale,
   onCreateSale,
+  onEditSale,
+  companyName,
 }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,7 +55,7 @@ export function DaySalesModal({
       >
         <header className="sales-day-modal__head">
           <h2 id="sales-day-modal-title" className="sales-day-modal__title">
-            Ventas del día
+            Comandas · {formatModalDate(date)}
           </h2>
           <Button
             type="button"
@@ -56,12 +68,13 @@ export function DaySalesModal({
           </Button>
         </header>
         <div className="sales-day-modal__body">
-          <CashClosePanel
+          <DaySalesListPanel
             baseUrl={baseUrl}
             date={date}
             refreshKey={refreshKey}
-            onEditSale={onEditSale}
             onCreateSale={onCreateSale}
+            onEditSale={onEditSale}
+            companyName={companyName}
           />
         </div>
       </div>

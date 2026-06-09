@@ -1,6 +1,8 @@
 import { getCompanyId } from '../../api'
 import { DEMO_TABLE_COUNT, POS_STORAGE_KEY } from '../constants'
+import { generatePosOrderCode, isValidPosOrderCode } from '../lib/orderCode'
 import { DEFAULT_TAX_RATE, computeOrderTotals } from '../lib/money'
+import { emitPosLocalEvent } from './posLocalEvents'
 import type {
   CreateTablePayload,
   PosOrder,
@@ -8,7 +10,7 @@ import type {
   UpdateTablePayload,
 } from '../types'
 
-const STATE_VERSION = 2
+const STATE_VERSION = 3
 
 export type PosLocalState = {
   tables: PosTable[]
@@ -21,16 +23,38 @@ function migrateState(parsed: PosLocalState): PosLocalState {
   const sorted = [...parsed.tables].sort((a, b) => a.number - b.number)
   const kept = sorted.slice(0, DEMO_TABLE_COUNT)
   const defaults = createDemoTables()
-  const tables =
-    kept.length >= DEMO_TABLE_COUNT
-      ? kept
-      : defaults.map((d, i) => kept[i] ?? d)
+  const merged = defaults.map((d, i) => {
+    const existing = kept[i]
+    return existing
+      ? {
+          ...existing,
+          name: d.name,
+          number: d.number,
+          section: d.section ?? existing.section,
+        }
+      : d
+  })
+  const tables = merged.slice(0, DEMO_TABLE_COUNT)
   const keptIds = new Set(tables.map((t) => t.id))
   const orders = { ...parsed.orders }
   for (const [id, order] of Object.entries(orders)) {
     if (!keptIds.has(order.tableId)) delete orders[id]
   }
   return { tables, orders, version: STATE_VERSION }
+}
+
+function collectUsedCodes(state: PosLocalState): Set<string> {
+  return new Set(
+    Object.values(state.orders)
+      .map((o) => o.code?.trim().toUpperCase())
+      .filter((c): c is string => Boolean(c)),
+  )
+}
+
+function ensureOrderCode(order: PosOrder, state: PosLocalState): PosOrder {
+  if (isValidPosOrderCode(order.code)) return order
+  const code = generatePosOrderCode(collectUsedCodes(state))
+  return { ...order, code }
 }
 
 function newId(): string {
@@ -43,11 +67,12 @@ export function createDemoTables(): PosTable[] {
     return {
       id: `table-${n}`,
       number: n,
-      name: `Mesa ${n}`,
+      name: n === 1 ? 'Barra' : `Mesa ${n}`,
       status: 'free',
       openedAt: null,
       totalCOP: 0,
       orderId: null,
+      section: 'Salón',
     }
   })
 }
@@ -112,7 +137,15 @@ export const localPosApi = {
   },
 
   getOrder(id: string): PosOrder | null {
-    return loadLocalState().orders[id] ?? null
+    const state = loadLocalState()
+    const order = state.orders[id]
+    if (!order) return null
+    const withCode = ensureOrderCode(order, state)
+    if (withCode.code !== order.code) {
+      state.orders[id] = withCode
+      saveLocalState(state)
+    }
+    return withCode
   },
 
   openTable(tableId: string): PosOrder {
@@ -121,7 +154,7 @@ export const localPosApi = {
     if (!table) throw new Error('Mesa no encontrada')
     if (table.orderId) {
       const existing = state.orders[table.orderId]
-      if (existing) return existing
+      if (existing) return ensureOrderCode(existing, state)
     }
     const order: PosOrder = {
       id: newId(),
@@ -134,10 +167,19 @@ export const localPosApi = {
       taxCOP: 0,
       totalCOP: 0,
       openedAt: new Date().toISOString(),
+      code: generatePosOrderCode(collectUsedCodes(state)),
+      mesa: table.name,
+      paymentMethod: 'cash',
+      customerPhone: null,
+      notes: null,
+      attendedBy: null,
+      transferReceiptDataUrl: null,
     }
     state.orders[order.id] = order
     state.tables = syncTableFromOrder(state.tables, order)
     saveLocalState(state)
+    emitPosLocalEvent({ type: 'order.updated', order })
+    emitPosLocalEvent({ type: 'tables.updated', tables: state.tables })
     return order
   },
 
@@ -148,7 +190,26 @@ export const localPosApi = {
     state.orders[next.id] = next
     state.tables = syncTableFromOrder(state.tables, next)
     saveLocalState(state)
+    emitPosLocalEvent({ type: 'order.updated', order: next })
+    emitPosLocalEvent({ type: 'tables.updated', tables: state.tables })
     return next
+  },
+
+  cancelTableOrder(orderId: string): void {
+    const state = loadLocalState()
+    const order = state.orders[orderId]
+    if (!order) return
+    order.status = 'closed'
+    order.closedAt = new Date().toISOString()
+    state.orders[orderId] = order
+    state.tables = state.tables.map((t) =>
+      t.id === order.tableId
+        ? { ...t, status: 'free', openedAt: null, totalCOP: 0, orderId: null }
+        : t,
+    )
+    saveLocalState(state)
+    emitPosLocalEvent({ type: 'order.closed', orderId, tableId: order.tableId })
+    emitPosLocalEvent({ type: 'tables.updated', tables: state.tables })
   },
 
   closeTable(tableId: string): void {

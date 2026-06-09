@@ -1,5 +1,11 @@
+import type { RefObject } from 'react'
+import { useMemo } from 'react'
 import type { CategoryRef, ProductRow } from '../../../api'
 import { formatCOP, parseMoney } from '../../lib/money'
+import {
+  filterProductsForPos,
+  sortProductsForPos,
+} from '../../lib/productSearch'
 import { PosEmpty } from '../ui/PosEmpty'
 
 type Props = {
@@ -9,6 +15,10 @@ type Props = {
   search: string
   highlightId?: string | null
   catalogError?: string | null
+  searchInputRef?: RefObject<HTMLInputElement | null>
+  searchOpen?: boolean
+  topProductIds?: string[]
+  unitsSoldByProductId?: Map<string, number>
   onSearch: (v: string) => void
   onCategory: (id: string | null) => void
   onAdd: (p: { id: string; name: string; price: number }) => void
@@ -19,6 +29,40 @@ function productPrice(p: ProductRow): number {
   return parseMoney(p.price)
 }
 
+function ProductTile({
+  product,
+  highlightId,
+  badge,
+  onAdd,
+}: {
+  product: ProductRow
+  highlightId?: string | null
+  badge?: string | null
+  onAdd: (p: { id: string; name: string; price: number }) => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`pos-product-tile pos-product-tile--subtle${highlightId === product.id ? ' pos-product-tile--added' : ''}${badge ? ' pos-product-tile--featured' : ''}`}
+      onClick={() =>
+        onAdd({
+          id: product.id,
+          name: product.name,
+          price: productPrice(product),
+        })
+      }
+    >
+      {badge ? (
+        <span className="pos-product-tile__badge" aria-hidden>
+          {badge}
+        </span>
+      ) : null}
+      <span className="pos-product-tile__name">{product.name}</span>
+      <span className="pos-product-tile__price">{formatCOP(productPrice(product))}</span>
+    </button>
+  )
+}
+
 export function ProductGrid({
   products,
   categories,
@@ -26,20 +70,49 @@ export function ProductGrid({
   search,
   highlightId,
   catalogError,
+  searchInputRef,
+  searchOpen = true,
+  topProductIds = [],
+  unitsSoldByProductId = new Map(),
   onSearch,
   onCategory,
   onAdd,
   onRetry,
 }: Props) {
-  const filtered = products.filter((p) => {
-    if (!p.active) return false
-    if (activeCategoryId && p.categoryId !== activeCategoryId) return false
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      if (!p.name.toLowerCase().includes(q)) return false
+  const showFeatured = !search.trim() && !activeCategoryId && topProductIds.length > 0
+
+  const filtered = useMemo(() => {
+    const base = filterProductsForPos(products, { activeCategoryId, search })
+    return sortProductsForPos(base, {
+      search,
+      salesUnitsByProductId: unitsSoldByProductId,
+    })
+  }, [products, activeCategoryId, search, unitsSoldByProductId])
+
+  const productById = useMemo(() => {
+    const map = new Map<string, ProductRow>()
+    for (const p of products) {
+      if (p.active) map.set(p.id, p)
     }
-    return true
-  })
+    return map
+  }, [products])
+
+  const featuredProducts = useMemo(() => {
+    if (!showFeatured) return [] as ProductRow[]
+    return topProductIds
+      .map((id) => productById.get(id))
+      .filter((p): p is ProductRow => Boolean(p))
+      .slice(0, 8)
+  }, [showFeatured, topProductIds, productById])
+
+  const featuredIds = useMemo(
+    () => new Set(featuredProducts.map((p) => p.id)),
+    [featuredProducts],
+  )
+
+  const gridProducts = showFeatured
+    ? filtered.filter((p) => !featuredIds.has(p.id))
+    : filtered
 
   if (catalogError && products.length === 0) {
     return (
@@ -60,17 +133,22 @@ export function ProductGrid({
   return (
     <div className="pos-products">
       <div className="pos-products__toolbar">
-        <label className="pos-products__search-label">
-          <span className="sr-only">Buscar productos</span>
-          <input
-            type="search"
-            className="pos-input pos-input--search"
-            placeholder="Buscar en la carta… (/)"
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            aria-label="Buscar productos"
-          />
-        </label>
+        {searchOpen ? (
+          <label className="pos-products__search-label">
+            <span className="sr-only">Buscar productos</span>
+            <input
+              ref={searchInputRef}
+              type="search"
+              className="pos-input pos-input--search"
+              placeholder="Buscar nombre o código… (/)"
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              aria-label="Buscar productos"
+              autoComplete="off"
+              enterKeyHint="search"
+            />
+          </label>
+        ) : null}
         <div className="pos-categories" role="tablist" aria-label="Categorías">
           <button
             type="button"
@@ -96,32 +174,60 @@ export function ProductGrid({
         </div>
       </div>
 
+      {showFeatured ? (
+        <section className="pos-products__featured" aria-label="Más vendidos">
+          <div className="pos-products__featured-head">
+            <h2 className="pos-products__featured-title">Más vendidos</h2>
+            <p className="pos-products__featured-hint muted small">
+              Según ventas recientes
+            </p>
+          </div>
+          <div className="pos-products__featured-scroll">
+            {featuredProducts.map((p, index) => (
+              <ProductTile
+                key={p.id}
+                product={p}
+                highlightId={highlightId}
+                badge={index < 3 ? `#${index + 1}` : '★'}
+                onAdd={onAdd}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {filtered.length === 0 ? (
         <PosEmpty
           title="Ningún producto coincide"
           hint={
             search.trim()
-              ? 'Probá otro término o elegí «Todos»'
+              ? 'Probá otro término, código o elegí «Todos»'
               : 'No hay productos en esta categoría'
           }
         />
       ) : (
-        <div className="pos-product-grid">
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className={`pos-product-tile${highlightId === p.id ? ' pos-product-tile--added' : ''}`}
-              onClick={() =>
-                onAdd({ id: p.id, name: p.name, price: productPrice(p) })
-              }
-            >
-              <span className="pos-product-tile__name">{p.name}</span>
-              <span className="pos-product-tile__price">{formatCOP(productPrice(p))}</span>
-              <span className="pos-product-tile__action">+ Agregar</span>
-            </button>
-          ))}
-        </div>
+        <>
+          {showFeatured && gridProducts.length > 0 ? (
+            <h2 className="pos-products__section-title">Resto de la carta</h2>
+          ) : null}
+          <div className="pos-product-grid">
+            {(showFeatured ? gridProducts : filtered).map((p) => (
+              <ProductTile
+                key={p.id}
+                product={p}
+                highlightId={highlightId}
+                badge={
+                  !search.trim() &&
+                  !activeCategoryId &&
+                  topProductIds.slice(0, 3).includes(p.id)
+                    ? '★'
+                    : null
+                }
+                onAdd={onAdd}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

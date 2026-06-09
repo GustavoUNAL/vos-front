@@ -24,6 +24,7 @@ import {
 } from './MobileAwareFilterBar'
 import { FloatingGearFab } from './FloatingGearFab'
 import { RecipeEditor } from './RecipeEditor'
+import { ViewBootSplash } from './DataLoadingSplash'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 
 function getRecipeIdFromHash(): string | null {
@@ -548,6 +549,8 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
           </section>
         </div>
       )}
+
+      <ViewBootSplash ready={!loadingList} label="Cargando recetas…" />
     </div>
   )
 }

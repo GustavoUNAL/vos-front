@@ -9,6 +9,10 @@ import {
   type SaleListRow,
 } from '../api'
 import { BRAND_NAME } from '../lib/brand'
+import { displayCompanyName } from '../lib/displayLabels'
+import { mobileViewClass } from './mobile/mobileView'
+import { DayDetailModal } from './DayDetailModal'
+import { ViewBootSplash } from './DataLoadingSplash'
 import { MonthCalendar } from './MonthCalendar'
 import {
   getOpenPosTables,
@@ -55,6 +59,7 @@ type ProductAgg = {
 type HomeDashboardProps = {
   baseUrl: string
   companyName?: string | null
+  inaugurationDate?: string | null
   onOpenSales: (date: string) => void
   onOpenPurchases: (date: string) => void
   onOpenPos: (tableId?: string) => void
@@ -63,6 +68,7 @@ type HomeDashboardProps = {
 export function HomeDashboard({
   baseUrl,
   companyName,
+  inaugurationDate = null,
   onOpenSales,
   onOpenPurchases,
   onOpenPos,
@@ -71,6 +77,7 @@ export function HomeDashboard({
   const now = new Date()
   const [calendarYear, setCalendarYear] = useState(now.getFullYear())
   const [calendarMonth, setCalendarMonth] = useState(now.getMonth() + 1)
+  const [dayDetailDate, setDayDetailDate] = useState<string | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -180,13 +187,15 @@ export function HomeDashboard({
   }, [purchasesCalendar, todayKey])
 
   const isEmptyDay = stats.count === 0
+  const brandLine = (() => {
+    const name = displayCompanyName(companyName)
+    return name ? `${BRAND_NAME} · ${name}` : BRAND_NAME
+  })()
 
   return (
-    <div className="home-dashboard">
+    <div className={mobileViewClass('home', 'home-dashboard')}>
       <header className="home-dashboard__hero">
-        <p className="home-dashboard__eyebrow muted small">
-          {BRAND_NAME} · {companyName?.trim() || 'Tu empresa'}
-        </p>
+        <p className="home-dashboard__brand muted small">{brandLine}</p>
         <h1 className="home-dashboard__title">{formatLongDate(todayKey)}</h1>
         <p className="home-dashboard__subtitle muted">
           Resumen de ventas y actividad del día
@@ -393,6 +402,7 @@ export function HomeDashboard({
             error={null}
             countLabel="venta"
             showZeroForPastDays
+            inaugurationDate={inaugurationDate}
             onPrevMonth={() => {
               const prev = new Date(calendarYear, calendarMonth - 2, 1)
               setCalendarYear(prev.getFullYear())
@@ -408,7 +418,7 @@ export function HomeDashboard({
               setCalendarYear(t.getFullYear())
               setCalendarMonth(t.getMonth() + 1)
             }}
-            onDayClick={(date) => onOpenSales(date)}
+            onDayClick={(date) => setDayDetailDate(date)}
           />
         </div>
         <div className="home-dashboard__calendar-block">
@@ -420,6 +430,7 @@ export function HomeDashboard({
             error={null}
             countLabel="compra"
             showZeroForPastDays
+            inaugurationDate={inaugurationDate}
             onPrevMonth={() => {
               const prev = new Date(calendarYear, calendarMonth - 2, 1)
               setCalendarYear(prev.getFullYear())
@@ -439,6 +450,25 @@ export function HomeDashboard({
           />
         </div>
       </section>
+
+      <ViewBootSplash ready={!loading} label="Cargando inicio…" />
+
+      {dayDetailDate ? (
+        <DayDetailModal
+          baseUrl={baseUrl}
+          date={dayDetailDate}
+          companyName={companyName}
+          onClose={() => setDayDetailDate(null)}
+          onOpenSales={(d) => {
+            setDayDetailDate(null)
+            onOpenSales(d)
+          }}
+          onOpenPurchases={(d) => {
+            setDayDetailDate(null)
+            onOpenPurchases(d)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

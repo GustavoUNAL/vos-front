@@ -5,6 +5,7 @@ import {
   type FinancialAnalyticsOverview,
 } from '../api'
 import { formatCOP } from '../lib/money'
+import { ViewBootSplash } from './DataLoadingSplash'
 
 function monthRange(date = new Date()): { from: string; to: string } {
   const y = date.getFullYear()
@@ -256,6 +257,8 @@ export function FinanceAnalyticsView({ baseUrl }: { baseUrl: string }) {
           </table>
         </div>
       </section>
+
+      <ViewBootSplash ready={!loading} label="Cargando análisis financiero…" />
     </div>
   )
 }

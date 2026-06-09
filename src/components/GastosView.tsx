@@ -10,6 +10,7 @@ import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
+import { ViewBootSplash } from './DataLoadingSplash'
 import {
   FloatingGearFab,
   FloatingGearFabDockRefresh,
@@ -442,6 +443,8 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
           </>
         )}
       </div>
+
+      <ViewBootSplash ready={!loading} label="Cargando gastos…" />
     </div>
   )
 }

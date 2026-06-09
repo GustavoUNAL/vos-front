@@ -9,6 +9,7 @@ import {
   FloatingGearFab,
   FloatingGearFabDockRefresh,
 } from './FloatingGearFab'
+import { ViewBootSplash } from './DataLoadingSplash'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 
 function num(v: string | number | null | undefined): number {
@@ -483,6 +484,8 @@ export function CostsView({ baseUrl }: { baseUrl: string }) {
           </>
         )}
       </div>
+
+      <ViewBootSplash ready={!loading} label="Cargando costos…" />
     </div>
   )
 }

@@ -27,15 +27,17 @@ import {
   type ProductRow,
 } from '../api'
 import { useMatchMedia } from '../hooks/useMatchMedia'
+import { invalidateApiCache } from '../lib/apiCache'
+import { POS_ACTIVE_CATALOG_CACHE_KEY } from '../lib/posCatalogLoader'
 import { ProductRecipePopup } from './ProductRecipePopup'
 import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
-import {
-  FloatingGearFab,
-  FloatingGearFabDockAdd,
-} from './FloatingGearFab'
+import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
+import { MobileModuleToolbar } from './MobileModuleToolbar'
+import { ViewBootSplash } from './DataLoadingSplash'
+import { mobileViewClass } from './mobile/mobileView'
 import { ProductSummaryCard } from './ProductSummaryCard'
 import { SALES_FLOOR_ONLY } from '../appScope'
 import {
@@ -376,41 +378,40 @@ function ProductGridCard({
         type="button"
         className={
           selected
-            ? 'product-card product-card--catalog active'
-            : 'product-card product-card--catalog'
+            ? 'product-card product-card--catalog product-card--subtle active'
+            : 'product-card product-card--catalog product-card--subtle'
         }
         onMouseEnter={onPrefetch}
         onFocus={onPrefetch}
         onClick={onSelect}
       >
         <div className="product-card-body">
-          <div className="products-catalog-grid__stats">
-            <span
-              className={`products-catalog-grid__rank${rank <= 3 && unitsSold > 0 ? ` products-catalog-grid__rank--${rank}` : ''}`}
-              title={`Puesto #${rank} en ventas`}
-            >
-              #{rank}
-            </span>
-            <div className="products-catalog-grid__qty" aria-label={`${formatUnitsSold(unitsSold)} vendidos`}>
-              <strong className="products-catalog-grid__qty-value mono">
-                {formatUnitsSold(unitsSold)}
-              </strong>
-              <span className="products-catalog-grid__qty-label">vendidos</span>
-            </div>
-          </div>
-          <div className="products-catalog-grid__head">
-            <span className="product-card-name">{p.name}</span>
-          </div>
-          <div className="products-catalog-grid__price-row">
-            <span className="products-catalog-grid__price mono">{formatCOP(p.price)}</span>
-            {p.sku?.trim() ? (
-              <span className="products-catalog-grid__sku mono muted">{p.sku.trim()}</span>
+          <div className="product-card-top">
+            {categoryName ? (
+              <span className="product-card-category">{categoryName}</span>
+            ) : (
+              <span className="product-card-category product-card-category--empty" />
+            )}
+            {unitsSold > 0 ? (
+              <span
+                className={`product-card-rank${rank <= 3 ? ` product-card-rank--${rank}` : ''}`}
+                title={`#${rank} en ventas`}
+              >
+                #{rank}
+              </span>
             ) : null}
           </div>
-          {categoryName || meta ? (
-            <p className="products-catalog-grid__meta muted small">
-              {[categoryName, meta].filter(Boolean).join(' · ')}
-            </p>
+          <span className="product-card-name">{p.name}</span>
+          <div className="product-card-footer">
+            <span className="product-card-price mono">{formatCOP(p.price)}</span>
+            {unitsSold > 0 ? (
+              <span className="product-card-sales muted">
+                {formatUnitsSold(unitsSold)} vend.
+              </span>
+            ) : null}
+          </div>
+          {meta ? (
+            <p className="product-card-hint muted small">{meta}</p>
           ) : null}
         </div>
       </button>
@@ -433,7 +434,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   >('active')
   const [filterType, setFilterType] = useState('')
   const [sortBy, setSortBy] = useState<ProductListSort>('name')
-  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid')
+  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('list')
   const [salesStatsByProductId, setSalesStatsByProductId] = useState(
     () => new Map<string, { unitsSold: number; revenue: number }>(),
   )
@@ -877,6 +878,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         })
       }
       if (savedRow) {
+        invalidateApiCache(POS_ACTIVE_CATALOG_CACHE_KEY)
         setAllProducts((prev) => {
           if (creating) return [savedRow!, ...prev]
           return prev.map((pr) => (pr.id === savedRow!.id ? savedRow! : pr))
@@ -943,6 +945,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setSaveError(null)
     try {
       await deleteProduct(baseUrl, selectedId)
+      invalidateApiCache(POS_ACTIVE_CATALOG_CACHE_KEY)
       setAllProducts((prev) => prev.filter((p) => p.id !== selectedId))
       setArchiveConfirmOpen(false)
       closePanel()
@@ -1058,7 +1061,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   }
 
   return (
-    <div className="products-layout">
+    <div className={mobileViewClass('products', 'products-layout')}>
       <div className="products-list-pane page-pane--floating-gear-dock">
         <h2 className="sr-only">Productos a la venta</h2>
 
@@ -1066,42 +1069,27 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           hasActiveFilters={filtersBarActive}
           trailing={
             isMobile ? (
-              <div className="vos-toolbar__actions mobile-list-toolbar__actions">
-                <div
-                  className="view-toggle view-toggle--compact module-view-toggle"
-                  role="tablist"
-                  aria-label="Vista de productos"
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={catalogViewMode === 'grid'}
-                    className={catalogViewMode === 'grid' ? 'active' : ''}
-                    onClick={() => setCatalogViewMode('grid')}
-                  >
-                    Cuadrícula
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={catalogViewMode === 'list'}
-                    className={catalogViewMode === 'list' ? 'active' : ''}
-                    onClick={() => setCatalogViewMode('list')}
-                  >
-                    Lista
-                  </button>
-                </div>
-                <ProductSummaryCard
-                  summary={catalogSummary}
-                  categories={categories}
-                  loading={summaryLoading}
-                />
-                <FloatingGearFabDockAdd
-                  title="Nuevo producto"
-                  ariaLabel="Nuevo producto"
-                  onClick={openCreate}
-                />
-              </div>
+              <MobileModuleToolbar
+                onAdd={openCreate}
+                addTitle="Nuevo producto"
+                addAriaLabel="Nuevo producto"
+                summary={
+                  <ProductSummaryCard
+                    summary={catalogSummary}
+                    categories={categories}
+                    loading={summaryLoading}
+                  />
+                }
+                viewMode={catalogViewMode}
+                onViewModeChange={(mode) => {
+                  if (mode === 'grid' || mode === 'list') setCatalogViewMode(mode)
+                }}
+                primaryViewLabel="Cuadrícula"
+                secondaryViewLabel="Lista"
+                primaryViewValue="grid"
+                secondaryViewValue="list"
+                viewToggleAriaLabel="Vista de productos"
+              />
             ) : undefined
           }
         >
@@ -2565,6 +2553,11 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           ) : null}
         </div>
       )}
+
+      <ViewBootSplash
+        ready={!loading && !summaryLoading}
+        label="Cargando productos…"
+      />
     </div>
   )
 }

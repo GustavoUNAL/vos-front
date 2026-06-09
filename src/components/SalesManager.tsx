@@ -25,17 +25,33 @@ import {
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
 import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
+import { MobileModuleToolbar } from './MobileModuleToolbar'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
 import { MonthCalendar } from './MonthCalendar'
-import { DataLoadingSplash } from './DataLoadingSplash'
+import { MonthCalendarScrollFeed } from './MonthCalendarScrollFeed'
+import { ViewBootSplash } from './DataLoadingSplash'
+import { mobileViewClass } from './mobile/mobileView'
 import { DaySalesModal } from './DaySalesModal'
 import { Button } from './ui/button'
 import { consumePendingSalesDate } from '../lib/pending-view-filter'
 import {
+  saleDisplayAttended,
+  saleDisplayClient,
+  saleDisplayCode,
+  saleDisplayExtras,
+  saleDisplayTime,
+  saleRowFromListRow,
+} from '../lib/saleListDisplay'
+import {
   readDefaultSaleParty,
   writeDefaultSaleParty,
 } from '../lib/salesDefaults'
+import {
+  invalidateDaySales,
+  peekSaleDetail,
+  storeSaleDetail,
+} from '../lib/entityCache'
 
 const LIMIT = 15
 const SALE_SOURCES = ['MANUAL', 'CART', 'AI'] as const
@@ -104,13 +120,6 @@ function saleListRowDateParts(row: SaleListRow): { date: string; time: string } 
     }
   }
   return formatSaleDateList(row.saleDate)
-}
-
-function truncateText(s: string | null | undefined, max: number): string {
-  const t = (s ?? '').trim()
-  if (!t) return '—'
-  if (t.length <= max) return t
-  return `${t.slice(0, max - 1)}…`
 }
 
 function shortSaleId(id: string): string {
@@ -294,7 +303,15 @@ function invoiceLineMeta(r: LineDraft): string | null {
   return null
 }
 
-export function SalesManager({ baseUrl }: { baseUrl: string }) {
+export function SalesManager({
+  baseUrl,
+  inaugurationDate = null,
+  companyName = null,
+}: {
+  baseUrl: string
+  inaugurationDate?: string | null
+  companyName?: string | null
+}) {
   const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const salesSearchInputRef = useRef<HTMLInputElement>(null)
   const [list, setList] = useState<SaleListRow[]>([])
@@ -323,9 +340,8 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   )
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0)
   const [dayModalDate, setDayModalDate] = useState<string | null>(null)
-  const [bootProgress, setBootProgress] = useState(8)
-  const [bootComplete, setBootComplete] = useState(false)
   const [dayPanelRefresh, setDayPanelRefresh] = useState(0)
 
   useEffect(() => {
@@ -349,6 +365,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   const [header, setHeader] = useState<HeaderDraft | null>(null)
   const [lineRows, setLineRows] = useState<LineDraft[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
+  const [detailRefreshing, setDetailRefreshing] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -435,35 +452,24 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   }, [baseUrl, page, salesListQuery])
 
   useEffect(() => {
-    if (viewMode !== 'calendar') return
+    if (viewMode !== 'calendar' || isMobileFilters) return
     let cancelled = false
-    setBootComplete(false)
     setCalendarLoading(true)
     setCalendarError(null)
-    setBootProgress(18)
     fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
       .then((res) => {
-        if (!cancelled) {
-          setCalendarData(res)
-          setBootProgress(92)
-        }
+        if (!cancelled) setCalendarData(res)
       })
       .catch((e: Error) => {
         if (!cancelled) setCalendarError(e.message)
       })
       .finally(() => {
-        if (!cancelled) {
-          setCalendarLoading(false)
-          setBootProgress(100)
-          window.setTimeout(() => {
-            if (!cancelled) setBootComplete(true)
-          }, 350)
-        }
+        if (!cancelled) setCalendarLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [baseUrl, viewMode, calendarYear, calendarMonth])
+  }, [baseUrl, viewMode, calendarYear, calendarMonth, isMobileFilters])
 
   useEffect(() => {
     if (!selectedId && !creating) return
@@ -489,11 +495,28 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
 
   const loadDetail = useCallback(
     async (id: string) => {
-      setDetailLoading(true)
       setDetailError(null)
       setSaveError(null)
+      const cached = peekSaleDetail(id)
+      if (cached) {
+        const h = headerFromSale(cached)
+        const rows = linesFromDetail(cached.lines ?? [])
+        setDetail(cached)
+        setHeader(h)
+        setLineRows(rows)
+        setHeaderBaseline(headerSnapshot(h))
+        setLinesBaseline(linesSnapshot(rows))
+        setSaleDetailOpen(false)
+        setAuditOpen(false)
+        setAdvancedMode(false)
+        setDetailLoading(false)
+        setDetailRefreshing(true)
+      } else {
+        setDetailLoading(true)
+      }
       try {
         const s = await fetchSale(baseUrl, id)
+        storeSaleDetail(id, s)
         const h = headerFromSale(s)
         const rows = linesFromDetail(s.lines ?? [])
         setDetail(s)
@@ -505,12 +528,15 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
         setAuditOpen(false)
         setAdvancedMode(false)
       } catch (e) {
-        setDetailError((e as Error).message)
-        setDetail(null)
-        setHeader(null)
-        setLineRows([])
+        if (!cached) {
+          setDetailError((e as Error).message)
+          setDetail(null)
+          setHeader(null)
+          setLineRows([])
+        }
       } finally {
         setDetailLoading(false)
+        setDetailRefreshing(false)
       }
     },
     [baseUrl],
@@ -521,10 +547,12 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
       setCreating(false)
       setSelectedId(id)
       setProductSearch('')
-      setDetail(null)
-      setHeader(null)
-      setLineRows([])
       setSaveError(null)
+      if (!peekSaleDetail(id)) {
+        setDetail(null)
+        setHeader(null)
+        setLineRows([])
+      }
       void loadDetail(id)
     },
     [loadDetail],
@@ -559,11 +587,21 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   const refreshDayAndCalendar = useCallback(() => {
     if (dayModalDate) setDayPanelRefresh((k) => k + 1)
     if (viewMode === 'calendar') {
-      void fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
-        .then(setCalendarData)
-        .catch(() => {})
+      setCalendarRefreshKey((k) => k + 1)
+      if (!isMobileFilters) {
+        void fetchSalesCalendar(baseUrl, calendarYear, calendarMonth)
+          .then(setCalendarData)
+          .catch(() => {})
+      }
     }
-  }, [baseUrl, calendarMonth, calendarYear, dayModalDate, viewMode])
+  }, [
+    baseUrl,
+    calendarMonth,
+    calendarYear,
+    dayModalDate,
+    isMobileFilters,
+    viewMode,
+  ])
 
   const openCreate = useCallback(() => {
     setCreating(true)
@@ -779,6 +817,9 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
         updated = await replaceSaleLines(baseUrl, selectedId, payloadLines)
       }
       if (updated) {
+        storeSaleDetail(selectedId, updated)
+        const dayKey = updated.saleDate?.slice(0, 10)
+        if (dayKey) invalidateDaySales(dayKey)
         const h = headerFromSale(updated)
         const rows = linesFromDetail(updated.lines ?? [])
         setDetail(updated)
@@ -833,7 +874,11 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
     setSendingWhatsApp(true)
     setSaleNotice(null)
     try {
-      const result = await sendSaleReceiptWhatsApp(baseUrl, selectedId)
+      const result = await sendSaleReceiptWhatsApp(
+        baseUrl,
+        selectedId,
+        phone,
+      )
       if (result.whatsappSent && result.internalNotified) {
         setSaleNotice('Comprobante enviado por WhatsApp al cliente y a ti.')
       } else if (result.whatsappSent) {
@@ -947,41 +992,45 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
   )
 
   return (
-    <div className="products-layout">
+    <div className={mobileViewClass('sales', 'products-layout')}>
       <div className="products-list-pane page-pane--floating-gear-dock">
         <div className="page-intro page-intro--tight sales-page-intro">
           <div className="sales-page-intro__head">
-            <div>
-              <h2 className="page-title">Ventas</h2>
-              <p className="muted small">
-                Calendario mensual: elegí un día para ver todas las comandas, su
-                detalle y editarlas.
-              </p>
-            </div>
-            <div
-              className="view-toggle module-view-toggle"
-              role="tablist"
-              aria-label="Vista de ventas"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'calendar'}
-                className={viewMode === 'calendar' ? 'active' : ''}
-                onClick={() => setViewMode('calendar')}
+            {!isMobileFilters ? (
+              <div>
+                <h2 className="page-title">Ventas</h2>
+                <p className="muted small">
+                  Calendario mensual: elegí un día para ver todas las comandas, su
+                  detalle y editarlas.
+                </p>
+              </div>
+            ) : null}
+            {!isMobileFilters ? (
+              <div
+                className="view-toggle module-view-toggle"
+                role="tablist"
+                aria-label="Vista de ventas"
               >
-                Calendario
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'list'}
-                className={viewMode === 'list' ? 'active' : ''}
-                onClick={() => setViewMode('list')}
-              >
-                Lista
-              </button>
-            </div>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === 'calendar'}
+                  className={viewMode === 'calendar' ? 'active' : ''}
+                  onClick={() => setViewMode('calendar')}
+                >
+                  Calendario
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === 'list'}
+                  className={viewMode === 'list' ? 'active' : ''}
+                  onClick={() => setViewMode('list')}
+                >
+                  Lista
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -989,19 +1038,28 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           hasActiveFilters={salesFiltersActive}
           trailing={
             isMobileFilters ? (
-              <div className="mobile-list-toolbar__actions">
-                <SectionSummaryDeck
-                  section="sales"
-                  items={salesSummaryItems}
-                  loading={loading}
-                  suspendDetailWhileLoading
-                />
-                <FloatingGearFabDockAdd
-                  title="Nueva venta"
-                  ariaLabel="Nueva venta"
-                  onClick={openCreate}
-                />
-              </div>
+              <MobileModuleToolbar
+                onAdd={openCreate}
+                addTitle="Nueva venta"
+                addAriaLabel="Nueva venta"
+                summary={
+                  <SectionSummaryDeck
+                    section="sales"
+                    items={salesSummaryItems}
+                    loading={loading}
+                    suspendDetailWhileLoading
+                  />
+                }
+                viewMode={viewMode}
+                onViewModeChange={(mode) => {
+                  if (mode === 'calendar' || mode === 'list') setViewMode(mode)
+                }}
+                primaryViewLabel="Calendario"
+                secondaryViewLabel="Lista"
+                primaryViewValue="calendar"
+                secondaryViewValue="list"
+                viewToggleAriaLabel="Vista de ventas"
+              />
             ) : undefined
           }
         >
@@ -1119,41 +1177,79 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
 
         {viewMode === 'calendar' ? (
           <>
-          <MonthCalendar
-            year={calendarYear}
-            month={calendarMonth}
-            days={calendarData?.days ?? []}
-            loading={calendarLoading}
-            error={calendarError}
-            countLabel="venta"
-            selectedDate={dayModalDate}
-            onPrevMonth={() => {
-              const prev = new Date(calendarYear, calendarMonth - 2, 1)
-              setCalendarYear(prev.getFullYear())
-              setCalendarMonth(prev.getMonth() + 1)
-            }}
-            onNextMonth={() => {
-              const next = new Date(calendarYear, calendarMonth, 1)
-              setCalendarYear(next.getFullYear())
-              setCalendarMonth(next.getMonth() + 1)
-            }}
-            onToday={() => {
-              const now = new Date()
-              setCalendarYear(now.getFullYear())
-              setCalendarMonth(now.getMonth() + 1)
-            }}
-            onDayClick={(date) => {
-              setFilterDateFrom(date)
-              setFilterDateTo(date)
-              setDayModalDate(date)
-              setPage(1)
-            }}
-          />
+          {isMobileFilters ? (
+            <MonthCalendarScrollFeed
+              baseUrl={baseUrl}
+              cacheNamespace="sales"
+              countLabel="venta"
+              selectedDate={dayModalDate}
+              refreshKey={calendarRefreshKey}
+              inaugurationDate={inaugurationDate}
+              ariaLabel="Calendario de ventas por mes"
+              fetchMonth={fetchSalesCalendar}
+              onDayClick={(date) => {
+                setFilterDateFrom(date)
+                setFilterDateTo(date)
+                setDayModalDate(date)
+                setPage(1)
+                const [y, m] = date.split('-').map(Number)
+                if (y && m) {
+                  setCalendarYear(y)
+                  setCalendarMonth(m)
+                }
+              }}
+              onGoToToday={(date) => {
+                setFilterDateFrom(date)
+                setFilterDateTo(date)
+                setDayModalDate(date)
+                setPage(1)
+                const [y, m] = date.split('-').map(Number)
+                if (y && m) {
+                  setCalendarYear(y)
+                  setCalendarMonth(m)
+                }
+              }}
+            />
+          ) : (
+            <MonthCalendar
+              year={calendarYear}
+              month={calendarMonth}
+              days={calendarData?.days ?? []}
+              loading={calendarLoading}
+              error={calendarError}
+              countLabel="venta"
+              selectedDate={dayModalDate}
+              inaugurationDate={inaugurationDate}
+              onPrevMonth={() => {
+                const prev = new Date(calendarYear, calendarMonth - 2, 1)
+                setCalendarYear(prev.getFullYear())
+                setCalendarMonth(prev.getMonth() + 1)
+              }}
+              onNextMonth={() => {
+                const next = new Date(calendarYear, calendarMonth, 1)
+                setCalendarYear(next.getFullYear())
+                setCalendarMonth(next.getMonth() + 1)
+              }}
+              onToday={() => {
+                const now = new Date()
+                setCalendarYear(now.getFullYear())
+                setCalendarMonth(now.getMonth() + 1)
+              }}
+              onDayClick={(date) => {
+                setFilterDateFrom(date)
+                setFilterDateTo(date)
+                setDayModalDate(date)
+                setPage(1)
+              }}
+            />
+          )}
 
-          <p className="muted small month-calendar-hint">
-            Hacé clic en un día del calendario para abrir un popup con todas las
-            ventas, editarlas o crear una nueva.
-          </p>
+          {!isMobileFilters ? (
+            <p className="muted small month-calendar-hint">
+              Hacé clic en un día del calendario para abrir un popup con todas las
+              ventas, editarlas o crear una nueva.
+            </p>
+          ) : null}
           </>
         ) : null}
 
@@ -1166,18 +1262,14 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             <table className="data-table data-table-striped data-table--sales-list">
               <thead>
                 <tr>
-                  <th className="sales-table-col sales-table-col--sale">Venta</th>
-                  <th className="sales-table-col sales-table-col--total num">
-                    Total
-                  </th>
-                  <th className="sales-table-col sales-table-col--lines num">
-                    Líns.
-                  </th>
-                  <th className="sales-table-col sales-table-col--source">
-                    Origen
-                  </th>
+                  <th className="sales-table-col sales-table-col--id">ID</th>
+                  <th className="sales-table-col sales-table-col--client">Cliente</th>
+                  <th className="sales-table-col sales-table-col--time">Hora</th>
                   <th className="sales-table-col sales-table-col--detail">
                     Detalle
+                  </th>
+                  <th className="sales-table-col sales-table-col--total num">
+                    Total
                   </th>
                   <th className="sales-table-col sales-table-col--action col-actions">
                     <span className="sr-only">Acción</span>
@@ -1186,21 +1278,13 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
               </thead>
               <tbody>
                 {list.map((row) => {
-                  const { date, time } = saleListRowDateParts(row)
-                  const person = row.displayPerson?.trim() ?? ''
-                  const payment = row.paymentMethod?.trim() ?? ''
-                  const mesa = row.mesa?.trim() ?? ''
-                  const notes = row.notes?.trim() ?? ''
-                  const metaParts = [
-                    time,
-                    `Ref. ${shortSaleId(row.id)}`,
-                    person || null,
-                  ].filter(Boolean)
-                  const detailParts = [
-                    payment ? `Pago: ${payment}` : null,
-                    mesa ? `Mesa: ${mesa}` : null,
-                    notes ? truncateText(notes, 48) : null,
-                  ].filter(Boolean)
+                  const { date } = saleListRowDateParts(row)
+                  const display = saleRowFromListRow(row)
+                  const extras = saleDisplayExtras({
+                    ...display,
+                    lineCount: saleListRowLineCount(row),
+                  })
+                  const attended = saleDisplayAttended(display)
                   const active = selectedId === row.id
                   return (
                     <tr
@@ -1212,49 +1296,73 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                       }
                       onDoubleClick={() => openSale(row.id)}
                     >
-                      <td className="sales-table-cell sales-table-cell--sale">
+                      <td className="sales-table-cell sales-table-cell--id">
+                        <button
+                          type="button"
+                          className="sales-table-link sales-table-link--id"
+                          onClick={() => openSale(row.id)}
+                          title={row.id}
+                        >
+                          <span className="sales-table-link__code mono">
+                            {saleDisplayCode(display)}
+                          </span>
+                          <span className="sales-table-link__date muted small">
+                            {date}
+                          </span>
+                        </button>
+                      </td>
+                      <td className="sales-table-cell sales-table-cell--client">
                         <button
                           type="button"
                           className="sales-table-link"
                           onClick={() => openSale(row.id)}
-                          title={row.id}
                         >
-                          <span className="sales-table-link__date">{date}</span>
-                          {metaParts.length > 0 ? (
-                            <span className="sales-table-link__meta muted small">
-                              {metaParts.join(' · ')}
-                            </span>
-                          ) : null}
+                          <span className="sales-table-link__client">
+                            {saleDisplayClient(display)}
+                          </span>
                         </button>
                       </td>
-                      <td className="num mono sales-table-cell sales-table-cell--total">
-                        {formatCOP(saleRowTotalNumeric(row) ?? Number.NaN)}
-                      </td>
-                      <td className="num sales-table-cell sales-table-cell--lines">
-                        {saleListRowLineCount(row)}
-                      </td>
-                      <td className="sales-table-cell sales-table-cell--source">
-                        <span
-                          className={`sales-source-pill sales-source-pill--${row.source.toLowerCase()}`}
-                        >
-                          {row.source}
-                        </span>
+                      <td className="sales-table-cell sales-table-cell--time mono">
+                        {saleDisplayTime(row.saleDate)}
                       </td>
                       <td
                         className="sales-table-cell sales-table-cell--detail muted"
-                        title={detailParts.join(' · ') || undefined}
+                        title={extras.join(' · ') || undefined}
                       >
-                        {detailParts.length > 0 ? (
+                        {extras.length > 0 ? (
                           <span className="sales-table-detail">
-                            {detailParts.map((part, i) => (
-                              <span key={i} className="sales-table-detail__line">
-                                {part}
+                            {row.paymentMethod?.trim() ? (
+                              <span className="sales-table-detail__line">
+                                {row.paymentMethod.trim()}
                               </span>
-                            ))}
+                            ) : null}
+                            {attended && attended !== '—' ? (
+                              <span className="sales-table-detail__line">
+                                Atendió {attended}
+                              </span>
+                            ) : null}
+                            <span className="sales-table-detail__line">
+                              {saleListRowLineCount(row)}{' '}
+                              {saleListRowLineCount(row) === 1 ? 'línea' : 'líneas'}
+                              {row.source ? (
+                                <>
+                                  {' '}
+                                  ·{' '}
+                                  <span
+                                    className={`sales-source-pill sales-source-pill--${row.source.toLowerCase()}`}
+                                  >
+                                    {row.source}
+                                  </span>
+                                </>
+                              ) : null}
+                            </span>
                           </span>
                         ) : (
                           '—'
                         )}
+                      </td>
+                      <td className="num mono sales-table-cell sales-table-cell--total">
+                        {formatCOP(saleRowTotalNumeric(row) ?? Number.NaN)}
                       </td>
                       <td className="col-actions sales-table-cell sales-table-cell--action">
                         <button
@@ -1340,6 +1448,9 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
                     : detailLoading
                       ? 'Cargando ticket…'
                       : 'Ticket de venta'}
+                  {detailRefreshing ? (
+                    <span className="muted small"> · actualizando</span>
+                  ) : null}
                 </p>
               </div>
               <div className="modal-head-actions product-editor-head__actions">
@@ -1355,7 +1466,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
             </header>
 
             <div className="modal-body modal-body--config modal-body--sales-editor">
-            {detailLoading && (
+            {detailLoading && !header && (
               <p className="muted">Cargando detalle…</p>
             )}
             {detailError && (
@@ -2230,9 +2341,11 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
         </div>
       )}
 
-      <DataLoadingSplash
-        visible={viewMode === 'calendar' && !bootComplete}
-        progress={bootProgress}
+      <ViewBootSplash
+        ready={
+          !loading && (viewMode !== 'calendar' || !calendarLoading)
+        }
+        label="Cargando ventas…"
       />
 
       {dayModalDate ? (
@@ -2240,6 +2353,7 @@ export function SalesManager({ baseUrl }: { baseUrl: string }) {
           baseUrl={baseUrl}
           date={dayModalDate}
           refreshKey={dayPanelRefresh}
+          companyName={companyName}
           onClose={() => setDayModalDate(null)}
           onEditSale={(id) => {
             setDayModalDate(null)
