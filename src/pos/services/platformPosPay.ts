@@ -1,4 +1,4 @@
-import { createSale } from '../../api'
+import { createSale, type SaleDetail } from '../../api'
 import { PLATFORM_MODE } from '../../appScope'
 import { PAYMENT_METHOD_LABEL } from '../constants'
 import { formatCOP } from '../lib/money'
@@ -8,8 +8,8 @@ export async function registerPlatformSaleFromPosOrder(
   baseUrl: string,
   order: PosOrder,
   payload: PayOrderPayload,
-): Promise<void> {
-  if (!PLATFORM_MODE || order.lines.length === 0) return
+): Promise<SaleDetail | null> {
+  if (!PLATFORM_MODE || order.lines.length === 0) return null
 
   const paymentMethod = payload.splits
     .filter((s) => s.amountCOP > 0)
@@ -17,17 +17,19 @@ export async function registerPlatformSaleFromPosOrder(
     .join(' · ')
 
   const notes = [
+    payload.saleComment?.trim() || null,
     payload.tipCOP > 0 ? `Propina: ${formatCOP(payload.tipCOP)}` : null,
     payload.printReceipt ? 'Recibo POS' : null,
   ]
     .filter(Boolean)
     .join(' · ')
 
-  await createSale(baseUrl, {
+  return createSale(baseUrl, {
     saleDate: new Date().toISOString(),
     paymentMethod: paymentMethod || undefined,
     source: 'POS',
     mesa: order.tableName?.trim() || undefined,
+    customerPhone: payload.customerPhone.trim(),
     notes: notes || undefined,
     lines: order.lines.map((line) => ({
       productId: line.productId,

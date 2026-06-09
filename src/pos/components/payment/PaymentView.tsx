@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { PAYMENT_METHOD_LABEL } from '../../constants'
+import { isValidColombiaMobile } from '../../lib/phone'
 import { formatCOP } from '../../lib/money'
 import { payPosOrder } from '../../services/posApi'
 import { registerPlatformSaleFromPosOrder } from '../../services/platformPosPay'
@@ -32,6 +33,9 @@ export function PaymentView({ baseUrl }: Props) {
   const [busy, setBusy] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [saleComment, setSaleComment] = useState('')
+  const [fieldError, setFieldError] = useState<string | null>(null)
 
   const totalDue = order?.totalCOP ?? 0
   const paid = splits.reduce((s, x) => s + x.amountCOP, 0)
@@ -65,14 +69,43 @@ export function PaymentView({ baseUrl }: Props) {
   }
 
   const confirmPay = async () => {
+    const phone = customerPhone.trim()
+    if (!phone) {
+      setFieldError('Ingresá el celular del cliente para enviar la factura por WhatsApp.')
+      return
+    }
+    if (!isValidColombiaMobile(phone)) {
+      setFieldError('Celular inválido. Usá 10 dígitos (ej. 300 123 4567).')
+      return
+    }
+
     setBusy(true)
     setError(null)
+    setFieldError(null)
     try {
-      const payload = { splits, tipCOP, printReceipt }
-      await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
-      const result = await payPosOrder(baseUrl, order.id, payload)
+      const payload = {
+        splits,
+        tipCOP,
+        printReceipt,
+        customerPhone: phone,
+        saleComment: saleComment.trim() || undefined,
+      }
+      const sale = await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
+      const result = await payPosOrder(baseUrl, order.id, {
+        splits: payload.splits,
+        tipCOP: payload.tipCOP,
+        printReceipt: payload.printReceipt,
+        customerPhone: phone,
+      })
       setActiveOrder(result)
       setConfirmOpen(false)
+      if (sale && !sale.whatsappSent) {
+        setError(
+          sale.whatsappConfigured === false
+            ? 'Venta registrada. Configure WhatsApp en el servidor para enviar comprobantes.'
+            : 'Venta registrada. No se pudo enviar WhatsApp al cliente o al grupo interno.',
+        )
+      }
       navigate('tables')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cobrar')
@@ -83,6 +116,7 @@ export function PaymentView({ baseUrl }: Props) {
 
   const requestConfirmPay = () => {
     if (paid < totalDue + tipCOP) return
+    setFieldError(null)
     setConfirmOpen(true)
   }
 
@@ -240,9 +274,41 @@ export function PaymentView({ baseUrl }: Props) {
               Se registrará la venta de{' '}
               <strong>{order.tableName ?? 'esta mesa'}</strong> por{' '}
               <strong>{formatCOP(totalDue + tipCOP)}</strong> ({order.lines.length}{' '}
-              {order.lines.length === 1 ? 'producto' : 'productos'}). Esta acción no se
-              puede deshacer.
+              {order.lines.length === 1 ? 'producto' : 'productos'}). El comprobante se
+              enviará por WhatsApp al cliente y al grupo interno del local.
             </p>
+            <div className="pos-modal__form">
+              <label className="pos-field">
+                <span>Celular cliente (WhatsApp) *</span>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  className="pos-input"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value)
+                    setFieldError(null)
+                  }}
+                  placeholder="300 123 4567"
+                />
+              </label>
+              <label className="pos-field">
+                <span>Comentario</span>
+                <textarea
+                  className="pos-input pos-input--textarea"
+                  rows={2}
+                  value={saleComment}
+                  onChange={(e) => setSaleComment(e.target.value)}
+                  placeholder="Ej. propina en efectivo, mesa al fondo, factura a nombre de…"
+                />
+              </label>
+              {fieldError ? (
+                <p className="pos-modal__error" role="alert">
+                  {fieldError}
+                </p>
+              ) : null}
+            </div>
             <div className="pos-modal__actions pos-modal__actions--padded">
               <button
                 type="button"

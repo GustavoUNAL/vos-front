@@ -213,7 +213,11 @@ export async function payPosOrder(
         `/pos/orders/${encodeURIComponent(orderId)}/pay`,
         {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            splits: payload.splits,
+            tipCOP: payload.tipCOP,
+            printReceipt: payload.printReceipt,
+          }),
         },
       )
       return handleRes<PosOrder>(res)

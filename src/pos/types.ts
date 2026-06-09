@@ -76,6 +76,10 @@ export type PayOrderPayload = {
   splits: PaymentSplit[]
   tipCOP: number
   printReceipt?: boolean
+  /** Celular del cliente para comprobante WhatsApp (obligatorio en POS). */
+  customerPhone: string
+  /** Comentario libre sobre la venta. */
+  saleComment?: string
 }
 
 export type PosHistoryOrder = PosOrder & {

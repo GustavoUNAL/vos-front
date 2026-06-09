@@ -1973,6 +1973,7 @@ export type SaleDetail = {
   lines?: SaleLineDetail[]
   whatsappSent?: boolean
   whatsappConfigured?: boolean
+  internalNotified?: boolean
 }
 
 export type SaleLineInputPayload = {
