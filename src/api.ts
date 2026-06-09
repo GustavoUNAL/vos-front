@@ -2087,6 +2087,30 @@ export async function askBusinessAssistant(
   return res.json() as Promise<{ answer: string }>
 }
 
+export async function askLandingAssistant(
+  base: string,
+  question: string,
+  history?: AssistantHistoryItem[],
+): Promise<{ answer: string; advisorSuggested?: boolean }> {
+  const res = await apiFetch(`${base}/public/landing/ask`, {
+    method: 'POST',
+    auth: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, history }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<{ answer: string; advisorSuggested?: boolean }>
+}
+
+/** URL wa.me solo desde build/env; no hardcodear en UI. */
+export function getLandingAdvisorUrl(prefill?: string): string | null {
+  const raw = (import.meta.env.VITE_LANDING_WHATSAPP_URL as string | undefined)?.trim()
+  if (!raw) return null
+  if (!prefill?.trim()) return raw
+  const sep = raw.includes('?') ? '&' : '?'
+  return `${raw}${sep}text=${encodeURIComponent(prefill)}`
+}
+
 export type PatchSalePayload = {
   saleDate?: string
   paymentMethod?: string

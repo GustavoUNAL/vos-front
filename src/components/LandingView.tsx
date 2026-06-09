@@ -1,4 +1,5 @@
 import { useEffect, type MouseEvent } from 'react'
+import { getLandingAdvisorUrl } from '../api'
 import { BRAND_NAME } from '../lib/brand'
 import {
   getAccessRequestUrl,
@@ -88,10 +89,6 @@ const PLANS: Plan[] = [
   },
 ]
 
-const WHATSAPP_DEMO =
-  (import.meta.env.VITE_LANDING_WHATSAPP_URL as string | undefined)?.trim() ||
-  'https://wa.me/573207909835?text=Hola%2C%20quiero%20una%20demo%20de%20VOS%20AI'
-
 const CHAT_HERO: LandingChatTurn[] = [
   { who: 'Dueño', role: 'user', text: '¿Cuánto vendí hoy?' },
   {
@@ -180,6 +177,7 @@ function CheckIcon({ ok }: { ok: boolean }) {
 export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
   const loginUrl = getLoginUrl()
   const accessUrl = getAccessRequestUrl()
+  const advisorUrl = getLandingAdvisorUrl('Hola, quiero una demo de VOS AI')
   const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
@@ -396,14 +394,16 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <a className="public-btn public-btn--accent landing-v2__btn-solid" href={accessUrl} onClick={handleAccess}>
               Solicita una demostración
             </a>
-            <a
-              className="public-btn public-btn--ghost landing-whatsapp-btn"
-              href={WHATSAPP_DEMO}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Hablar por WhatsApp
-            </a>
+            {advisorUrl ? (
+              <a
+                className="public-btn public-btn--ghost landing-whatsapp-btn"
+                href={advisorUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Hablar con un asesor
+              </a>
+            ) : null}
           </div>
         </section>
 
@@ -417,7 +417,9 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <span aria-hidden>·</span>
             <a href="#terminos">Términos de uso</a>
             <span aria-hidden>·</span>
-            <a href={WHATSAPP_DEMO} target="_blank" rel="noopener noreferrer">Contacto</a>
+            <a href={advisorUrl ?? accessUrl} {...(advisorUrl ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+              Contacto
+            </a>
           </nav>
           <p className="landing-footer__fine">
             © {new Date().getFullYear()} {BRAND_NAME}. Todos los derechos reservados.
