@@ -90,7 +90,7 @@ const PLANS: Plan[] = [
 ]
 
 const CHAT_HERO: LandingChatTurn[] = [
-  { who: 'Dueño', role: 'user', text: '¿Cuánto vendí hoy?' },
+  { who: 'Sofía', role: 'user', text: '¿Cuánto vendí hoy?' },
   {
     who: BRAND_NAME,
     role: 'ai',
@@ -104,7 +104,7 @@ const CHAT_HERO: LandingChatTurn[] = [
 ]
 
 const CHAT_INVENTORY: LandingChatTurn[] = [
-  { who: 'Gerente', role: 'user', text: '¿Qué debo comprar esta semana?' },
+  { who: 'Laura', role: 'user', text: '¿Qué debo comprar esta semana?' },
   {
     who: BRAND_NAME,
     role: 'ai',
@@ -120,7 +120,7 @@ const CHAT_INVENTORY: LandingChatTurn[] = [
 ]
 
 const CHAT_FINANCE: LandingChatTurn[] = [
-  { who: 'Administrador', role: 'user', text: '¿Cuál fue la utilidad del mes?' },
+  { who: 'Andrés', role: 'user', text: '¿Cuál fue la utilidad del mes?' },
   {
     who: BRAND_NAME,
     role: 'ai',
@@ -136,7 +136,7 @@ const CHAT_FINANCE: LandingChatTurn[] = [
 ]
 
 const CHAT_CLIENTS: LandingChatTurn[] = [
-  { who: 'Dueño', role: 'user', text: '¿Qué clientes no han regresado?' },
+  { who: 'María', role: 'user', text: '¿Qué clientes no han regresado?' },
   {
     who: BRAND_NAME,
     role: 'ai',
@@ -153,7 +153,7 @@ const CHAT_CLIENTS: LandingChatTurn[] = [
 
 const CHAT_ALERT: LandingChatTurn[] = [
   { who: BRAND_NAME, role: 'ai', text: '⚠️ <strong>Alerta automática</strong>\nLas ventas de hoy van 18% por debajo del mismo día la semana pasada. El producto con mayor caída es Café Americano.' },
-  { who: 'Dueño', role: 'user', text: '¿Qué producto está estrella?' },
+  { who: 'Tú', role: 'user', text: '¿Qué producto está estrella?' },
   {
     who: BRAND_NAME,
     role: 'ai',
@@ -288,7 +288,7 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <p className="landing-section__kicker">Más que un POS</p>
             <h2 id="compare-title">No es otro software. Es un gerente digital.</h2>
           </div>
-          <div className="landing-compare-wrap">
+          <div className="landing-compare-wrap landing-compare-wrap--desktop">
             <table className="landing-compare">
               <thead>
                 <tr>
@@ -308,6 +308,23 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
               </tbody>
             </table>
           </div>
+          <ul className="landing-compare-mobile" aria-label="Comparativa POS vs VOS AI">
+            {COMPARE_ROWS.map((row) => (
+              <li key={row.feature} className="landing-compare-mobile__card">
+                <span className="landing-compare-mobile__feature">{row.feature}</span>
+                <div className="landing-compare-mobile__cols">
+                  <span className="landing-compare-mobile__col">
+                    <small>POS</small>
+                    <CheckIcon ok={row.pos} />
+                  </span>
+                  <span className="landing-compare-mobile__col landing-compare-mobile__col--vos">
+                    <small>{BRAND_NAME}</small>
+                    <CheckIcon ok={row.vos} />
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="public-section landing-section landing-section--split landing-section--split-reverse" aria-labelledby="pillars-title">
@@ -412,37 +429,9 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <strong>{BRAND_NAME}</strong>
           </p>
           <p className="public-footer__tagline">{TAGLINE}</p>
-          <nav className="landing-footer__legal" aria-label="Legal">
-            <a href="#privacidad">Política de privacidad</a>
-            <span aria-hidden>·</span>
-            <a href="#terminos">Términos de uso</a>
-            <span aria-hidden>·</span>
-            <a href={advisorUrl ?? accessUrl} {...(advisorUrl ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-              Contacto
-            </a>
-          </nav>
           <p className="landing-footer__fine">
             © {new Date().getFullYear()} {BRAND_NAME}. Todos los derechos reservados.
           </p>
-          <p className="public-footer__latam landing-footer__colombia">
-            Desarrollado en Colombia 🇨🇴
-          </p>
-          <div id="privacidad" className="landing-footer__legal-block">
-            <h3>Política de privacidad</h3>
-            <p>
-              Tratamos los datos de tu empresa con fines operativos: ventas, inventario,
-              compras y asistencia IA. No vendemos información a terceros. Puedes solicitar
-              acceso, corrección o eliminación escribiendo a soporte.
-            </p>
-          </div>
-          <div id="terminos" className="landing-footer__legal-block">
-            <h3>Términos de uso</h3>
-            <p>
-              El servicio se presta bajo suscripción mensual. El cliente es responsable de
-              la veracidad de los datos ingresados. Las cifras de utilidad son estimaciones
-              basadas en la operación registrada.
-            </p>
-          </div>
         </footer>
       </div>
 

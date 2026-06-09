@@ -1357,6 +1357,59 @@ html[data-shell='public'] #root {
   background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
 }
 
+.landing-compare-mobile {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 0.5rem;
+}
+
+.landing-compare-mobile__card {
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+}
+
+.landing-compare-mobile__feature {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--heading);
+  margin-bottom: 0.55rem;
+}
+
+.landing-compare-mobile__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.landing-compare-mobile__col {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.landing-compare-mobile__col small {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.landing-compare-mobile__col--vos {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface));
+}
+
 .landing-compare {
   width: 100%;
   min-width: 320px;
@@ -1657,6 +1710,15 @@ html[data-shell='public'] #root {
     grid-template-columns: 1fr;
   }
 
+  .landing-compare-wrap--desktop {
+    display: none;
+  }
+
+  .landing-compare-mobile {
+    display: flex;
+    flex-direction: column;
+  }
+
   .public-cta__actions {
     flex-direction: column;
     align-items: stretch;
@@ -1718,6 +1780,7 @@ html[data-shell='public'] #root {
 }
 
 .landing-v2 .landing-plan,
+.landing-v2 .landing-compare-mobile__card,
 .landing-v2 .landing-compare-wrap,
 .landing-v2 .public-card,
 .landing-v2 .landing-results li,

@@ -29,33 +29,33 @@
   align-items: center;
   justify-content: center;
   gap: 0.22rem;
-  min-width: 3.5rem;
-  padding: 0.52rem 0.58rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
   cursor: pointer;
-  background: var(--surface-elevated);
+  background: transparent;
   color: var(--heading);
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow-soft) 45%, transparent);
+  box-shadow: none;
 }
 
 .landing-sales-chat__fab:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  opacity: 0.92;
 }
 
 .landing-sales-chat__fab-icon {
-  width: 2.15rem;
-  height: 2.15rem;
-  border-radius: 10px;
+  width: auto;
+  height: auto;
   display: grid;
   place-items: center;
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--accent);
+  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--shadow-soft) 50%, transparent));
 }
 
-.landing-sales-chat__robot {
-  width: 1.35rem;
-  height: 1.35rem;
+.landing-sales-chat__fab .landing-sales-chat__robot {
+  width: 2.65rem;
+  height: 2.65rem;
 }
 
 .landing-sales-chat__fab-label {
@@ -396,6 +396,15 @@
     width: min(24rem, calc(100vw - 1rem));
     height: min(72dvh, calc(var(--vv-height, 100dvh) - 5.75rem));
     max-height: calc(var(--vv-height, 100dvh) - 5.75rem);
+  }
+
+  .landing-sales-chat__fab .landing-sales-chat__robot {
+    width: 2.85rem;
+    height: 2.85rem;
+  }
+
+  .landing-sales-chat__fab-label {
+    font-size: 0.52rem;
   }
 }
 
