@@ -90,74 +90,125 @@ const PLANS: Plan[] = [
 ]
 
 const CHAT_HERO: LandingChatTurn[] = [
-  { who: 'Sofía', role: 'user', text: '¿Cuánto vendí hoy?' },
+  {
+    who: 'Sofía',
+    role: 'user',
+    text: '¿Cómo va el negocio hoy? Dame el resumen completo.',
+  },
   {
     who: BRAND_NAME,
     role: 'ai',
-    text: [
-      '<strong>Ventas de hoy:</strong> $1.250.000',
-      '<strong>Utilidad estimada:</strong> $420.000',
-      '<strong>Producto más vendido:</strong> Mojito Tradicional',
-      '<strong>Inventario crítico:</strong> Limón (2 días restantes)',
-    ].join('\n'),
+    badge: 'Resumen en vivo · hoy',
+    text: 'Analicé ventas, utilidad, rotación e inventario de las últimas 24 h.',
+    metrics: [
+      { label: 'Vendido', value: '$1.250.000', hint: '+14% vs ayer' },
+      { label: 'Utilidad', value: '$420.000', hint: '33,6% margen' },
+      { label: 'Ticket prom.', value: '$28.400' },
+      { label: 'Ventas', value: '44', hint: 'POS 62% · Web 38%' },
+    ],
+    bullets: [
+      '<strong>Estrella del día:</strong> Mojito Tradicional · 18 uds · $216.000',
+      '<strong>Hora pico:</strong> 12:30–14:00 (38% del total)',
+    ],
+    insight:
+      '💡 <strong>Recomendación:</strong> Limón alcanza para ~2 días. Si mañana repites el volumen de hoy, conviene pedir 8 kg antes del viernes.',
   },
 ]
 
 const CHAT_INVENTORY: LandingChatTurn[] = [
-  { who: 'Laura', role: 'user', text: '¿Qué debo comprar esta semana?' },
+  {
+    who: 'Laura',
+    role: 'user',
+    text: 'Arma mi lista de compras inteligente para esta semana.',
+  },
   {
     who: BRAND_NAME,
     role: 'ai',
-    text: [
-      'Reponer con prioridad:',
-      '• Limón — 2 días de stock',
-      '• Ron blanco — bajo mínimo',
-      '• Vasos 12oz — agotándose',
-      '',
-      'Compra sugerida: ~$380.000 en insumos.',
-    ].join('\n'),
+    badge: 'Compras sugeridas · prioridad alta',
+    text: 'Cruce ventas de los últimos 14 días con stock actual y mínimos configurados.',
+    bullets: [
+      '<strong>1. Limón</strong> — 2 días restantes · pedir 8 kg (~$96.000)',
+      '<strong>2. Ron blanco</strong> — bajo mínimo · 3 botellas ($285.000)',
+      '<strong>3. Vasos 12oz</strong> — rotación alta · 2 paquetes ($48.000)',
+      '<strong>4. Menta fresca</strong> — sin movimiento en 5 días · revisar proveedor',
+    ],
+    insight:
+      '🛒 <strong>Inversión estimada:</strong> $380.000 · cubre 6 días de operación normal sin quiebre de stock.',
   },
 ]
 
 const CHAT_FINANCE: LandingChatTurn[] = [
-  { who: 'Andrés', role: 'user', text: '¿Cuál fue la utilidad del mes?' },
+  {
+    who: 'Andrés',
+    role: 'user',
+    text: '¿Cómo cerramos el mes? Quiero ver si realmente ganamos.',
+  },
   {
     who: BRAND_NAME,
     role: 'ai',
-    text: [
-      '<strong>Junio 2026</strong>',
-      'Ventas: $18.400.000',
-      'Utilidad en productos: $6.120.000',
-      'Compras: $4.200.000',
-      'Nómina: $2.800.000',
-      '<strong>Resultado aprox.:</strong> $11.400.000',
-    ].join('\n'),
+    badge: 'Finanzas · junio 2026',
+    text: 'Consolidé ventas, costos de producto, compras y nómina del mes.',
+    metrics: [
+      { label: 'Ventas', value: '$18,4M' },
+      { label: 'Utilidad prod.', value: '$6,12M', hint: '33% sobre ventas' },
+      { label: 'Compras', value: '$4,2M' },
+      { label: 'Nómina', value: '$2,8M' },
+    ],
+    bullets: [
+      '<strong>Resultado operativo aprox.:</strong> $11,4M',
+      '<strong>Mejor semana:</strong> 2–8 jun ($5,1M)',
+      '<strong>Categoría líder:</strong> Bebidas (58% de la utilidad)',
+    ],
+    insight:
+      '📈 Vas <strong>+9%</strong> sobre el mismo mes del año pasado. El margen mejoró porque subió la venta de cócteles premium.',
   },
 ]
 
 const CHAT_CLIENTS: LandingChatTurn[] = [
-  { who: 'María', role: 'user', text: '¿Qué clientes no han regresado?' },
+  {
+    who: 'María',
+    role: 'user',
+    text: '¿Quién dejó de comprar y qué hacemos para recuperarlos?',
+  },
   {
     who: BRAND_NAME,
     role: 'ai',
-    text: [
-      'Sin compra en +3 semanas:',
-      '• Mesa 4 — última vez 12 may',
-      '• Juan P. (300…) — 8 may',
-      '• Empresa XYZ — 2 may',
-      '',
-      'Sugerencia: mensaje de reactivación este fin de semana.',
-    ].join('\n'),
+    badge: 'Clientes inactivos · +21 días',
+    text: 'Detecté 12 perfiles con historial de compra que no han vuelto en 3+ semanas.',
+    bullets: [
+      '<strong>Mesa 4</strong> — última visita 12 may · gasto prom. $85.000',
+      '<strong>Juan P.</strong> — 8 may · pedía los viernes por la tarde',
+      '<strong>Empresa XYZ</strong> — 2 may · 4 pedidos corporativos previos',
+    ],
+    insight:
+      '🎯 <strong>Plan sugerido:</strong> mensaje de reactivación este fin de semana con 10% en su producto favorito. Potencial recuperable: ~$640.000/mes.',
   },
 ]
 
 const CHAT_ALERT: LandingChatTurn[] = [
-  { who: BRAND_NAME, role: 'ai', text: '⚠️ <strong>Alerta automática</strong>\nLas ventas de hoy van 18% por debajo del mismo día la semana pasada. El producto con mayor caída es Café Americano.' },
-  { who: 'Tú', role: 'user', text: '¿Qué producto está estrella?' },
   {
     who: BRAND_NAME,
     role: 'ai',
-    text: 'En los últimos 30 días: <strong>Brownie de chocolate</strong> deja $890.000 de utilidad — 34% más que el segundo.',
+    badge: 'Alerta automática · 15:40',
+    text: '⚠️ Las ventas de hoy van <strong>18% por debajo</strong> del mismo día la semana pasada.',
+    bullets: [
+      '<strong>Mayor caída:</strong> Café Americano (−32%)',
+      '<strong>Lo que sostiene el día:</strong> Cócteles (+11%)',
+    ],
+    insight: 'Revisá precio o promoción del Americano entre 11:00 y 13:00.',
+  },
+  { who: 'Tú', role: 'user', text: '¿Cuál es el producto estrella del mes?' },
+  {
+    who: BRAND_NAME,
+    role: 'ai',
+    badge: 'Ranking · últimos 30 días',
+    metrics: [
+      { label: '#1 Brownie', value: '$890K', hint: 'utilidad' },
+      { label: '#2 Mojito', value: '$640K' },
+      { label: 'Margen', value: '68%', hint: 'brownie' },
+    ],
+    insight:
+      '🏆 <strong>Brownie de chocolate</strong> deja 34% más utilidad que el segundo. Conviene destacarlo en carta y en pedidos web.',
   },
 ]
 
@@ -288,13 +339,24 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <p className="landing-section__kicker">Más que un POS</p>
             <h2 id="compare-title">No es otro software. Es un gerente digital.</h2>
           </div>
-          <div className="landing-compare-wrap landing-compare-wrap--desktop">
+          <div className="landing-compare-wrap">
             <table className="landing-compare">
+              <colgroup>
+                <col className="landing-compare__col-feature" />
+                <col className="landing-compare__col-check" />
+                <col className="landing-compare__col-check" />
+              </colgroup>
               <thead>
                 <tr>
                   <th scope="col">Característica</th>
-                  <th scope="col">POS tradicional</th>
-                  <th scope="col">{BRAND_NAME}</th>
+                  <th scope="col">
+                    <span className="landing-compare__label-long">POS tradicional</span>
+                    <span className="landing-compare__label-short">POS</span>
+                  </th>
+                  <th scope="col">
+                    <span className="landing-compare__label-long">{BRAND_NAME}</span>
+                    <span className="landing-compare__label-short">VOS</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -308,23 +370,6 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
               </tbody>
             </table>
           </div>
-          <ul className="landing-compare-mobile" aria-label="Comparativa POS vs VOS AI">
-            {COMPARE_ROWS.map((row) => (
-              <li key={row.feature} className="landing-compare-mobile__card">
-                <span className="landing-compare-mobile__feature">{row.feature}</span>
-                <div className="landing-compare-mobile__cols">
-                  <span className="landing-compare-mobile__col">
-                    <small>POS</small>
-                    <CheckIcon ok={row.pos} />
-                  </span>
-                  <span className="landing-compare-mobile__col landing-compare-mobile__col--vos">
-                    <small>{BRAND_NAME}</small>
-                    <CheckIcon ok={row.vos} />
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
         </section>
 
         <section className="public-section landing-section landing-section--split landing-section--split-reverse" aria-labelledby="pillars-title">

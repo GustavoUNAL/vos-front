@@ -5,6 +5,7 @@ import { formatPosOrderCode } from '../../lib/orderCode'
 import { formatCOP } from '../../lib/money'
 import { isValidColombiaMobile } from '../../lib/phone'
 import { pickOrderMeta, writeCachedOrderMeta } from '../../lib/orderMetaCache'
+import { incrementDailySalesCount } from '../../lib/dailySalesCount'
 import { hasTransferReceipt } from '../../lib/transferReceipt'
 import { payPosOrder } from '../../services/posApi'
 import { registerPlatformSaleFromPosOrder } from '../../services/platformPosPay'
@@ -21,6 +22,7 @@ import { PosTransferReceiptSheet } from './PosTransferReceiptSheet'
 
 type SuccessState = {
   saleId: string
+  dailyCount: number
   orderRef: string
   partyName: string
   totalCOP: number
@@ -108,6 +110,7 @@ export function PaymentView({ baseUrl }: Props) {
       <div className="pos-screen pos-screen--payment pos-screen--payment-success">
         <PosPaymentSuccess
           saleId={success.saleId}
+          dailyCount={success.dailyCount}
           onDone={() => navigate('tables')}
         />
       </div>
@@ -179,6 +182,7 @@ export function PaymentView({ baseUrl }: Props) {
 
       setSuccess({
         saleId,
+        dailyCount: incrementDailySalesCount(),
         orderRef,
         partyName,
         totalCOP: amountDue,
@@ -207,6 +211,15 @@ export function PaymentView({ baseUrl }: Props) {
     writeCachedOrderMeta(next.id, pickOrderMeta(next))
     setActiveOrder(next)
     setFieldError(null)
+  }
+
+  const setTransferReference = (value: string) => {
+    const next = {
+      ...order,
+      transferReference: value.trim() || null,
+    }
+    writeCachedOrderMeta(next.id, pickOrderMeta(next))
+    setActiveOrder(next)
   }
 
   const updateCashTendered = (value: number) => {
@@ -288,16 +301,15 @@ export function PaymentView({ baseUrl }: Props) {
 
               <PosOrderPaymentPicker
                 paymentMethod={paymentMethod}
-                transferReceiptDataUrl={order.transferReceiptDataUrl}
+                transferReceiptDataUrl={order.transferReceiptDataUrl ?? null}
+                amountDueCOP={amountDue}
+                cashTenderedCOP={cashTendered}
                 onPaymentMethod={setPaymentMethod}
-                onOpenTransferReceipt={() => {
+                onOpenTransferSheet={() => {
                   setCashSheetOpen(false)
                   setTransferSheetOpen(true)
                 }}
-                onOpenCashSheet={() => {
-                  setTransferSheetOpen(false)
-                  setCashSheetOpen(true)
-                }}
+                onCashTenderedChange={updateCashTendered}
               />
 
               {isCash && !isMobile ? (
@@ -427,7 +439,9 @@ export function PaymentView({ baseUrl }: Props) {
         amountCOP={amountDue}
         orderCode={orderRef}
         receiptDataUrl={order.transferReceiptDataUrl ?? null}
+        transferReference={order.transferReference ?? ''}
         onReceiptChange={setTransferReceipt}
+        onTransferReferenceChange={setTransferReference}
         onClose={() => setTransferSheetOpen(false)}
       />
     </div>

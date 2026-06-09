@@ -462,9 +462,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const [saveBannerVisible, setSaveBannerVisible] = useState(false)
   const [savePulse, setSavePulse] = useState(false)
   const [saveAnimKey, setSaveAnimKey] = useState(0)
-  const saveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savePulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveBannerTimerRef = useRef<number | null>(null)
+  const savePulseTimerRef = useRef<number | null>(null)
+  const saveCloseTimerRef = useRef<number | null>(null)
 
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
   const [zeroCostWarning, setZeroCostWarning] = useState<'close' | 'save' | null>(

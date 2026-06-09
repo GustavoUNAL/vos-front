@@ -625,7 +625,7 @@ export function PurchaseLotsView({
   const [lotItemSaveBanner, setLotItemSaveBanner] = useState<string | null>(
     null,
   )
-  const lotItemSaveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+  const lotItemSaveBannerTimerRef = useRef<number | null>(
     null,
   )
   const [lotItemSavingId, setLotItemSavingId] = useState<string | null>(null)

@@ -51,6 +51,21 @@
   background: transparent;
   color: var(--accent);
   filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--shadow-soft) 50%, transparent));
+  animation: landing-robot-float 3.8s ease-in-out infinite;
+}
+
+@keyframes landing-robot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.landing-sales-chat--open .landing-sales-chat__fab-icon {
+  animation: none;
 }
 
 .landing-sales-chat__fab .landing-sales-chat__robot {
@@ -122,19 +137,16 @@
 }
 
 .landing-sales-chat__head-icon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 9px;
   display: grid;
   place-items: center;
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--accent);
   flex-shrink: 0;
 }
 
 .landing-sales-chat__head-icon .landing-sales-chat__robot {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .landing-sales-chat__head strong {
@@ -196,20 +208,17 @@
 }
 
 .landing-sales-chat__row-avatar {
-  width: 1.4rem;
-  height: 1.4rem;
-  border-radius: 7px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  background: var(--accent-soft);
+  background: transparent;
   color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--border));
+  border: none;
 }
 
 .landing-sales-chat__row-avatar .landing-sales-chat__robot {
-  width: 0.8rem;
-  height: 0.8rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .landing-sales-chat__bubble {
@@ -254,20 +263,64 @@
   color: #fff;
 }
 
+.landing-sales-chat__typewriter {
+  display: inline;
+}
+
+.landing-sales-chat__cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--accent);
+  font-weight: 400;
+  animation: landing-chat-cursor 0.85s step-end infinite;
+}
+
+@keyframes landing-chat-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 .landing-sales-chat__typing {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  font-size: 0.8rem;
-  color: var(--muted);
+  gap: 0.28rem;
+  min-width: 2.5rem;
+  padding: 0.65rem 0.8rem;
 }
 
-.landing-sales-chat__typing-bar {
-  width: 1.4rem;
-  height: 2px;
-  border-radius: 2px;
+.landing-sales-chat__dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
   background: var(--accent);
-  opacity: 0.5;
+  opacity: 0.45;
+  animation: landing-chat-dot 1.1s ease-in-out infinite;
+}
+
+.landing-sales-chat__dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.landing-sales-chat__dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes landing-chat-dot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 0.9;
+  }
 }
 
 .landing-sales-chat__advisor-card {
@@ -411,5 +464,13 @@
 @media (max-width: 380px) {
   .landing-sales-chat:not(.landing-sales-chat--kb) .landing-sales-chat__panel {
     width: calc(100vw - 0.75rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-sales-chat__fab-icon,
+  .landing-sales-chat__cursor,
+  .landing-sales-chat__dot {
+    animation: none;
   }
 }

@@ -372,7 +372,7 @@ export function SalesManager({
   const [saleNotice, setSaleNotice] = useState<string | null>(null)
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false)
   const [saveBannerVisible, setSaveBannerVisible] = useState(false)
-  const saveBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveBannerTimerRef = useRef<number | null>(null)
   const [headerBaseline, setHeaderBaseline] = useState<string | null>(null)
   const [linesBaseline, setLinesBaseline] = useState<string | null>(null)
 

@@ -1168,77 +1168,233 @@ html[data-shell='public'] #root {
 .landing-chat__head {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.65rem 0.85rem;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--surface) 50%, var(--surface-elevated));
+  background: var(--surface);
 }
 
-.landing-chat__dot {
+.landing-chat__head-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.landing-chat__head-robot {
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.landing-chat__status {
   width: 0.45rem;
   height: 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
 }
 
 .landing-chat__title {
-  margin-left: 0.35rem;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  color: var(--heading);
+}
+
+.landing-chat__live {
+  font-size: 0.62rem;
+  font-weight: 650;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .landing-chat__body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   padding: 1rem 0.9rem 1.1rem;
 }
 
+.landing-chat__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.landing-chat__row--user {
+  justify-content: flex-end;
+}
+
+.landing-chat__avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.landing-chat__avatar .landing-chat__robot {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .landing-chat__bubble {
-  max-width: 92%;
+  max-width: min(94%, 20rem);
   padding: 0.7rem 0.8rem;
   border-radius: 14px;
-  font-size: 0.86rem;
-  line-height: 1.5;
+  font-size: 0.84rem;
+  line-height: 1.48;
 }
 
 .landing-chat__bubble p {
-  margin: 0.25rem 0 0;
+  margin: 0.2rem 0 0;
 }
 
 .landing-chat__who {
   display: block;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  opacity: 0.75;
+  opacity: 0.72;
+  margin-bottom: 0.15rem;
 }
 
 .landing-chat__bubble--user {
-  align-self: flex-end;
-  background: color-mix(in srgb, var(--accent) 88%, var(--berry-dark));
+  background: var(--accent);
   color: #fff;
 }
 
 .landing-chat__bubble--ai {
-  align-self: flex-start;
-  background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface-elevated));
-  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--border));
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
   color: var(--text);
+}
+
+.landing-chat__ai-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.landing-chat__badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+
+.landing-chat__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.landing-chat__metric {
+  padding: 0.4rem 0.45rem;
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.landing-chat__metric-label {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.landing-chat__metric-value {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 750;
+  color: var(--heading);
+  letter-spacing: -0.02em;
+  margin-top: 0.08rem;
+}
+
+.landing-chat__metric-hint {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--olive);
+  margin-top: 0.1rem;
+}
+
+.landing-chat__list {
+  margin: 0;
+  padding: 0 0 0 1rem;
+  list-style: disc;
+}
+
+.landing-chat__list li {
+  margin: 0.12rem 0;
+  font-size: 0.8rem;
+}
+
+.landing-chat__list p {
+  margin: 0;
+}
+
+.landing-chat__insight {
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
+  border-left: 3px solid var(--accent);
+}
+
+.landing-chat__rich {
+  display: inline;
+}
+
+.landing-chat__ai-content > .landing-chat__rich {
+  display: block;
+  margin: 0;
 }
 
 .landing-chat--compact .landing-chat__body {
   padding: 0.75rem 0.8rem 0.85rem;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .landing-chat--compact .landing-chat__bubble {
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   padding: 0.55rem 0.65rem;
+  max-width: min(96%, 18rem);
+}
+
+.landing-chat--compact .landing-chat__metrics {
+  grid-template-columns: 1fr 1fr;
+  gap: 0.28rem;
+}
+
+.landing-chat--compact .landing-chat__metric {
+  padding: 0.32rem 0.38rem;
+}
+
+.landing-chat--compact .landing-chat__metric-value {
+  font-size: 0.76rem;
+}
+
+.landing-chat--compact .landing-chat__list li,
+.landing-chat--compact .landing-chat__insight {
+  font-size: 0.72rem;
 }
 
 .landing-chat-mocks {
@@ -1357,64 +1513,23 @@ html[data-shell='public'] #root {
   background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
 }
 
-.landing-compare-mobile {
-  display: none;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  gap: 0.5rem;
-}
-
-.landing-compare-mobile__card {
-  padding: 0.75rem 0.85rem;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--surface-elevated);
-}
-
-.landing-compare-mobile__feature {
-  display: block;
-  font-size: 0.88rem;
-  font-weight: 650;
-  color: var(--heading);
-  margin-bottom: 0.55rem;
-}
-
-.landing-compare-mobile__cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.landing-compare-mobile__col {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
-  padding: 0.45rem 0.55rem;
-  border-radius: 10px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-}
-
-.landing-compare-mobile__col small {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--muted);
-}
-
-.landing-compare-mobile__col--vos {
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
-  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface));
-}
-
 .landing-compare {
   width: 100%;
-  min-width: 320px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.88rem;
+}
+
+.landing-compare__col-feature {
+  width: auto;
+}
+
+.landing-compare__col-check {
+  width: 4.5rem;
+}
+
+.landing-compare__label-short {
+  display: none;
 }
 
 .landing-compare th,
@@ -1445,7 +1560,6 @@ html[data-shell='public'] #root {
 
 .landing-compare td {
   text-align: center;
-  width: 8rem;
 }
 
 .landing-compare__mark {
@@ -1710,13 +1824,42 @@ html[data-shell='public'] #root {
     grid-template-columns: 1fr;
   }
 
-  .landing-compare-wrap--desktop {
+  .landing-compare__label-long {
     display: none;
   }
 
-  .landing-compare-mobile {
-    display: flex;
-    flex-direction: column;
+  .landing-compare__label-short {
+    display: inline;
+  }
+
+  .landing-compare__col-check {
+    width: 2.65rem;
+  }
+
+  .landing-compare {
+    font-size: 0.78rem;
+  }
+
+  .landing-compare th,
+  .landing-compare td {
+    padding: 0.5rem 0.4rem;
+  }
+
+  .landing-compare thead th {
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+  }
+
+  .landing-compare tbody th {
+    font-size: 0.76rem;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .landing-compare__mark {
+    width: 1.4rem;
+    height: 1.4rem;
+    font-size: 0.72rem;
   }
 
   .public-cta__actions {
@@ -1780,7 +1923,6 @@ html[data-shell='public'] #root {
 }
 
 .landing-v2 .landing-plan,
-.landing-v2 .landing-compare-mobile__card,
 .landing-v2 .landing-compare-wrap,
 .landing-v2 .public-card,
 .landing-v2 .landing-results li,

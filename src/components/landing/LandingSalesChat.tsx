@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import {
   askLandingAssistant,
   getApiBase,
@@ -13,6 +19,7 @@ type ChatMessage = {
   id: string
   role: 'user' | 'assistant'
   text: string
+  animate?: boolean
 }
 
 const WELCOME = `Hola, soy el asistente de ${BRAND_NAME}.\n\nTe explico en segundos qué hacemos y cómo puede ayudarte tu empresa. ¿Qué te gustaría saber?`
@@ -70,6 +77,66 @@ function MessageBody({ text }: { text: string }) {
   return <>{blocks}</>
 }
 
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
+
+function TypewriterMessage({
+  text,
+  onTick,
+}: {
+  text: string
+  onTick?: () => void
+}) {
+  const reduced = prefersReducedMotion()
+  const [displayed, setDisplayed] = useState(reduced ? text : '')
+  const [done, setDone] = useState(reduced)
+
+  useEffect(() => {
+    if (reduced) {
+      setDisplayed(text)
+      setDone(true)
+      return
+    }
+    setDisplayed('')
+    setDone(false)
+    let i = 0
+    let timer = 0
+
+    const step = () => {
+      i += 1
+      const next = text.slice(0, i)
+      setDisplayed(next)
+      onTick?.()
+      if (i >= text.length) {
+        setDone(true)
+        return
+      }
+      const ch = text[i - 1]
+      const delay =
+        ch === '\n' ? 100 : ch === '.' || ch === '?' || ch === '!' ? 70 : 14
+      timer = window.setTimeout(step, delay)
+    }
+
+    timer = window.setTimeout(step, 200)
+    return () => window.clearTimeout(timer)
+  }, [text, onTick, reduced])
+
+  return (
+    <span className="landing-sales-chat__typewriter">
+      <MessageBody text={displayed} />
+      {!done ? (
+        <span className="landing-sales-chat__cursor" aria-hidden>
+          ▍
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 function RobotIcon() {
   return (
     <svg viewBox="0 0 64 64" fill="none" aria-hidden className="landing-sales-chat__robot">
@@ -80,6 +147,16 @@ function RobotIcon() {
       <path d="M32 12v10M22 16h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="32" cy="10" r="3" fill="currentColor" />
     </svg>
+  )
+}
+
+function TypingIndicator() {
+  return (
+    <div className="landing-sales-chat__bubble landing-sales-chat__bubble--assistant landing-sales-chat__typing">
+      <span className="landing-sales-chat__dot" />
+      <span className="landing-sales-chat__dot" />
+      <span className="landing-sales-chat__dot" />
+    </div>
   )
 }
 
@@ -94,15 +171,26 @@ export function LandingSalesChat() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [showAdvisorCta, setShowAdvisorCta] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'welcome', role: 'assistant', text: WELCOME },
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
 
   const rootRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useVisualViewport(open, rootRef)
+
+  const scrollToEnd = useCallback(() => {
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    setMessages((prev) => {
+      if (prev.length > 0) return prev
+      return [{ id: 'welcome', role: 'assistant', text: WELCOME, animate: true }]
+    })
+  }, [open])
 
   useEffect(() => {
     if (!open || typeof window === 'undefined') return
@@ -118,9 +206,8 @@ export function LandingSalesChat() {
 
   useEffect(() => {
     if (!open) return
-    const el = listRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages, open, busy, showAdvisorCta])
+    scrollToEnd()
+  }, [messages, open, busy, showAdvisorCta, scrollToEnd])
 
   const send = useCallback(
     async (question: string) => {
@@ -138,7 +225,7 @@ export function LandingSalesChat() {
         const { answer, advisorSuggested } = await askLandingAssistant(baseUrl, q, history)
         setMessages((prev) => [
           ...prev,
-          { id: `a-${Date.now()}`, role: 'assistant', text: answer },
+          { id: `a-${Date.now()}`, role: 'assistant', text: answer, animate: true },
         ])
         if (advisorSuggested) setShowAdvisorCta(true)
       } catch {
@@ -149,6 +236,7 @@ export function LandingSalesChat() {
             role: 'assistant',
             text:
               'No pude conectar con el asistente en este momento. Probá de nuevo en unos segundos o usá **Hablar con un asesor** si necesitás ayuda humana.',
+            animate: true,
           },
         ])
       } finally {
@@ -216,7 +304,15 @@ export function LandingSalesChat() {
                 <div
                   className={`landing-sales-chat__bubble landing-sales-chat__bubble--${m.role}`}
                 >
-                  {m.role === 'assistant' ? <MessageBody text={m.text} /> : <p>{m.text}</p>}
+                  {m.role === 'assistant' ? (
+                    m.animate ? (
+                      <TypewriterMessage text={m.text} onTick={scrollToEnd} />
+                    ) : (
+                      <MessageBody text={m.text} />
+                    )
+                  ) : (
+                    <p>{m.text}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -225,10 +321,7 @@ export function LandingSalesChat() {
                 <span className="landing-sales-chat__row-avatar" aria-hidden>
                   <RobotIcon />
                 </span>
-                <div className="landing-sales-chat__bubble landing-sales-chat__bubble--assistant landing-sales-chat__typing">
-                  <span className="landing-sales-chat__typing-bar" />
-                  Analizando…
-                </div>
+                <TypingIndicator />
               </div>
             ) : null}
             {showAdvisorCta && advisorUrl ? (
