@@ -9,101 +9,88 @@ import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { usePublicTheme } from '../hooks/usePublicTheme'
 import '../public-shell.css'
 
-const MODULES = [
-  {
-    title: 'Agente IA operativo',
-    text: 'Asistente que interpreta ventas, stock y márgenes para recomendarte qué comprar, qué promocionar y qué revisar hoy.',
-  },
-  {
-    title: 'Inventario inteligente',
-    text: 'Stock en vivo, mínimos, movimientos y alertas — conectado a compras y costos reales de tu negocio.',
-  },
-  {
-    title: 'Bares y restaurantes',
-    text: 'Carta, cocina, mesas, comandas, caja y flujo salón en un solo panel multi-sucursal.',
-  },
-  {
-    title: 'Farmacias',
-    text: 'Catálogo, lotes, trazabilidad y control de productos con reglas de inventario y ventas diarias.',
-  },
-  {
-    title: 'Supermercados',
-    text: 'Alto volumen de SKUs, categorías, proveedores y rotación — pensado para retail de consumo masivo.',
-  },
-  {
-    title: 'Carrito de compras',
-    text: 'Tienda web con checkout, pedidos al POS y seguimiento — tu canal online integrado al local.',
-  },
-  {
-    title: 'Ventas y POS',
-    text: 'Comprobantes, calendario, caja, mesas y cobro — todo sincronizado con inventario y finanzas.',
-  },
-  {
-    title: 'Compras y finanzas',
-    text: 'Lotes, proveedores, márgenes y analítica para ver la salud del negocio sin planillas sueltas.',
-  },
+const QUESTIONS = [
+  '¿Cuánto vendí hoy?',
+  '¿Qué debo comprar?',
+  '¿Cuál fue mi utilidad?',
+  '¿Qué productos generan más ganancias?',
+  '¿Qué clientes no han regresado?',
+] as const
+
+const COMPARE_ROWS = [
+  { feature: 'Registrar ventas', pos: true, vos: true },
+  { feature: 'Inventario', pos: true, vos: true },
+  { feature: 'Reportes', pos: true, vos: true },
+  { feature: 'IA integrada', pos: false, vos: true },
+  { feature: 'WhatsApp', pos: false, vos: true },
+  { feature: 'Recomendaciones', pos: false, vos: true },
+  { feature: 'Automatizaciones', pos: false, vos: true },
+  { feature: 'Asistente empresarial', pos: false, vos: true },
+] as const
+
+const PILLARS = [
+  { title: 'Ventas', text: 'Control total de ingresos.' },
+  { title: 'Inventario', text: 'Conoce exactamente qué tienes.' },
+  { title: 'Compras', text: 'Sabe qué comprar y cuándo.' },
+  { title: 'Finanzas', text: 'Entiende si realmente estás ganando dinero.' },
+  { title: 'Clientes', text: 'Conoce quién compra y quién dejó de comprar.' },
+  { title: 'IA', text: 'Tu gerente digital disponible 24/7.' },
+] as const
+
+const AUTOMATIONS = [
+  'Enviar reportes diarios.',
+  'Alertar faltantes.',
+  'Recomendar compras.',
+  'Detectar caídas en ventas.',
+  'Identificar productos estrella.',
 ] as const
 
 const INDUSTRIES = [
+  'Cafeterías',
+  'Bares',
+  'Restaurantes',
+  'Tiendas',
+  'Ferreterías',
+  'Negocios de servicios',
+] as const
+
+const PLANS = [
   {
-    title: 'Restaurantes',
-    text: 'Menú, cocina, delivery y caja con datos unificados y un agente que te avisa antes de que falte insumo.',
+    name: 'Starter',
+    price: '$49.000',
+    period: '/ mes',
+    note: 'Operación esencial con asistente IA.',
   },
   {
-    title: 'Bares y nightlife',
-    text: 'Comandas rápidas, turnos, inventario de licores y ventas por mesa en tiempo real.',
+    name: 'Business',
+    price: '$99.000',
+    period: '/ mes',
+    note: 'Más IA y WhatsApp.',
+    featured: true,
   },
   {
-    title: 'Farmacias',
-    text: 'Control de stock sensible, rotación y ventas con trazabilidad por producto y sucursal.',
-  },
-  {
-    title: 'Supermercados',
-    text: 'Miles de referencias, categorías, compras recurrentes y tienda online conectada al almacén.',
+    name: 'Premium',
+    price: '$199.000',
+    period: '/ mes',
+    note: 'Automatizaciones avanzadas.',
   },
 ] as const
 
-const INTEGRATIONS = [
-  {
-    title: 'Bases de datos existentes',
-    text: 'Conectá PostgreSQL, MySQL, Neon u otros orígenes — migrá sin empezar de cero.',
-  },
-  {
-    title: 'Excel y CSV',
-    text: 'Importá catálogos, inventario y ventas desde planillas; exportá reportes cuando lo necesites.',
-  },
-  {
-    title: 'WhatsApp y pagos',
-    text: 'Comprobantes, avisos de pedidos y cobros locales (Nequi, Bre-B, efectivo).',
-  },
-  {
-    title: 'API y más',
-    text: 'Integraciones a medida: ERPs, e-commerce, contabilidad y flujos propios de tu empresa.',
-  },
-] as const
-
-const FAQ = [
-  {
-    q: '¿Qué es VOS AI?',
-    a: 'Un agente de inteligencia artificial para tu negocio: opera inventario, ventas, POS y tienda, y te ayuda a decidir con datos reales.',
-  },
-  {
-    q: '¿Cómo obtengo acceso?',
-    a: 'Enviá el formulario “Solicitar una prueba”. Revisamos tu caso y activamos tu empresa manualmente.',
-  },
-  {
-    q: '¿Puedo traer mis datos actuales?',
-    a: 'Sí. Integramos bases de datos existentes, Excel y otros formatos para no perder tu historial.',
-  },
-  {
-    q: '¿Incluye carrito de compras?',
-    a: 'Sí. Tienda pública con checkout conectado al POS y al inventario de tu local.',
-  },
-] as const
+const WHATSAPP_DEMO =
+  (import.meta.env.VITE_LANDING_WHATSAPP_URL as string | undefined)?.trim() ||
+  'https://wa.me/573207909835?text=Hola%2C%20quiero%20una%20demo%20de%20VOS%20AI'
 
 type Props = {
   onLoginClick?: () => void
   onAccessRequestClick?: () => void
+}
+
+function CheckIcon({ ok }: { ok: boolean }) {
+  return (
+    <span className={`landing-compare__mark${ok ? ' landing-compare__mark--yes' : ''}`}>
+      {ok ? '✓' : '—'}
+    </span>
+  )
 }
 
 export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
@@ -112,7 +99,7 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
   const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
-    document.title = `${BRAND_NAME} — Agente de inteligencia artificial para tu negocio`
+    document.title = `${BRAND_NAME} — El primer gerente digital para pequeños negocios`
   }, [])
 
   function handleLogin(e: MouseEvent<HTMLAnchorElement>) {
@@ -128,7 +115,7 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
   }
 
   return (
-    <div className="public-shell">
+    <div className="public-shell landing-v2">
       <div className="public-shell__grid-bg" aria-hidden />
       <div className="public-shell__orbs" aria-hidden>
         <span className="public-orb public-orb--a" />
@@ -136,136 +123,232 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
         <span className="public-orb public-orb--c" />
       </div>
 
-      <header className="public-topbar public-topbar--minimal">
+      <header className="public-topbar public-topbar--minimal landing-v2__topbar">
         <BrandMark size="sm" />
-        <PublicThemeSwitch theme={theme} onToggle={toggleTheme} compact />
+        <div className="landing-v2__topbar-actions">
+          <a className="public-btn public-btn--ghost landing-v2__top-login" href={loginUrl} onClick={handleLogin}>
+            Iniciar sesión
+          </a>
+          <PublicThemeSwitch theme={theme} onToggle={toggleTheme} compact />
+        </div>
       </header>
 
-      <div className="public-wrap">
-        <section className="public-hero public-hero--wide">
-          <div className="public-hero__glow" aria-hidden />
-          <p className="public-hero__eyebrow">Agente de inteligencia artificial</p>
-          <h1>{BRAND_NAME}</h1>
-          <p className="public-hero__lead">
-            El copiloto que entiende tu negocio: inventario, ventas, clientes y márgenes — con
-            recomendaciones accionables, no solo reportes.
-          </p>
-          <p className="public-hero__lead public-hero__lead--secondary">
-            Módulos para bares, restaurantes, farmacias y supermercados. Carrito de compras,
-            POS, compras y finanzas en una plataforma multi-empresa hecha para operar en LATAM.
-          </p>
-
-          <div className="public-hero__actions">
-            <a className="public-btn public-btn--accent" href={accessUrl} onClick={handleAccess}>
-              Solicitar una prueba
-            </a>
-            <a className="public-btn public-btn--ghost" href={loginUrl} onClick={handleLogin}>
-              Iniciar sesión
-            </a>
+      <div className="public-wrap landing-v2__wrap">
+        <section className="landing-hero" aria-labelledby="landing-hero-title">
+          <div className="landing-hero__copy">
+            <p className="landing-hero__category">
+              El primer gerente digital para pequeños negocios.
+            </p>
+            <h1 id="landing-hero-title">Habla con tu negocio por WhatsApp.</h1>
+            <p className="landing-hero__lead">
+              {BRAND_NAME} es el gerente digital que te ayuda a administrar ventas,
+              inventario, compras y finanzas simplemente conversando.
+            </p>
+            <div className="landing-hero__actions">
+              <a className="public-btn public-btn--accent" href={accessUrl} onClick={handleAccess}>
+                Solicitar demo
+              </a>
+              <a className="public-btn public-btn--ghost" href={loginUrl} onClick={handleLogin}>
+                Probar con mi negocio
+              </a>
+            </div>
           </div>
 
-          <div className="public-stats">
-            <div className="public-stat"><strong>IA</strong><span>Agente operativo</span></div>
-            <div className="public-stat"><strong>POS</strong><span>Bares y restaurantes</span></div>
-            <div className="public-stat"><strong>Retail</strong><span>Farmacias y super</span></div>
-            <div className="public-stat"><strong>Web</strong><span>Carrito integrado</span></div>
+          <div className="landing-chat" aria-label="Ejemplo de conversación con VOS AI">
+            <div className="landing-chat__head">
+              <span className="landing-chat__dot" />
+              <span className="landing-chat__dot" />
+              <span className="landing-chat__dot" />
+              <span className="landing-chat__title">{BRAND_NAME}</span>
+            </div>
+            <div className="landing-chat__body">
+              <div className="landing-chat__bubble landing-chat__bubble--user">
+                <span className="landing-chat__who">Dueño</span>
+                <p>¿Cuánto vendí hoy?</p>
+              </div>
+              <div className="landing-chat__bubble landing-chat__bubble--ai">
+                <span className="landing-chat__who">{BRAND_NAME}</span>
+                <p>
+                  <strong>Ventas de hoy:</strong> $1.250.000
+                  <br />
+                  <strong>Utilidad estimada:</strong> $420.000
+                  <br />
+                  <strong>Producto más vendido:</strong> Mojito Tradicional
+                  <br />
+                  <strong>Inventario crítico:</strong> Limón (2 días restantes)
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="public-section" aria-labelledby="modules-title">
+        <section className="public-section landing-section" aria-labelledby="problem-title">
           <div className="public-section__head">
-            <h2 id="modules-title">Módulos que operan y venden por vos</h2>
+            <p className="landing-section__kicker">El problema</p>
+            <h2 id="problem-title">Administrar un negocio no debería ser un segundo trabajo.</h2>
             <p>
-              Desde el insumo hasta el checkout online: un agente IA sobre inventario, ventas,
-              compras y tienda — adaptado a cómo trabajás hoy.
+              Cada día los dueños pierden horas revisando ventas, inventario, compras,
+              gastos y clientes. La información existe. Pero encontrar respuestas sigue
+              siendo difícil.
             </p>
           </div>
-          <div className="public-grid">
-            {MODULES.map((m) => (
-              <article key={m.title} className="public-card">
-                <h3>{m.title}</h3>
-                <p>{m.text}</p>
-              </article>
-            ))}
-          </div>
         </section>
 
-        <section className="public-section" aria-labelledby="use-title">
+        <section className="public-section landing-section" aria-labelledby="solution-title">
           <div className="public-section__head">
-            <h2 id="use-title">Industrias que potenciamos</h2>
-            <p>Configuración y flujos pensados para cada rubro, con datos aislados por empresa.</p>
+            <p className="landing-section__kicker">La solución</p>
+            <h2 id="solution-title">Tu negocio ahora puede responderte.</h2>
+            <p>Pregunta lo que quieras:</p>
           </div>
-          <div className="public-grid public-grid--4">
-            {INDUSTRIES.map((u) => (
-              <article key={u.title} className="public-card public-card--flat">
-                <h3>{u.title}</h3>
-                <p>{u.text}</p>
-              </article>
+          <ul className="landing-questions">
+            {QUESTIONS.map((q) => (
+              <li key={q}>{q}</li>
             ))}
-          </div>
+          </ul>
+          <p className="landing-section__after">
+            {BRAND_NAME} analiza toda la operación y responde en segundos.
+          </p>
         </section>
 
-        <section className="public-section" aria-labelledby="int-title">
+        <section className="public-section landing-section" aria-labelledby="how-title">
           <div className="public-section__head">
-            <h2 id="int-title">Integración con lo que ya usás</h2>
-            <p>
-              No hace falta tirar Excel ni cambiar de base de datos de un día para el otro —
-              conectamos, importamos y seguimos creciendo.
-            </p>
-          </div>
-          <div className="public-grid public-grid--4">
-            {INTEGRATIONS.map((i) => (
-              <article key={i.title} className="public-card public-card--flat">
-                <h3>{i.title}</h3>
-                <p>{i.text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="public-section" aria-labelledby="how-title">
-          <div className="public-section__head">
-            <h2 id="how-title">Cómo empezar</h2>
+            <p className="landing-section__kicker">¿Cómo funciona?</p>
+            <h2 id="how-title">Tres pasos. Sin complicaciones.</h2>
           </div>
           <div className="public-steps">
             <article className="public-step">
-              <h3>Solicitás una prueba</h3>
-              <p>Contanos tu rubro y volumen — bares, farmacia, super o restaurante.</p>
+              <h3>Registra tu operación</h3>
+              <p>Ventas, compras e inventario.</p>
             </article>
             <article className="public-step">
-              <h3>Integramos tus datos</h3>
-              <p>Base existente, Excel o arranque limpio — te armamos el tenant.</p>
+              <h3>La IA analiza tu negocio</h3>
+              <p>Procesa datos y detecta oportunidades.</p>
             </article>
             <article className="public-step">
-              <h3>Tu agente opera</h3>
-              <p>Panel, POS, carrito y recomendaciones IA desde el primer día.</p>
+              <h3>Pregunta por WhatsApp</h3>
+              <p>Obtén respuestas y recomendaciones.</p>
             </article>
           </div>
         </section>
 
-        <section className="public-section" aria-labelledby="faq-title">
+        <section className="public-section landing-section" aria-labelledby="compare-title">
           <div className="public-section__head">
-            <h2 id="faq-title">Preguntas frecuentes</h2>
+            <p className="landing-section__kicker">Más que un POS</p>
+            <h2 id="compare-title">No es otro software. Es un gerente digital.</h2>
           </div>
-          <div className="public-faq">
-            {FAQ.map((f) => (
-              <details key={f.q} className="public-faq__item">
-                <summary>{f.q}</summary>
-                <p>{f.a}</p>
-              </details>
+          <div className="landing-compare-wrap">
+            <table className="landing-compare">
+              <thead>
+                <tr>
+                  <th scope="col">Característica</th>
+                  <th scope="col">POS tradicional</th>
+                  <th scope="col">{BRAND_NAME}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE_ROWS.map((row) => (
+                  <tr key={row.feature}>
+                    <th scope="row">{row.feature}</th>
+                    <td><CheckIcon ok={row.pos} /></td>
+                    <td><CheckIcon ok={row.vos} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="public-section landing-section" aria-labelledby="pillars-title">
+          <div className="public-section__head">
+            <p className="landing-section__kicker">Todo lo que tu negocio necesita</p>
+            <h2 id="pillars-title">Operación completa. Respuestas simples.</h2>
+          </div>
+          <div className="public-grid public-grid--3">
+            {PILLARS.map((p) => (
+              <article key={p.title} className="public-card landing-pillar">
+                <h3>{p.title}</h3>
+                <p>{p.text}</p>
+              </article>
             ))}
           </div>
         </section>
 
-        <section className="public-cta" aria-labelledby="cta-title">
-          <h2 id="cta-title">¿Listo para tu agente de IA?</h2>
-          <p>Solicitá una prueba y activamos tu negocio con módulos, carrito e integraciones.</p>
+        <section className="public-section landing-section" aria-labelledby="auto-title">
+          <div className="public-section__head">
+            <p className="landing-section__kicker">Automatizaciones inteligentes</p>
+            <h2 id="auto-title">{BRAND_NAME} puede:</h2>
+          </div>
+          <ul className="landing-bullets">
+            {AUTOMATIONS.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="public-section landing-section" aria-labelledby="industries-title">
+          <div className="public-section__head">
+            <p className="landing-section__kicker">Diseñado para negocios reales</p>
+            <h2 id="industries-title">Ideal para:</h2>
+          </div>
+          <div className="landing-chips">
+            {INDUSTRIES.map((name) => (
+              <span key={name} className="landing-chip">{name}</span>
+            ))}
+          </div>
+        </section>
+
+        <section className="public-section landing-section" aria-labelledby="results-title">
+          <div className="public-section__head">
+            <p className="landing-section__kicker">Resultados</p>
+            <h2 id="results-title">Menos horas administrando. Más tiempo creciendo.</h2>
+          </div>
+          <ul className="landing-results">
+            <li>Recupera tiempo.</li>
+            <li>Toma mejores decisiones.</li>
+            <li>Controla tu negocio desde cualquier lugar.</li>
+            <li>Crece sin complicarte.</li>
+          </ul>
+        </section>
+
+        <section className="public-section landing-section" aria-labelledby="plans-title">
+          <div className="public-section__head">
+            <p className="landing-section__kicker">Planes</p>
+            <h2 id="plans-title">Empieza simple. Escala cuando quieras.</h2>
+          </div>
+          <div className="landing-plans">
+            {PLANS.map((plan) => (
+              <article
+                key={plan.name}
+                className={`landing-plan${plan.featured ? ' landing-plan--featured' : ''}`}
+              >
+                <h3>{plan.name}</h3>
+                <p className="landing-plan__price">
+                  <span>{plan.price}</span>
+                  <small>{plan.period}</small>
+                </p>
+                <p className="landing-plan__note">{plan.note}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="public-cta landing-final-cta" aria-labelledby="final-cta-title">
+          <p className="landing-hero__category landing-hero__category--cta">
+            El primer gerente digital para pequeños negocios.
+          </p>
+          <h2 id="final-cta-title">Tu negocio ya genera datos.</h2>
+          <p>Es hora de que esos datos trabajen para ti.</p>
           <div className="public-cta__actions">
             <a className="public-btn public-btn--accent" href={accessUrl} onClick={handleAccess}>
-              Solicitar una prueba
+              Solicita una demostración
             </a>
-            <a className="public-btn public-btn--ghost" href={loginUrl} onClick={handleLogin}>
-              Iniciar sesión
+            <a
+              className="public-btn public-btn--ghost landing-whatsapp-btn"
+              href={WHATSAPP_DEMO}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Hablar por WhatsApp
             </a>
           </div>
         </section>
@@ -275,7 +358,7 @@ export function LandingView({ onLoginClick, onAccessRequestClick }: Props) {
             <strong>{BRAND_NAME}</strong>
           </p>
           <p className="public-footer__tagline">
-            Agente de inteligencia artificial para tu negocio
+            El primer gerente digital para pequeños negocios.
           </p>
           <p className="public-footer__latam">Desarrollado en Colombia</p>
         </footer>

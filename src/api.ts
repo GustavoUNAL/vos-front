@@ -2068,14 +2068,20 @@ export type CreateSalePayload = {
   lines: SaleLineInputPayload[]
 }
 
+export type AssistantHistoryItem = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export async function askBusinessAssistant(
   base: string,
   question: string,
+  history?: AssistantHistoryItem[],
 ): Promise<{ answer: string }> {
   const res = await apiFetch(`${base}/assistant/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return res.json() as Promise<{ answer: string }>

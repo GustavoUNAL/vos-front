@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { askBusinessAssistant } from '../api'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { askBusinessAssistant, type AssistantHistoryItem } from '../api'
 import './VosAssistantWidget.css'
 
 type ChatMessage = {
@@ -8,13 +14,35 @@ type ChatMessage = {
   text: string
 }
 
-const SUGGESTIONS = [
-  '¿Cómo va el negocio hoy?',
-  '¿Qué debo comprar?',
-  '¿Cuál fue la utilidad del mes?',
-  '¿Qué producto deja más dinero?',
-  '¿Qué clientes no han regresado?',
+const SUGGESTION_GROUPS: { label: string; items: string[] }[] = [
+  {
+    label: 'Ventas',
+    items: [
+      '¿Cómo va el negocio hoy?',
+      '¿Cómo vamos esta semana?',
+      '¿Cuál fue la utilidad del mes?',
+    ],
+  },
+  {
+    label: 'Operación',
+    items: [
+      '¿Qué debo comprar?',
+      '¿Cómo está el inventario?',
+      '¿Hay pedidos en la tienda?',
+    ],
+  },
+  {
+    label: 'Estrategia',
+    items: [
+      '¿Qué producto deja más dinero?',
+      '¿Qué clientes no han regresado?',
+      '¿Cuánto llevamos en compras y nómina?',
+    ],
+  },
 ]
+
+const WELCOME =
+  'Hola, soy VOS AI — tu gerente digital.\n\nPuedo contarte ventas en vivo, inventario, compras, personal, pedidos web y qué clientes no han vuelto. Elegí una sugerencia o escribí en tus palabras.'
 
 function RobotIcon() {
   return (
@@ -22,33 +50,88 @@ function RobotIcon() {
       <rect x="16" y="22" width="32" height="26" rx="8" stroke="currentColor" strokeWidth="2.5" />
       <circle cx="26" cy="34" r="4" fill="currentColor" />
       <circle cx="38" cy="34" r="4" fill="currentColor" />
-      <path
-        d="M28 42h8"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M32 12v10M22 16h20"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
+      <path d="M28 42h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M32 12v10M22 16h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="32" cy="10" r="3" fill="currentColor" />
     </svg>
   )
 }
 
-export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
-  const [open, setOpen] = useState(false)
+function formatInline(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
+function AssistantMessageBody({ text }: { text: string }) {
+  const lines = text.split('\n')
+  const nodes: ReactNode[] = []
+  let bulletBuffer: string[] = []
+
+  const flushBullets = (key: string) => {
+    if (!bulletBuffer.length) return
+    nodes.push(
+      <ul key={key} className="vos-assistant__list">
+        {bulletBuffer.map((line, i) => (
+          <li key={`${key}-${i}`}>{formatInline(line)}</li>
+        ))}
+      </ul>,
+    )
+    bulletBuffer = []
+  }
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      flushBullets(`gap-${i}`)
+      nodes.push(<div key={`sp-${i}`} className="vos-assistant__gap" />)
+      return
+    }
+    const isBullet = /^[•\-\*]\s/.test(trimmed)
+    if (isBullet) {
+      bulletBuffer.push(trimmed.replace(/^[•\-\*]\s*/, ''))
+      return
+    }
+    flushBullets(`pre-${i}`)
+    const isSection = /^[📊🛒💰🏆👥📦🧾👨‍🍳🛍️📈🤖]/.test(trimmed)
+    nodes.push(
+      <p
+        key={`p-${i}`}
+        className={isSection ? 'vos-assistant__section-title' : undefined}
+      >
+        {formatInline(trimmed)}
+      </p>,
+    )
+  })
+  flushBullets('end')
+
+  return <>{nodes}</>
+}
+
+type VosAssistantWidgetProps = {
+  baseUrl: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideFab?: boolean
+}
+
+export function VosAssistantWidget({
+  baseUrl,
+  open: openProp,
+  onOpenChange,
+  hideFab = false,
+}: VosAssistantWidgetProps) {
+  const [openInternal, setOpenInternal] = useState(false)
+  const open = openProp ?? openInternal
+  const setOpen = onOpenChange ?? setOpenInternal
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: 'Hola, soy VOS AI. Preguntame sobre ventas, inventario, utilidad o clientes.',
-    },
+    { id: 'welcome', role: 'assistant', text: WELCOME },
   ])
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -63,13 +146,15 @@ export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
       const q = question.trim()
       if (!q || busy) return
       setInput('')
-      setMessages((prev) => [
-        ...prev,
-        { id: `u-${Date.now()}`, role: 'user', text: q },
-      ])
+      const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', text: q }
+      setMessages((prev) => [...prev, userMsg])
       setBusy(true)
       try {
-        const { answer } = await askBusinessAssistant(baseUrl, q)
+        const history: AssistantHistoryItem[] = messages
+          .filter((m) => m.id !== 'welcome')
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.text }))
+        const { answer } = await askBusinessAssistant(baseUrl, q, history)
         setMessages((prev) => [
           ...prev,
           { id: `a-${Date.now()}`, role: 'assistant', text: answer },
@@ -90,11 +175,13 @@ export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
         setBusy(false)
       }
     },
-    [baseUrl, busy],
+    [baseUrl, busy, messages],
   )
 
   return (
-    <div className={`vos-assistant${open ? ' vos-assistant--open' : ''}`}>
+    <div
+      className={`vos-assistant${open ? ' vos-assistant--open' : ''}${hideFab ? ' vos-assistant--dock-only' : ''}`}
+    >
       {open ? (
         <button
           type="button"
@@ -107,10 +194,12 @@ export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
         <div className="vos-assistant__panel" role="dialog" aria-label="Asistente VOS AI">
           <header className="vos-assistant__head">
             <div className="vos-assistant__head-title">
-              <RobotIcon />
+              <div className="vos-assistant__avatar" aria-hidden>
+                <RobotIcon />
+              </div>
               <div>
                 <strong>VOS AI</strong>
-                <span>Datos en vivo de tu negocio</span>
+                <span>Gerente digital · datos en vivo</span>
               </div>
             </div>
             <button
@@ -127,31 +216,56 @@ export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={`vos-assistant__bubble vos-assistant__bubble--${m.role}`}
+                className={`vos-assistant__row vos-assistant__row--${m.role}`}
               >
-                {m.text.split('\n').map((line, i) => (
-                  <p key={`${m.id}-${i}`}>{line || '\u00a0'}</p>
-                ))}
+                {m.role === 'assistant' ? (
+                  <div className="vos-assistant__mini-avatar" aria-hidden>
+                    <RobotIcon />
+                  </div>
+                ) : null}
+                <div
+                  className={`vos-assistant__bubble vos-assistant__bubble--${m.role}`}
+                >
+                  {m.role === 'assistant' ? (
+                    <AssistantMessageBody text={m.text} />
+                  ) : (
+                    <p>{m.text}</p>
+                  )}
+                </div>
               </div>
             ))}
             {busy ? (
-              <div className="vos-assistant__bubble vos-assistant__bubble--assistant vos-assistant__typing">
-                Pensando…
+              <div className="vos-assistant__row vos-assistant__row--assistant">
+                <div className="vos-assistant__mini-avatar" aria-hidden>
+                  <RobotIcon />
+                </div>
+                <div className="vos-assistant__bubble vos-assistant__bubble--assistant vos-assistant__typing">
+                  <span className="vos-assistant__dot" />
+                  <span className="vos-assistant__dot" />
+                  <span className="vos-assistant__dot" />
+                </div>
               </div>
             ) : null}
           </div>
 
           <div className="vos-assistant__suggestions">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="vos-assistant__chip"
-                disabled={busy}
-                onClick={() => void send(s)}
-              >
-                {s}
-              </button>
+            {SUGGESTION_GROUPS.map((group) => (
+              <div key={group.label} className="vos-assistant__suggestion-group">
+                <span className="vos-assistant__suggestion-label">{group.label}</span>
+                <div className="vos-assistant__suggestion-chips">
+                  {group.items.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className="vos-assistant__chip"
+                      disabled={busy}
+                      onClick={() => void send(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 
@@ -166,7 +280,7 @@ export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Escribí tu pregunta…"
+              placeholder="Preguntá sobre ventas, stock, compras…"
               disabled={busy}
               aria-label="Pregunta al asistente"
             />
@@ -177,17 +291,19 @@ export function VosAssistantWidget({ baseUrl }: { baseUrl: string }) {
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className="vos-assistant__fab"
-        aria-label={open ? 'Cerrar asistente' : 'Abrir asistente VOS AI'}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="vos-assistant__fab-inner">
-          <RobotIcon />
-        </span>
-      </button>
+      {!hideFab ? (
+        <button
+          type="button"
+          className="vos-assistant__fab"
+          aria-label={open ? 'Cerrar asistente' : 'Abrir asistente VOS AI'}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="vos-assistant__fab-inner">
+            <RobotIcon />
+          </span>
+        </button>
+      ) : null}
     </div>
   )
 }

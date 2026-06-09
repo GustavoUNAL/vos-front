@@ -44,6 +44,7 @@ import {
   MobileAppChrome,
   type MobileChromeView,
 } from './components/MobileAppChrome'
+import { ThemeSwitch } from './components/ThemeSwitch'
 import { UserProfileCard } from './components/UserProfileCard'
 import { VosAssistantWidget } from './components/VosAssistantWidget'
 import type { NavGroupId } from './navTypes'
@@ -78,35 +79,6 @@ function getViewFromHash(): View | null {
 
 function companyViewHash(user: AuthUser, view: View): string {
   return buildCompanyViewHash(getCompanySlugFromUser(user), view)
-}
-
-function ThemeSwitch({
-  theme,
-  onToggle,
-}: {
-  theme: 'dark' | 'light'
-  onToggle: () => void
-}) {
-  return (
-    <div className="theme-switch" title="Cambiar tema">
-      <span className="muted small" id="theme-switch-label">
-        Tema
-      </span>
-      <button
-        type="button"
-        role="switch"
-        className={`theme-switch__track${theme === 'light' ? ' theme-switch__track--on' : ''}`}
-        aria-checked={theme === 'light'}
-        aria-labelledby="theme-switch-label"
-        onClick={onToggle}
-      >
-        <span className="theme-switch__thumb" aria-hidden />
-      </button>
-      <span className="theme-switch__value muted small">
-        {theme === 'light' ? 'Claro' : 'Oscuro'}
-      </span>
-    </div>
-  )
 }
 
 const VIEW_TO_GROUP: Partial<Record<View, NavGroupId>> = {
@@ -362,6 +334,7 @@ export default function App() {
 
   const isMobileNav = useMatchMedia('(max-width: 720px)')
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
 
   useEffect(() => {
     if (!isMobileNav) setMobileSheetOpen(false)
@@ -369,9 +342,11 @@ export default function App() {
 
   useEffect(() => {
     setMobileSheetOpen(false)
+    setAssistantOpen(false)
   }, [view])
 
   const handleMobileNavigate = (v: MobileChromeView) => {
+    setAssistantOpen(false)
     setView(v)
     if (v === 'recipes') {
       window.history.replaceState({}, '', '#/recipes')
@@ -674,6 +649,8 @@ export default function App() {
               }}
               sheetOpen={mobileSheetOpen}
               onSheetOpenChange={setMobileSheetOpen}
+              assistantOpen={assistantOpen}
+              onAssistantOpenChange={setAssistantOpen}
             />
           ) : null}
           {view === 'menu' && !SALES_FLOOR_ONLY && !PLATFORM_MODE && (
@@ -1227,7 +1204,14 @@ export default function App() {
         </aside>
         ) : null}
       </div>
-      {PLATFORM_MODE ? <VosAssistantWidget baseUrl={baseUrl} /> : null}
+      {PLATFORM_MODE ? (
+        <VosAssistantWidget
+          baseUrl={baseUrl}
+          open={assistantOpen}
+          onOpenChange={setAssistantOpen}
+          hideFab={isMobileNav}
+        />
+      ) : null}
     </div>
   )
 }

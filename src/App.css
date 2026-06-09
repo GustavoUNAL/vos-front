@@ -11529,6 +11529,31 @@ table.recipe-table {
     transform: scale(0.94);
   }
 
+  .app-mobile-dock__assistant-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: block;
+  }
+
+  .app-mobile-dock__icon-wrap--assistant {
+    animation: app-mobile-dock-assistant-float 3.2s ease-in-out infinite;
+  }
+
+  .app-mobile-dock__tab--assistant.app-mobile-dock__tab--active
+    .app-mobile-dock__icon-wrap--assistant {
+    animation: app-mobile-dock-assistant-float 2.6s ease-in-out infinite;
+  }
+
+  @keyframes app-mobile-dock-assistant-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
   .app-mobile-sheet-backdrop {
     position: fixed;
     inset: 0;

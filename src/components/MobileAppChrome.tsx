@@ -5,6 +5,11 @@ import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
 import { BRAND_NAME } from '../lib/brand'
 import { displayCompanyName } from '../lib/displayLabels'
 import { cn } from '../lib/utils'
+import {
+  MobileModuleIcon,
+  type MobileModuleIconId,
+} from './mobile/mobileModuleIcons'
+import { ThemeSwitch } from './ThemeSwitch'
 import { Button } from './ui/button'
 import { UserProfileCard } from './UserProfileCard'
 
@@ -42,157 +47,68 @@ const SCREEN_TITLE: Record<MobileChromeView, string> = {
 }
 
 type SheetLink = {
-  view: MobileChromeView
+  view: MobileChromeView | 'assistant'
   label: string
+  icon: MobileModuleIconId
 }
 
 const PLATFORM_SHEET_LINKS: SheetLink[] = [
-  { view: 'home', label: 'Inicio' },
-  { view: 'products', label: 'Productos a la venta' },
-  { view: 'pos', label: 'POS · Mesas' },
-  { view: 'sales', label: 'Ventas' },
-  { view: 'purchases', label: 'Compras' },
-  { view: 'inventory', label: 'Inventario' },
-  { view: 'shop', label: 'Tienda en línea' },
-  { view: 'staff', label: 'Personal' },
-  { view: 'analytics', label: 'Análisis financiero' },
+  { view: 'home', label: 'Inicio', icon: 'home' },
+  { view: 'products', label: 'Productos a la venta', icon: 'products' },
+  { view: 'pos', label: 'POS · Mesas', icon: 'pos' },
+  { view: 'sales', label: 'Ventas', icon: 'sales' },
+  { view: 'purchases', label: 'Compras', icon: 'purchases' },
+  { view: 'inventory', label: 'Inventario', icon: 'inventory' },
+  { view: 'shop', label: 'Tienda en línea', icon: 'shop' },
+  { view: 'staff', label: 'Personal', icon: 'staff' },
+  { view: 'analytics', label: 'Análisis financiero', icon: 'analytics' },
+  { view: 'assistant', label: 'VOS AI', icon: 'assistant' },
 ]
 
 const FULL_SHEET_LINKS: SheetLink[] = [
-  { view: 'menu', label: 'Inicio' },
-  { view: 'products', label: 'Productos a la venta' },
-  { view: 'pos', label: 'POS · Mesas' },
-  { view: 'sales', label: 'Ventas' },
-  { view: 'purchases', label: 'Compras' },
-  { view: 'recipes', label: 'Recetas' },
-  { view: 'inventory', label: 'Inventario' },
-  { view: 'staff', label: 'Personal' },
-  { view: 'analytics', label: 'Análisis financiero' },
-  { view: 'costs', label: 'Costos' },
-  { view: 'gastos', label: 'Gastos' },
-  { view: 'explorer', label: 'Explorador de datos' },
+  { view: 'menu', label: 'Inicio', icon: 'menu' },
+  { view: 'products', label: 'Productos a la venta', icon: 'products' },
+  { view: 'pos', label: 'POS · Mesas', icon: 'pos' },
+  { view: 'sales', label: 'Ventas', icon: 'sales' },
+  { view: 'purchases', label: 'Compras', icon: 'purchases' },
+  { view: 'recipes', label: 'Recetas', icon: 'recipes' },
+  { view: 'inventory', label: 'Inventario', icon: 'inventory' },
+  { view: 'staff', label: 'Personal', icon: 'staff' },
+  { view: 'analytics', label: 'Análisis financiero', icon: 'analytics' },
+  { view: 'costs', label: 'Costos', icon: 'costs' },
+  { view: 'gastos', label: 'Gastos', icon: 'gastos' },
+  { view: 'explorer', label: 'Explorador de datos', icon: 'explorer' },
 ]
 
-type DockTabId = MobileChromeView
+type DockTabId = MobileChromeView | 'assistant'
 
 type DockTab = {
   id: DockTabId
   label: string
-  view: MobileChromeView
+  view?: MobileChromeView
+  action?: 'assistant'
+  icon: MobileModuleIconId
 }
 
 const DOCK_TABS_PLATFORM: DockTab[] = [
-  { id: 'home', label: 'Inicio', view: 'home' },
-  { id: 'products', label: 'Productos', view: 'products' },
-  { id: 'pos', label: 'POS', view: 'pos' },
-  { id: 'sales', label: 'Ventas', view: 'sales' },
-  { id: 'purchases', label: 'Compras', view: 'purchases' },
+  { id: 'home', label: 'Inicio', view: 'home', icon: 'home' },
+  { id: 'products', label: 'Productos', view: 'products', icon: 'products' },
+  { id: 'pos', label: 'POS', view: 'pos', icon: 'pos' },
+  { id: 'sales', label: 'Ventas', view: 'sales', icon: 'sales' },
+  { id: 'purchases', label: 'Compras', view: 'purchases', icon: 'purchases' },
+  { id: 'assistant', label: 'VOS AI', action: 'assistant', icon: 'assistant' },
 ]
 
 const DOCK_TABS_SALES: DockTab[] = [
-  { id: 'products', label: 'Productos', view: 'products' },
-  { id: 'sales', label: 'Ventas', view: 'sales' },
+  { id: 'products', label: 'Productos', view: 'products', icon: 'products' },
+  { id: 'sales', label: 'Ventas', view: 'sales', icon: 'sales' },
 ]
 
 const DOCK_TABS_FULL: DockTab[] = [
-  { id: 'products', label: 'Productos', view: 'products' },
-  { id: 'sales', label: 'Ventas', view: 'sales' },
-  { id: 'inventory', label: 'Stock', view: 'inventory' },
+  { id: 'products', label: 'Productos', view: 'products', icon: 'products' },
+  { id: 'sales', label: 'Ventas', view: 'sales', icon: 'sales' },
+  { id: 'inventory', label: 'Stock', view: 'inventory', icon: 'inventory' },
 ]
-
-function MobileDockIcon({ id }: { id: DockTabId }) {
-  const c = 'h-[1.15rem] w-[1.15rem]'
-  switch (id) {
-    case 'home':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )
-    case 'products':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M4 5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm9 0a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V5ZM4 14a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5Zm9 0a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )
-    case 'sales':
-    case 'shop':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M6 9h15l-1.5 9h-12L6 9Zm0 0L5 3H2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="9" cy="20" r="1.5" fill="currentColor" />
-          <circle cx="18" cy="20" r="1.5" fill="currentColor" />
-        </svg>
-      )
-    case 'pos':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <rect
-            x="3"
-            y="4"
-            width="18"
-            height="14"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <path
-            d="M7 9h4M7 12h10M7 15h6"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      )
-    case 'inventory':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M21 16.5V8.2a1.9 1.9 0 0 0-.9-1.6l-7-4.1a1.9 1.9 0 0 0-2 0l-7 4.1A1.9 1.9 0 0 0 3 8.2v8.3a1.9 1.9 0 0 0 1 1.6l7 4.1a1.9 1.9 0 0 0 2 0l7-4.1a1.9 1.9 0 0 0 1-1.6Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-          <path
-            d="m3.3 7.7 8.7 5 8.7-5M12 22V12.7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      )
-    case 'purchases':
-      return (
-        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M4 7h16M4 7l1.5 12h13L20 7M9 11v5M15 11v5M10 7V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )
-    default:
-      return null
-  }
-}
 
 export function MobileAppChrome({
   view,
@@ -204,6 +120,8 @@ export function MobileAppChrome({
   onLogout,
   sheetOpen,
   onSheetOpenChange,
+  assistantOpen = false,
+  onAssistantOpenChange,
 }: {
   view: MobileChromeView
   onNavigate: (v: MobileChromeView) => void
@@ -214,6 +132,8 @@ export function MobileAppChrome({
   onLogout: () => void
   sheetOpen: boolean
   onSheetOpenChange: (open: boolean) => void
+  assistantOpen?: boolean
+  onAssistantOpenChange?: (open: boolean) => void
 }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const compactChrome = PLATFORM_MODE || SALES_FLOOR_ONLY
@@ -228,8 +148,8 @@ export function MobileAppChrome({
     ? PLATFORM_SHEET_LINKS
     : SALES_FLOOR_ONLY
       ? [
-          { view: 'products', label: 'Productos a la venta' },
-          { view: 'sales', label: 'Ventas' },
+          { view: 'products', label: 'Productos a la venta', icon: 'products' },
+          { view: 'sales', label: 'Ventas', icon: 'sales' },
         ]
       : FULL_SHEET_LINKS
 
@@ -265,9 +185,13 @@ export function MobileAppChrome({
     return () => root.classList.remove('app--mobile-sheet-open')
   }, [sheetOpen])
 
-  const pickView = (v: MobileChromeView) => {
+  const pickSheetLink = (link: SheetLink) => {
     onSheetOpenChange(false)
-    onNavigate(v)
+    if (link.view === 'assistant') {
+      onAssistantOpenChange?.(true)
+      return
+    }
+    onNavigate(link.view)
   }
 
   const themeLabel = theme === 'light' ? 'Oscuro' : 'Claro'
@@ -374,7 +298,10 @@ export function MobileAppChrome({
           <div className="app-mobile-dock__fade" aria-hidden />
           <div className="app-mobile-dock__inner">
             {dockTabs.map((tab) => {
-              const active = view === tab.view
+              const active =
+                tab.action === 'assistant'
+                  ? assistantOpen
+                  : tab.view != null && view === tab.view
               return (
                 <button
                   key={tab.id}
@@ -382,13 +309,36 @@ export function MobileAppChrome({
                   className={cn(
                     'app-mobile-dock__tab',
                     active && 'app-mobile-dock__tab--active',
+                    tab.action === 'assistant' && 'app-mobile-dock__tab--assistant',
                   )}
                   aria-current={active ? 'page' : undefined}
+                  aria-expanded={tab.action === 'assistant' ? assistantOpen : undefined}
                   aria-label={tab.label}
-                  onClick={() => onNavigate(tab.view)}
+                  onClick={() => {
+                    if (tab.action === 'assistant') {
+                      onAssistantOpenChange?.(!assistantOpen)
+                      return
+                    }
+                    if (tab.view) {
+                      onAssistantOpenChange?.(false)
+                      onNavigate(tab.view)
+                    }
+                  }}
                 >
-                  <span className="app-mobile-dock__icon-wrap">
-                    <MobileDockIcon id={tab.id} />
+                  <span
+                    className={cn(
+                      'app-mobile-dock__icon-wrap',
+                      tab.action === 'assistant' && 'app-mobile-dock__icon-wrap--assistant',
+                    )}
+                  >
+                    <MobileModuleIcon
+                      id={tab.icon}
+                      className={
+                        tab.action === 'assistant'
+                          ? 'app-mobile-dock__assistant-icon'
+                          : undefined
+                      }
+                    />
                   </span>
                   <span className="app-mobile-dock__label">{tab.label}</span>
                 </button>
@@ -430,18 +380,16 @@ export function MobileAppChrome({
               {profileOpen && user ? (
                 <div className="flex flex-col gap-3">
                   <UserProfileCard user={user} />
-                  <Button
+                  <button
                     type="button"
-                    variant="secondary"
-                    size="md"
-                    block
+                    className="vos-sheet__footer-logout vos-sheet__footer-logout--solo"
                     onClick={() => {
                       onSheetOpenChange(false)
                       onLogout()
                     }}
                   >
-                    Salir
-                  </Button>
+                    Salir de la cuenta
+                  </button>
                 </div>
               ) : null}
               {!profileOpen && sheetLinks.length > 0 ? (
@@ -452,56 +400,54 @@ export function MobileAppChrome({
                         type="button"
                         className={cn(
                           'vos-sheet__nav-tile',
-                          view === link.view && 'vos-sheet__nav-tile--active',
+                          link.view === 'assistant'
+                            ? assistantOpen && 'vos-sheet__nav-tile--active'
+                            : view === link.view && 'vos-sheet__nav-tile--active',
                         )}
-                        onClick={() => pickView(link.view)}
+                        onClick={() => pickSheetLink(link)}
                       >
+                        <span className="vos-sheet__nav-tile-icon" aria-hidden>
+                          <MobileModuleIcon id={link.icon} className="h-[1.2rem] w-[1.2rem]" />
+                        </span>
                         <span className="vos-sheet__nav-tile-label">{link.label}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
               ) : null}
-              {!profileOpen && user ? (
-                <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    block
-                    className="justify-start"
-                    onClick={() => setProfileOpen(true)}
-                  >
-                    <User className="h-4 w-4" strokeWidth={2} aria-hidden />
-                    Mi perfil · {companyLabel || user.name}
-                  </Button>
-                  {showDock || !compactChrome ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="md"
-                      block
-                      onClick={onToggleTheme}
-                    >
-                      <ThemeIcon className="h-4 w-4" strokeWidth={2} aria-hidden />
-                      Tema {themeLabel.toLowerCase()}
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    block
-                    onClick={() => {
-                      onSheetOpenChange(false)
-                      onLogout()
-                    }}
-                  >
-                    Salir
-                  </Button>
-                </div>
-              ) : null}
             </div>
+            {!profileOpen && user ? (
+              <footer className="vos-sheet__footer">
+                <button
+                  type="button"
+                  className="vos-sheet__footer-profile"
+                  onClick={() => setProfileOpen(true)}
+                >
+                  <User className="vos-sheet__footer-profile-icon" strokeWidth={2} aria-hidden />
+                  <span className="vos-sheet__footer-profile-text">
+                    {user.name}
+                    {companyLabel ? (
+                      <span className="vos-sheet__footer-profile-sub">{companyLabel}</span>
+                    ) : null}
+                  </span>
+                </button>
+                {showDock || !compactChrome ? (
+                  <div className="vos-sheet__footer-theme">
+                    <ThemeSwitch theme={theme} onToggle={onToggleTheme} compact />
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  className="vos-sheet__footer-logout"
+                  onClick={() => {
+                    onSheetOpenChange(false)
+                    onLogout()
+                  }}
+                >
+                  Salir
+                </button>
+              </footer>
+            ) : null}
           </section>
         </div>
       ) : null}
