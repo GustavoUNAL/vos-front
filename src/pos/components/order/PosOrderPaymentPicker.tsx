@@ -1,4 +1,4 @@
-import { PAYMENT_METHOD_LABEL } from '../../constants'
+import { PAYMENT_METHOD_LABEL, PAYMENT_METHOD_HINT } from '../../constants'
 import { hasTransferReceipt } from '../../lib/transferReceipt'
 import type { PaymentMethod } from '../../types'
 import { PosCashInline } from '../payment/PosCashInline'
@@ -10,6 +10,7 @@ type Props = {
   transferReceiptDataUrl: string | null
   amountDueCOP: number
   cashTenderedCOP: number
+  hideHeading?: boolean
   onPaymentMethod: (method: PaymentMethod) => void
   onOpenTransferSheet: () => void
   onCashTenderedChange: (value: number) => void
@@ -20,6 +21,7 @@ export function PosOrderPaymentPicker({
   transferReceiptDataUrl,
   amountDueCOP,
   cashTenderedCOP,
+  hideHeading = false,
   onPaymentMethod,
   onOpenTransferSheet,
   onCashTenderedChange,
@@ -39,8 +41,10 @@ export function PosOrderPaymentPicker({
 
   return (
     <div className="pos-order-payment">
-      <span className="pos-order-payment__label">Forma de pago</span>
-      <div className="pos-order-payment__methods" role="group" aria-label="Forma de pago">
+      {hideHeading ? null : (
+        <span className="pos-order-payment__label">Método de cobro</span>
+      )}
+      <div className="pos-order-payment__methods" role="group" aria-label="Método de cobro">
         {PAYMENT_OPTIONS.map((method) => {
           const active = paymentMethod === method
           return (
@@ -54,6 +58,11 @@ export function PosOrderPaymentPicker({
               <span className="pos-order-payment__method-label">
                 {PAYMENT_METHOD_LABEL[method]}
               </span>
+              {PAYMENT_METHOD_HINT[method] ? (
+                <span className="pos-order-payment__method-sub muted small">
+                  {PAYMENT_METHOD_HINT[method]}
+                </span>
+              ) : null}
             </button>
           )
         })}
@@ -82,10 +91,10 @@ export function PosOrderPaymentPicker({
                   className="pos-order-payment__receipt-thumb"
                 />
               </span>
-              <span>QR, comprobante e ID · Editar</span>
+              <span>Comprobante · Editar</span>
             </>
           ) : (
-            <span>Abrir QR y comprobante de transferencia</span>
+            <span>QR y comprobante</span>
           )}
         </button>
       ) : null}

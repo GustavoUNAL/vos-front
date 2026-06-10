@@ -33,7 +33,7 @@ export function PosCashSheet({
           <h2 id="pos-cash-sheet-title">Efectivo</h2>
           <button
             type="button"
-            className="pos-btn pos-btn--ghost pos-btn--icon"
+            className="pos-transfer-sheet__close"
             aria-label="Cerrar"
             onClick={onClose}
           >
@@ -52,11 +52,11 @@ export function PosCashSheet({
         <footer className="pos-transfer-sheet__footer">
           <button
             type="button"
-            className="pos-btn pos-btn--primary pos-btn--block pos-btn--xl"
+            className="pos-btn pos-btn--primary pos-btn--block pos-modal--payment__btn"
             disabled={!canContinue}
             onClick={onClose}
           >
-            {canContinue ? 'Listo' : 'Ingresá el efectivo recibido'}
+            Listo
           </button>
         </footer>
       </div>

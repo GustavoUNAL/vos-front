@@ -10,6 +10,7 @@ type Props = {
   onReceiptChange: (dataUrl: string | null) => void
   compact?: boolean
   showQr?: boolean
+  sheet?: boolean
 }
 
 export function PosTransferReceiptCapture({
@@ -19,6 +20,7 @@ export function PosTransferReceiptCapture({
   onReceiptChange,
   compact = false,
   showQr = true,
+  sheet = false,
 }: Props) {
   const cameraInputId = useId()
   const galleryInputId = useId()
@@ -45,19 +47,14 @@ export function PosTransferReceiptCapture({
 
   return (
     <div
-      className={`pos-transfer-receipt${compact ? ' pos-transfer-receipt--compact' : ''}`}
+      className={`pos-transfer-receipt${compact ? ' pos-transfer-receipt--compact' : ''}${sheet ? ' pos-transfer-receipt--sheet' : ''}`}
     >
       {showQr ? (
         <PosTransferQr amountCOP={amountCOP} orderCode={orderCode} compact />
       ) : null}
 
       <div className="pos-transfer-receipt__body">
-        <p className="pos-transfer-receipt__title">
-          Comprobante de transferencia
-        </p>
-        <p className="pos-transfer-receipt__hint muted small">
-          Tomá una foto o subí el comprobante del pago para continuar.
-        </p>
+        <p className="pos-transfer-receipt__title">Comprobante</p>
 
         {receiptDataUrl ? (
           <div className="pos-transfer-receipt__preview-wrap">
@@ -81,19 +78,19 @@ export function PosTransferReceiptCapture({
               type="button"
               className="pos-transfer-receipt__action"
               disabled={busy}
+              aria-label="Tomar foto del comprobante"
               onClick={() => cameraRef.current?.click()}
             >
               <Camera aria-hidden strokeWidth={2} />
-              Tomar foto
             </button>
             <button
               type="button"
               className="pos-transfer-receipt__action"
               disabled={busy}
+              aria-label="Subir imagen del comprobante"
               onClick={() => galleryRef.current?.click()}
             >
               <ImagePlus aria-hidden strokeWidth={2} />
-              Subir imagen
             </button>
           </div>
         )}
@@ -118,7 +115,7 @@ export function PosTransferReceiptCapture({
 
         {busy ? (
           <p className="pos-transfer-receipt__status muted small" role="status">
-            Procesando imagen…
+            Procesando…
           </p>
         ) : null}
         {error ? (

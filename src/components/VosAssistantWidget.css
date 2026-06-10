@@ -436,7 +436,7 @@
 .vos-assistant--composing .vos-assistant__form,
 .vos-assistant--kb .vos-assistant__form {
   padding-top: 0.45rem;
-  padding-bottom: 0.35rem;
+  padding-bottom: 0;
 }
 
 @media (max-width: 640px) {
@@ -469,20 +469,23 @@
     max-height: min(78dvh, calc(var(--vv-height, 100dvh) - 4.15rem - env(safe-area-inset-bottom)));
   }
 
-  .vos-assistant--kb .vos-assistant__panel {
-    top: max(0.35rem, var(--vv-offset-top, 0px));
+  .vos-assistant--kb .vos-assistant__panel,
+  .vos-assistant--composing .vos-assistant__panel {
+    top: var(--vv-offset-top, 0px);
     bottom: auto;
-    left: max(0.35rem, env(safe-area-inset-left));
-    right: max(0.35rem, env(safe-area-inset-right));
+    left: 0;
+    right: 0;
     transform: none;
-    width: auto;
-    height: calc(var(--vv-height, 100dvh) - max(0.35rem, var(--vv-offset-top, 0px)) - 0.35rem);
-    max-height: calc(var(--vv-height, 100dvh) - max(0.35rem, var(--vv-offset-top, 0px)) - 0.35rem);
-    border-radius: 14px;
+    width: 100%;
+    max-width: none;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+    border-radius: 0;
   }
 
-  .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__panel {
-    top: max(0px, var(--vv-offset-top, 0px));
+  .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__panel,
+  .vos-assistant--dock-only.vos-assistant--composing .vos-assistant__panel {
+    top: var(--vv-offset-top, 0px);
     left: 0;
     right: 0;
     width: 100%;
@@ -493,19 +496,26 @@
 
   .vos-assistant--kb .vos-assistant__form,
   .vos-assistant--composing .vos-assistant__form {
-    padding-bottom: 0.35rem;
-    padding-left: max(0.65rem, env(safe-area-inset-left));
-    padding-right: max(0.65rem, env(safe-area-inset-right));
+    padding: 0.45rem 0.65rem 0;
+    margin: 0;
   }
 
   .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__composer,
   .vos-assistant--dock-only.vos-assistant--composing .vos-assistant__composer {
     padding-bottom: 0;
+    margin-top: auto;
   }
 
   .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__form,
   .vos-assistant--dock-only.vos-assistant--composing .vos-assistant__form {
-    padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
+    padding-bottom: 0;
+  }
+
+  .vos-assistant--kb .vos-assistant__head,
+  .vos-assistant--composing .vos-assistant__head {
+    padding-top: max(0.65rem, env(safe-area-inset-top));
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 
   .vos-assistant__fab {

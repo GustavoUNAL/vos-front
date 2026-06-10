@@ -1,8 +1,18 @@
+import { useEffect, useState } from 'react'
+import { PAYMENT_METHOD_HINT, PAYMENT_METHOD_LABEL } from '../../constants'
 import { hasTransferReceipt } from '../../lib/transferReceipt'
+import { formatCOP } from '../../lib/money'
 import type { PaymentMethod } from '../../types'
 import { PosTransferReceiptSheet } from '../payment/PosTransferReceiptSheet'
 import { PosMoney } from '../ui/PosMoney'
 import { PosOrderPaymentPicker } from './PosOrderPaymentPicker'
+
+type PaymentStep = 'method' | 'confirm'
+
+const PAYMENT_STEPS: { id: PaymentStep; label: string }[] = [
+  { id: 'method', label: 'Cobrar' },
+  { id: 'confirm', label: 'Confirmar' },
+]
 
 type Props = {
   open: boolean
@@ -45,16 +55,27 @@ export function PosOrderPaymentModal({
   onTransferSheetOpenChange,
   onConfirm,
 }: Props) {
+  const [step, setStep] = useState<PaymentStep>('method')
+
+  useEffect(() => {
+    if (open) setStep('method')
+  }, [open])
+
   if (!open) return null
 
   const isTransfer = paymentMethod === 'transfer'
-  const canConfirm =
+  const isCash = paymentMethod === 'cash'
+  const hasReceipt = hasTransferReceipt(transferReceiptDataUrl)
+  const methodReady =
     paymentMethod != null &&
-    (paymentMethod === 'cash'
+    (isCash
       ? cashTenderedCOP >= totalCOP
-      : paymentMethod === 'transfer'
-        ? hasTransferReceipt(transferReceiptDataUrl)
+      : isTransfer
+        ? hasReceipt
         : true)
+  const canConfirm = methodReady
+  const modalTitle = step === 'method' ? 'Cobrar' : 'Confirmar venta'
+  const cashChange = cashTenderedCOP - totalCOP
 
   return (
     <>
@@ -72,14 +93,14 @@ export function PosOrderPaymentModal({
         >
           <header className="pos-modal__head">
             <div>
-              <h2 id="pos-payment-modal-title">Forma de pago</h2>
+              <h2 id="pos-payment-modal-title">{modalTitle}</h2>
               <p className="pos-modal--payment__sub muted small">
                 {tableName} · <span className="mono">{orderCode}</span>
               </p>
             </div>
             <button
               type="button"
-              className="pos-btn pos-btn--ghost pos-btn--icon"
+              className="pos-modal--payment__close"
               aria-label="Cerrar"
               disabled={confirmBusy}
               onClick={onClose}
@@ -94,52 +115,163 @@ export function PosOrderPaymentModal({
               <PosMoney value={totalCOP} className="pos-modal--payment__amount" />
             </div>
 
-            <PosOrderPaymentPicker
-              paymentMethod={paymentMethod}
-              transferReceiptDataUrl={transferReceiptDataUrl}
-              amountDueCOP={totalCOP}
-              cashTenderedCOP={cashTenderedCOP}
-              onPaymentMethod={onPaymentMethod}
-              onOpenTransferSheet={() => onTransferSheetOpenChange?.(true)}
-              onCashTenderedChange={onCashTendered}
-            />
+            {step === 'method' ? (
+              <div className="pos-modal--payment__step">
+                <PosOrderPaymentPicker
+                  paymentMethod={paymentMethod}
+                  transferReceiptDataUrl={transferReceiptDataUrl}
+                  amountDueCOP={totalCOP}
+                  cashTenderedCOP={cashTenderedCOP}
+                  hideHeading
+                  onPaymentMethod={onPaymentMethod}
+                  onOpenTransferSheet={() => onTransferSheetOpenChange?.(true)}
+                  onCashTenderedChange={onCashTendered}
+                />
+              </div>
+            ) : (
+              <div className="pos-modal--payment__step">
+                <div className="pos-modal--payment__summary">
+                  <div className="pos-modal--payment__summary-row">
+                    <span className="pos-modal--payment__summary-label muted small">Método</span>
+                    <div className="pos-modal--payment__summary-value">
+                      <strong>{paymentMethod ? PAYMENT_METHOD_LABEL[paymentMethod] : '—'}</strong>
+                      {paymentMethod && PAYMENT_METHOD_HINT[paymentMethod] ? (
+                        <span className="pos-modal--payment__summary-hint muted small">
+                          {PAYMENT_METHOD_HINT[paymentMethod]}
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="pos-modal--payment__summary-change"
+                        disabled={confirmBusy}
+                        onClick={() => setStep('method')}
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  </div>
 
-            {confirmError ? (
-              <p className="pos-modal__error" role="alert">
-                {confirmError}
-              </p>
-            ) : null}
+                  {isCash && cashTenderedCOP > 0 ? (
+                    <div className="pos-modal--payment__summary-row">
+                      <span className="pos-modal--payment__summary-label muted small">
+                        Efectivo recibido
+                      </span>
+                      <strong className="mono">{formatCOP(cashTenderedCOP)}</strong>
+                    </div>
+                  ) : null}
 
-            <label className="pos-modal--payment__comment">
-              <span className="pos-modal--payment__comment-label">Comentario (opcional)</span>
-              <textarea
-                className="pos-input pos-input--textarea pos-modal--payment__comment-input"
-                value={saleComment}
-                onChange={(e) => onCommentChange(e.target.value)}
-                placeholder="Notas del pedido, cocina, cliente…"
-                rows={2}
-                disabled={confirmBusy}
-              />
-            </label>
+                  {isCash && cashChange >= 0 ? (
+                    <div className="pos-modal--payment__summary-row">
+                      <span className="pos-modal--payment__summary-label muted small">Cambio</span>
+                      <strong className="mono pos-modal--payment__summary-change-amount">
+                        {formatCOP(cashChange)}
+                      </strong>
+                    </div>
+                  ) : null}
+
+                  {isTransfer && hasReceipt ? (
+                    <div className="pos-modal--payment__summary-row pos-modal--payment__summary-row--receipt">
+                      <span className="pos-modal--payment__summary-label muted small">
+                        Comprobante
+                      </span>
+                      <span className="pos-order-payment__receipt-thumb-wrap">
+                        <img
+                          src={transferReceiptDataUrl!}
+                          alt=""
+                          className="pos-order-payment__receipt-thumb"
+                        />
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {confirmError ? (
+                  <p className="pos-modal__error" role="alert">
+                    {confirmError}
+                  </p>
+                ) : null}
+
+                <label className="pos-modal--payment__comment">
+                  <span className="pos-modal--payment__comment-label">Comentario (opcional)</span>
+                  <textarea
+                    className="pos-input pos-input--textarea pos-modal--payment__comment-input"
+                    value={saleComment}
+                    onChange={(e) => onCommentChange(e.target.value)}
+                    placeholder="Notas del pedido, cocina, cliente…"
+                    rows={2}
+                    disabled={confirmBusy}
+                  />
+                </label>
+              </div>
+            )}
           </div>
 
+          <nav className="pos-modal--payment__pager" aria-label="Pasos del cobro">
+            {PAYMENT_STEPS.map((item, index) => {
+              const active = step === item.id
+              const done = item.id === 'method' && step === 'confirm'
+              return (
+                <span key={item.id} className="pos-modal--payment__pager-segment">
+                  {index > 0 ? (
+                    <span
+                      className={`pos-modal--payment__pager-line${done || active ? ' is-filled' : ''}`}
+                      aria-hidden
+                    />
+                  ) : null}
+                  <div
+                    className={`pos-modal--payment__pager-item${active ? ' is-active' : ''}${done ? ' is-done' : ''}`}
+                    aria-current={active ? 'step' : undefined}
+                  >
+                    <span className="pos-modal--payment__pager-dot" aria-hidden>
+                      {index + 1}
+                    </span>
+                    <span className="pos-modal--payment__pager-label">{item.label}</span>
+                  </div>
+                </span>
+              )
+            })}
+          </nav>
+
           <footer className="pos-modal__actions pos-modal__actions--stack pos-modal__actions--padded pos-modal--payment__footer">
-            <button
-              type="button"
-              className="pos-btn pos-btn--primary pos-btn--block pos-modal--payment__btn"
-              disabled={!canConfirm || confirmBusy}
-              onClick={onConfirm}
-            >
-              {confirmBusy ? 'Procesando…' : 'Confirmar venta'}
-            </button>
-            <button
-              type="button"
-              className="pos-btn pos-btn--ghost pos-btn--block pos-modal--payment__btn pos-modal--payment__btn--secondary"
-              disabled={confirmBusy}
-              onClick={onClose}
-            >
-              Volver al pedido
-            </button>
+            {step === 'method' ? (
+              <>
+                <button
+                  type="button"
+                  className="pos-btn pos-btn--primary pos-btn--block pos-modal--payment__btn"
+                  disabled={!methodReady || confirmBusy}
+                  onClick={() => setStep('confirm')}
+                >
+                  Continuar
+                </button>
+                <button
+                  type="button"
+                  className="pos-btn pos-btn--ghost pos-btn--block pos-modal--payment__btn pos-modal--payment__btn--secondary"
+                  disabled={confirmBusy}
+                  onClick={onClose}
+                >
+                  Volver al pedido
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="pos-btn pos-btn--primary pos-btn--block pos-modal--payment__btn"
+                  disabled={!canConfirm || confirmBusy}
+                  onClick={onConfirm}
+                >
+                  {confirmBusy ? 'Procesando…' : 'Confirmar venta'}
+                </button>
+                <button
+                  type="button"
+                  className="pos-btn pos-btn--ghost pos-btn--block pos-modal--payment__btn pos-modal--payment__btn--secondary"
+                  disabled={confirmBusy}
+                  onClick={() => setStep('method')}
+                >
+                  Volver
+                </button>
+              </>
+            )}
           </footer>
         </div>
       </div>

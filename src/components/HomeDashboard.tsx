@@ -250,17 +250,7 @@ export function HomeDashboard({
             Resumen de ventas y actividad del día
           </p>
         ) : null}
-        {isMobile ? (
-          <div className="home-dashboard__hero-actions">
-            <button
-              type="button"
-              className="btn-primary btn-compact"
-              onClick={() => onOpenPos()}
-            >
-              Abrir POS
-            </button>
-          </div>
-        ) : (
+        {!isMobile ? (
           <div className="home-dashboard__hero-actions">
             <button
               type="button"
@@ -279,7 +269,7 @@ export function HomeDashboard({
               POS
             </button>
           </div>
-        )}
+        ) : null}
       </header>
 
       {error && (

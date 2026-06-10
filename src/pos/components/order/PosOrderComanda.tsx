@@ -119,7 +119,7 @@ export function PosOrderComanda({
               disabled={paymentBusy}
               onClick={onOpenPayment}
             >
-              Forma de pago
+              Cobrar
             </button>
           </>
         ) : null}

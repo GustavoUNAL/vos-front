@@ -16,6 +16,12 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   other: 'Otro',
 }
 
+/** Texto corto bajo cada método en el popup de cobro POS. */
+export const PAYMENT_METHOD_HINT: Partial<Record<PaymentMethod, string>> = {
+  cash: 'Registrá el efectivo y el cambio',
+  transfer: 'QR, comprobante e ID',
+}
+
 /** Mesas iniciales del salón (se pueden agregar más con + Mesa). */
 export const DEMO_TABLE_COUNT = 4
 
