@@ -56,12 +56,10 @@ export function PosOrderView({ baseUrl }: Props) {
   const [addedFlash, setAddedFlash] = useState<string | null>(null)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
-  const [transferSheetOpen, setTransferSheetOpen] = useState(false)
 
   useEffect(() => {
     setPaymentOpen(false)
     setConfirmError(null)
-    setTransferSheetOpen(false)
   }, [order?.id])
 
   const handleAdd = useCallback(
@@ -89,7 +87,6 @@ export function PosOrderView({ baseUrl }: Props) {
   const handleClosePayment = useCallback(() => {
     if (confirmBusy) return
     setPaymentOpen(false)
-    setTransferSheetOpen(false)
     setConfirmError(null)
   }, [confirmBusy])
 
@@ -115,12 +112,10 @@ export function PosOrderView({ baseUrl }: Props) {
 
     if (result.ok) {
       setPaymentOpen(false)
-      setTransferSheetOpen(false)
       return
     }
 
     setConfirmError(result.message)
-    if (result.reason === 'transfer') setTransferSheetOpen(true)
   }, [confirmSale, meta, order, totals.totalCOP])
 
   useKeyboardShortcuts(
@@ -216,7 +211,6 @@ export function PosOrderView({ baseUrl }: Props) {
         saleComment={meta.notes}
         confirmBusy={confirmBusy}
         confirmError={confirmError}
-        transferSheetOpen={transferSheetOpen}
         onClose={handleClosePayment}
         onPaymentMethod={(method) => {
           updateMeta({
@@ -225,13 +219,10 @@ export function PosOrderView({ baseUrl }: Props) {
               ? { transferReceiptDataUrl: null, transferReference: null }
               : { cashTenderedCOP: null }),
           })
-          if (method === 'transfer') setTransferSheetOpen(true)
-          else setTransferSheetOpen(false)
         }}
         onTransferReceipt={(dataUrl) => updateMeta({ transferReceiptDataUrl: dataUrl })}
         onCashTendered={(value) => updateMeta({ cashTenderedCOP: value })}
         onCommentChange={(value) => updateMeta({ notes: value })}
-        onTransferSheetOpenChange={setTransferSheetOpen}
         onConfirm={() => void handleConfirm()}
       />
       {orderSaving && <div className="pos-saving-indicator" aria-hidden />}

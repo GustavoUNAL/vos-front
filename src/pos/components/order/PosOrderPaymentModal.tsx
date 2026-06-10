@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useAppTheme } from '../../hooks/useAppTheme'
 import { PAYMENT_METHOD_HINT, PAYMENT_METHOD_LABEL } from '../../constants'
 import { hasTransferReceipt } from '../../lib/transferReceipt'
 import { formatCOP } from '../../lib/money'
 import type { PaymentMethod } from '../../types'
-import { PosTransferReceiptSheet } from '../payment/PosTransferReceiptSheet'
 import { PosMoney } from '../ui/PosMoney'
 import { PosOrderPaymentPicker } from './PosOrderPaymentPicker'
 
@@ -25,13 +26,11 @@ type Props = {
   saleComment: string
   confirmBusy?: boolean
   confirmError?: string | null
-  transferSheetOpen?: boolean
   onClose: () => void
   onPaymentMethod: (method: PaymentMethod) => void
   onTransferReceipt: (dataUrl: string | null) => void
   onCashTendered: (value: number) => void
   onCommentChange: (value: string) => void
-  onTransferSheetOpenChange?: (open: boolean) => void
   onConfirm: () => void
 }
 
@@ -46,19 +45,29 @@ export function PosOrderPaymentModal({
   saleComment,
   confirmBusy = false,
   confirmError = null,
-  transferSheetOpen = false,
   onClose,
   onPaymentMethod,
   onTransferReceipt,
   onCashTendered,
   onCommentChange,
-  onTransferSheetOpenChange,
   onConfirm,
 }: Props) {
+  const theme = useAppTheme()
   const [step, setStep] = useState<PaymentStep>('method')
 
   useEffect(() => {
     if (open) setStep('method')
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const prevOverflow = document.body.style.overflow
+    document.body.classList.add('pos-payment-modal-open')
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.classList.remove('pos-payment-modal-open')
+      document.body.style.overflow = prevOverflow
+    }
   }, [open])
 
   if (!open) return null
@@ -77,8 +86,11 @@ export function PosOrderPaymentModal({
   const modalTitle = step === 'method' ? 'Cobrar' : 'Confirmar venta'
   const cashChange = cashTenderedCOP - totalCOP
 
-  return (
-    <>
+  return createPortal(
+    <div
+      className={`pos-payment-portal pos-root pos-root--${theme}`}
+      data-theme={theme}
+    >
       <div
         className="pos-modal-backdrop pos-modal-backdrop--payment"
         role="presentation"
@@ -123,8 +135,10 @@ export function PosOrderPaymentModal({
                   amountDueCOP={totalCOP}
                   cashTenderedCOP={cashTenderedCOP}
                   hideHeading
+                  embedTransfer
+                  orderCode={orderCode}
+                  onTransferReceipt={onTransferReceipt}
                   onPaymentMethod={onPaymentMethod}
-                  onOpenTransferSheet={() => onTransferSheetOpenChange?.(true)}
                   onCashTenderedChange={onCashTendered}
                 />
               </div>
@@ -275,15 +289,7 @@ export function PosOrderPaymentModal({
           </footer>
         </div>
       </div>
-
-      <PosTransferReceiptSheet
-        open={transferSheetOpen && isTransfer}
-        amountCOP={totalCOP}
-        orderCode={orderCode}
-        receiptDataUrl={transferReceiptDataUrl}
-        onReceiptChange={onTransferReceipt}
-        onClose={() => onTransferSheetOpenChange?.(false)}
-      />
-    </>
+    </div>,
+    document.body,
   )
 }

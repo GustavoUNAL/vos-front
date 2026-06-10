@@ -96,10 +96,9 @@ type DockTab = {
 
 const DOCK_TABS_PLATFORM: DockTab[] = [
   { id: 'home', label: 'Inicio', view: 'home', icon: 'home' },
-  { id: 'products', label: 'Productos', view: 'products', icon: 'products' },
+  { id: 'tasks', label: 'Tareas', view: 'tasks', icon: 'tasks' },
   { id: 'pos', label: 'POS', view: 'pos', icon: 'pos' },
   { id: 'sales', label: 'Ventas', view: 'sales', icon: 'sales' },
-  { id: 'purchases', label: 'Compras', view: 'purchases', icon: 'purchases' },
   { id: 'assistant', label: 'VOS AI', action: 'assistant', icon: 'assistant' },
 ]
 
@@ -141,11 +140,17 @@ export function MobileAppChrome({
 }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const compactChrome = PLATFORM_MODE || SALES_FLOOR_ONLY
-  const dockTabs = PLATFORM_MODE
-    ? DOCK_TABS_PLATFORM
-    : SALES_FLOOR_ONLY
-      ? DOCK_TABS_SALES
-      : DOCK_TABS_FULL
+  const dockTabs = useMemo(() => {
+    const base = PLATFORM_MODE
+      ? DOCK_TABS_PLATFORM
+      : SALES_FLOOR_ONLY
+        ? DOCK_TABS_SALES
+        : DOCK_TABS_FULL
+    return base.filter((tab) => {
+      if (tab.view === 'tasks') return canViewTasks(user)
+      return true
+    })
+  }, [user])
   const showDock = dockTabs.length > 0
 
   const sheetLinks: SheetLink[] = useMemo(() => {

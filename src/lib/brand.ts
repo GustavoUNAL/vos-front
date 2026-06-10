@@ -4,6 +4,6 @@ export const BRAND_NAME =
 
 export const BRAND_TAGLINE =
   (import.meta.env.VITE_BRAND_TAGLINE as string | undefined)?.trim() ||
-  'Sistema operativo inteligente para empresas.'
+  'Sistema operativo inteligente para tu negocio.'
 
 export const BRAND_LOGIN_TITLE = `Iniciar sesión · ${BRAND_NAME}`

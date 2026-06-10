@@ -12546,6 +12546,25 @@ html.app--chat-sheet-open body {
   font-variant-numeric: tabular-nums;
 }
 
+.home-dashboard__kpi-link {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+
+.home-dashboard__kpi-link:hover .home-dashboard__kpi-value {
+  color: var(--accent);
+}
+
+.home-dashboard__kpi--tasks .home-dashboard__kpi-value {
+  font-size: 0.95rem;
+}
+
 .home-dashboard__pos-alert {
   margin-bottom: 1.1rem;
   padding: 0.9rem 1rem 1rem;
@@ -13889,4 +13908,49 @@ html.app--chat-sheet-open body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.tasks-view--calendar .month-calendar {
+  margin-top: 0.25rem;
+}
+
+.tasks-view__head--calendar {
+  margin-bottom: 0.15rem;
+}
+
+.tasks-view__month-stats {
+  margin: 0 0 0.5rem;
+}
+
+.month-calendar__day-total--tasks {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent-text) 88%, var(--muted));
+}
+
+.month-calendar__day--has-data .month-calendar__day-total--tasks {
+  color: color-mix(in srgb, var(--accent) 75%, var(--heading));
+}
+
+.day-tasks-panel__head {
+  margin-bottom: 0.35rem;
+}
+
+.day-tasks-panel__hint {
+  margin: 0;
+}
+
+.day-tasks-panel__list {
+  max-height: min(52vh, 28rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tasks-day-modal .sales-day-modal__body {
+  padding-top: 0.35rem;
+}
+
+.day-tasks-panel__composer {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }

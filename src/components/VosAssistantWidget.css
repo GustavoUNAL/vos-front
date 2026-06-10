@@ -258,6 +258,35 @@
   letter-spacing: -0.01em;
 }
 
+.vos-assistant__lead {
+  font-weight: 650;
+  color: var(--heading);
+}
+
+.vos-assistant__typewriter {
+  display: block;
+}
+
+.vos-assistant__cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  font-weight: 500;
+  font-size: 0.95em;
+  vertical-align: baseline;
+  animation: vos-assistant-cursor 0.7s step-end infinite;
+}
+
+@keyframes vos-assistant-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 .vos-assistant__list {
   margin: 0.25rem 0 0;
   padding-left: 1.1rem;
@@ -288,9 +317,16 @@
 .vos-assistant__typing {
   display: flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 0.35rem;
   min-height: 1.2rem;
   padding: 0.7rem 0.85rem;
+}
+
+.vos-assistant__typing-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: 0.15rem;
 }
 
 .vos-assistant__dot {
@@ -324,58 +360,159 @@
 }
 
 .vos-assistant__suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0 0.85rem 0.55rem;
-  max-height: 7.5rem;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--surface-elevated) 92%, var(--accent-soft));
   flex-shrink: 0;
+  padding: 0 0 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-soft) 14%, transparent),
+    transparent 80%
+  );
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    grid-template-rows 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.34s ease,
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.vos-assistant__suggestion-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+.vos-assistant__suggestions--visible {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
-.vos-assistant__suggestion-label {
-  font-size: 0.68rem;
+.vos-assistant__suggestions-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vos-assistant__suggestions-hint {
+  margin: 0;
+  padding: 0.4rem 0.75rem 0.28rem;
+  font-size: 0.62rem;
   font-weight: 600;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--muted);
 }
 
+.vos-assistant__suggestions-track {
+  padding: 0 0.75rem 0.35rem;
+}
+
 .vos-assistant__suggestion-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.32rem;
 }
 
 .vos-assistant__chip {
-  flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  --chip-i: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.28rem;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
   background: color-mix(in srgb, var(--surface-elevated) 90%, var(--accent-soft));
-  color: var(--accent-text);
-  border-radius: 999px;
-  padding: 0.32rem 0.65rem;
-  font-size: 0.74rem;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.3rem 0.42rem 0.3rem 0.32rem;
+  font-size: 0.66rem;
+  font-weight: 550;
+  line-height: 1.25;
   cursor: pointer;
+  text-align: left;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-soft) 28%, transparent);
+  opacity: 0;
+  transform: translateY(6px);
+  animation: vos-assistant-chip-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(0.04s * var(--chip-i) + 0.06s);
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.vos-assistant__suggestions:not(.vos-assistant__suggestions--visible) .vos-assistant__chip {
+  animation: none;
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.vos-assistant__chip-icon {
+  display: grid;
+  place-items: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  line-height: 1;
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-elevated));
+  flex-shrink: 0;
+}
+
+.vos-assistant__chip-text {
+  color: var(--heading);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background 0.12s ease;
 }
 
 .vos-assistant__chip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-elevated));
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-elevated));
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--berry-glow) 35%, transparent);
+}
+
+.vos-assistant__chip:active:not(:disabled) {
+  transform: translateY(0);
+  transition-duration: 0.08s;
 }
 
 .vos-assistant__chip:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+}
+
+@keyframes vos-assistant-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vos-assistant__suggestions {
+    transition: opacity 0.2s ease;
+    transform: none;
+  }
+
+  .vos-assistant__chip {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    transition: background 0.12s ease;
+  }
+}
+
+@media (max-width: 420px) {
+  .vos-assistant__suggestion-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .vos-assistant__form {
@@ -556,8 +693,24 @@
     padding-right: max(0.85rem, env(safe-area-inset-right));
   }
 
-  .vos-assistant__suggestions {
-    max-height: 8rem;
+  .vos-assistant__suggestions-hint {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .vos-assistant__suggestions-track {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .vos-assistant__suggestion-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.28rem;
+  }
+
+  .vos-assistant__chip {
+    font-size: 0.64rem;
+    padding: 0.28rem 0.36rem 0.28rem 0.28rem;
   }
 }
 

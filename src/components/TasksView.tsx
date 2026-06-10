@@ -1,38 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import {
-  createTask,
-  deleteTask,
-  fetchTasksByDate,
-  updateTask,
-  type CompanyTask,
-  type TasksDayResponse,
+  fetchTasksCalendar,
+  type AuthUser,
+  type TasksCalendarResponse,
 } from '../api'
-import { hasPermission } from '../lib/permissions'
-import type { AuthUser } from '../api'
+import { useMatchMedia } from '../hooks/useMatchMedia'
+import { invalidateCalendarNamespace } from '../lib/calendarCache'
 import { mobileViewClass } from './mobile/mobileView'
+import { MonthCalendar } from './MonthCalendar'
+import type { MonthCalendarDay } from './MonthCalendar'
+import { MonthCalendarScrollFeed } from './MonthCalendarScrollFeed'
+import { DayTasksModal } from './DayTasksModal'
 import { ViewBootSplash } from './DataLoadingSplash'
+import { MOBILE_FILTER_BREAKPOINT } from './MobileAwareFilterBar'
 
 function localDateKey(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function shiftDateKey(dateKey: string, deltaDays: number): string {
-  const [y, m, d] = dateKey.split('-').map(Number)
-  const dt = new Date(y, m - 1, d + deltaDays, 12, 0, 0)
-  return localDateKey(dt)
-}
-
-function formatDayTitle(dateKey: string): string {
-  const [y, m, d] = dateKey.split('-').map(Number)
-  const dt = new Date(y, m - 1, d, 12, 0, 0)
-  const label = new Intl.DateTimeFormat('es-CO', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(dt)
-  return label.charAt(0).toUpperCase() + label.slice(1)
+function mapTasksCalendarDays(res: TasksCalendarResponse): MonthCalendarDay[] {
+  return res.days.map((d) => ({
+    date: d.date,
+    count: d.count,
+    pendingCount: d.pendingCount,
+    completedCount: d.completedCount,
+  }))
 }
 
 type Props = {
@@ -41,269 +34,168 @@ type Props = {
 }
 
 export function TasksView({ baseUrl, user }: Props) {
+  const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const todayKey = useMemo(() => localDateKey(), [])
-  const [selectedDate, setSelectedDate] = useState(todayKey)
-  const [data, setData] = useState<TasksDayResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [newTitle, setNewTitle] = useState('')
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth() + 1)
+  const [calendarData, setCalendarData] = useState<MonthCalendarDay[] | null>(null)
+  const [calendarLoading, setCalendarLoading] = useState(true)
+  const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0)
+  const [dayPanelRefresh, setDayPanelRefresh] = useState(0)
+  const [dayModalDate, setDayModalDate] = useState<string | null>(null)
 
-  const canCreate = hasPermission(user, 'tasks.create')
-  const canUpdate = hasPermission(user, 'tasks.update')
-  const canDelete = hasPermission(user, 'tasks.delete')
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetchTasksByDate(baseUrl, selectedDate)
-      setData(res)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar tareas')
-      setData(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [baseUrl, selectedDate])
+  const fetchTasksMonth = useCallback(
+    async (url: string, year: number, month: number) => {
+      const res = await fetchTasksCalendar(url, year, month)
+      return { days: mapTasksCalendarDays(res) }
+    },
+    [],
+  )
 
   useEffect(() => {
-    void load()
-  }, [load])
-
-  const handleToggle = async (task: CompanyTask) => {
-    if (!canUpdate) return
-    setBusyId(task.id)
-    try {
-      const updated = await updateTask(baseUrl, task.id, {
-        completed: !task.completed,
+    if (isMobile) return
+    let cancelled = false
+    setCalendarLoading(true)
+    setCalendarError(null)
+    void fetchTasksCalendar(baseUrl, calendarYear, calendarMonth)
+      .then((res) => {
+        if (!cancelled) setCalendarData(mapTasksCalendarDays(res))
       })
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              tasks: prev.tasks.map((t) => (t.id === task.id ? updated : t)),
-              summary: {
-                ...prev.summary,
-                completed: prev.summary.completed + (updated.completed ? 1 : -1),
-                pending: prev.summary.pending + (updated.completed ? -1 : 1),
-              },
-            }
-          : prev,
-      )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo actualizar')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  const handleCreate = async () => {
-    const title = newTitle.trim()
-    if (!title || !canCreate) return
-    setCreating(true)
-    setError(null)
-    try {
-      const created = await createTask(baseUrl, {
-        taskDate: selectedDate,
-        title,
+      .catch((e: Error) => {
+        if (!cancelled) setCalendarError(e.message)
       })
-      setNewTitle('')
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              tasks: [...prev.tasks, created],
-              summary: {
-                total: prev.summary.total + 1,
-                completed: prev.summary.completed,
-                pending: prev.summary.pending + 1,
-              },
-            }
-          : {
-              taskDate: selectedDate,
-              tasks: [created],
-              summary: { total: 1, completed: 0, pending: 1 },
-            },
-      )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo crear la tarea')
-    } finally {
-      setCreating(false)
+      .finally(() => {
+        if (!cancelled) setCalendarLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
-  }
+  }, [baseUrl, calendarYear, calendarMonth, calendarRefreshKey, isMobile])
 
-  const handleDelete = async (task: CompanyTask) => {
-    if (!canDelete) return
-    if (!window.confirm(`¿Eliminar "${task.title}"?`)) return
-    setBusyId(task.id)
-    try {
-      await deleteTask(baseUrl, task.id)
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              tasks: prev.tasks.filter((t) => t.id !== task.id),
-              summary: {
-                total: prev.summary.total - 1,
-                completed: prev.summary.completed - (task.completed ? 1 : 0),
-                pending: prev.summary.pending - (task.completed ? 0 : 1),
-              },
-            }
-          : prev,
-      )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo eliminar')
-    } finally {
-      setBusyId(null)
+  const bumpCalendar = useCallback(() => {
+    invalidateCalendarNamespace('tasks')
+    setCalendarRefreshKey((k) => k + 1)
+    setDayPanelRefresh((k) => k + 1)
+    if (!isMobile) {
+      void fetchTasksCalendar(baseUrl, calendarYear, calendarMonth)
+        .then((res) => setCalendarData(mapTasksCalendarDays(res)))
+        .catch(() => {})
     }
-  }
+  }, [baseUrl, calendarMonth, calendarYear, isMobile])
 
-  const tasks = data?.tasks ?? []
-  const summary = data?.summary ?? { total: 0, completed: 0, pending: 0 }
-  const progress =
-    summary.total > 0 ? Math.round((summary.completed / summary.total) * 100) : 0
+  const openDay = useCallback((date: string) => {
+    setDayModalDate(date)
+    const [y, m] = date.split('-').map(Number)
+    if (y && m) {
+      setCalendarYear(y)
+      setCalendarMonth(m)
+    }
+  }, [])
+
+  const monthTotals = useMemo(() => {
+    const days = calendarData ?? []
+    let total = 0
+    let pending = 0
+    for (const d of days) {
+      total += d.count
+      pending += d.pendingCount ?? 0
+    }
+    return { total, pending }
+  }, [calendarData])
 
   return (
-    <div className={mobileViewClass('tasks', 'tasks-view page-pane')}>
-      <header className="tasks-view__head">
+    <div className={mobileViewClass('tasks', 'tasks-view tasks-view--calendar page-pane')}>
+      <header className="tasks-view__head tasks-view__head--calendar">
         <div>
-          <h1 className="page-title">Tareas del día</h1>
+          <h1 className="page-title">Tareas</h1>
           <p className="muted small tasks-view__lead">
-            Actividades compartidas del equipo por fecha
+            Calendario compartido del equipo · todo list por día
           </p>
         </div>
-        <div className="tasks-view__date-nav" role="group" aria-label="Día">
-          <button
-            type="button"
-            className="btn-secondary btn-compact tasks-view__nav-btn"
-            aria-label="Día anterior"
-            onClick={() => setSelectedDate((d) => shiftDateKey(d, -1))}
-          >
-            <ChevronLeft aria-hidden strokeWidth={2} />
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn-compact tasks-view__today"
-            onClick={() => setSelectedDate(todayKey)}
-          >
-            Hoy
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn-compact tasks-view__nav-btn"
-            aria-label="Día siguiente"
-            onClick={() => setSelectedDate((d) => shiftDateKey(d, 1))}
-          >
-            <ChevronRight aria-hidden strokeWidth={2} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn-secondary btn-compact tasks-view__refresh"
+          onClick={bumpCalendar}
+          title="Actualizar calendario"
+        >
+          <RefreshCw aria-hidden strokeWidth={2} size={16} />
+          Actualizar
+        </button>
       </header>
 
-      <p className="tasks-view__date-title">{formatDayTitle(selectedDate)}</p>
-
-      <div className="tasks-view__progress" aria-label="Progreso del día">
-        <div className="tasks-view__progress-bar">
-          <span
-            className="tasks-view__progress-fill"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="muted small tasks-view__progress-label">
-          {summary.completed} de {summary.total} completadas
-          {summary.pending > 0 ? ` · ${summary.pending} pendientes` : ''}
-        </p>
-      </div>
-
-      {error ? (
-        <p className="error-text" role="alert">
-          {error}
+      {!isMobile && monthTotals.total > 0 ? (
+        <p className="tasks-view__month-stats muted small">
+          Este mes: {monthTotals.total} tarea{monthTotals.total !== 1 ? 's' : ''}
+          {monthTotals.pending > 0 ? ` · ${monthTotals.pending} pendientes` : ''}
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="muted">Cargando tareas…</p>
-      ) : tasks.length === 0 ? (
-        <p className="tasks-view__empty muted" role="status">
-          Sin tareas para este día.
-          {canCreate ? ' Agregá la primera abajo.' : ''}
-        </p>
+      {isMobile ? (
+        <MonthCalendarScrollFeed
+          baseUrl={baseUrl}
+          cacheNamespace="tasks"
+          countLabel="tarea"
+          metricMode="tasks"
+          selectedDate={dayModalDate}
+          refreshKey={calendarRefreshKey}
+          ariaLabel="Calendario de tareas por mes"
+          fetchMonth={fetchTasksMonth}
+          onDayClick={openDay}
+          onGoToToday={(date) => openDay(date)}
+        />
       ) : (
-        <ul className="tasks-view__list">
-          {tasks.map((task) => (
-            <li
-              key={task.id}
-              className={`tasks-view__item${task.completed ? ' tasks-view__item--done' : ''}`}
-            >
-              <button
-                type="button"
-                className="tasks-view__check"
-                disabled={!canUpdate || busyId === task.id}
-                aria-label={
-                  task.completed ? 'Marcar pendiente' : 'Marcar completada'
-                }
-                onClick={() => void handleToggle(task)}
-              >
-                {task.completed ? (
-                  <Check aria-hidden strokeWidth={2.5} />
-                ) : (
-                  <span className="tasks-view__check-ring" aria-hidden />
-                )}
-              </button>
-              <div className="tasks-view__body">
-                <span className="tasks-view__title">{task.title}</span>
-                {task.assignedToName ? (
-                  <span className="muted small tasks-view__meta">
-                    {task.assignedToName}
-                  </span>
-                ) : null}
-              </div>
-              {canDelete ? (
-                <button
-                  type="button"
-                  className="tasks-view__delete btn-secondary btn-compact"
-                  disabled={busyId === task.id}
-                  aria-label={`Eliminar ${task.title}`}
-                  onClick={() => void handleDelete(task)}
-                >
-                  <Trash2 aria-hidden strokeWidth={2} />
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <MonthCalendar
+          year={calendarYear}
+          month={calendarMonth}
+          days={calendarData ?? []}
+          loading={calendarLoading}
+          error={calendarError}
+          countLabel="tarea"
+          metricMode="tasks"
+          showZeroForPastDays
+          selectedDate={dayModalDate}
+          onPrevMonth={() => {
+            const prev = new Date(calendarYear, calendarMonth - 2, 1)
+            setCalendarYear(prev.getFullYear())
+            setCalendarMonth(prev.getMonth() + 1)
+          }}
+          onNextMonth={() => {
+            const next = new Date(calendarYear, calendarMonth, 1)
+            setCalendarYear(next.getFullYear())
+            setCalendarMonth(next.getMonth() + 1)
+          }}
+          onToday={() => {
+            const now = new Date()
+            setCalendarYear(now.getFullYear())
+            setCalendarMonth(now.getMonth() + 1)
+            openDay(todayKey)
+          }}
+          onDayClick={openDay}
+        />
       )}
 
-      {canCreate ? (
-        <form
-          className="tasks-view__composer"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void handleCreate()
-          }}
-        >
-          <input
-            type="text"
-            className="tasks-view__input"
-            placeholder="Nueva tarea para este día…"
-            value={newTitle}
-            maxLength={500}
-            disabled={creating}
-            onChange={(e) => setNewTitle(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="btn-primary btn-compact tasks-view__add"
-            disabled={creating || !newTitle.trim()}
-          >
-            <Plus aria-hidden strokeWidth={2} />
-            Agregar
-          </button>
-        </form>
+      <p className="muted small month-calendar-hint">
+        {isMobile
+          ? 'Tocá un día para ver y gestionar las tareas de toda la empresa.'
+          : 'Hacé clic en un día para ver y gestionar las tareas de toda la empresa.'}
+      </p>
+
+      {dayModalDate ? (
+        <DayTasksModal
+          baseUrl={baseUrl}
+          date={dayModalDate}
+          user={user}
+          refreshKey={dayPanelRefresh}
+          onClose={() => setDayModalDate(null)}
+          onMutate={bumpCalendar}
+        />
       ) : null}
 
-      <ViewBootSplash ready={!loading} label="Cargando tareas…" />
+      <ViewBootSplash
+        ready={isMobile || !calendarLoading}
+        label="Cargando calendario de tareas…"
+      />
     </div>
   )
 }

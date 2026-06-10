@@ -131,58 +131,71 @@ export function TableCard({
         </div>
       </div>
       <div className="pos-table-card__actions">
-        {canOpen && (
+        {canOpen ? (
           <>
-            <button
-              type="button"
-              className="pos-btn pos-btn--primary pos-btn--block"
-              disabled={busy}
-              onClick={onOpen}
+            <div className="pos-table-card__action-slot">
+              <button
+                type="button"
+                className="pos-btn pos-btn--primary pos-btn--block"
+                disabled={busy}
+                onClick={onOpen}
+              >
+                Abrir cuenta
+              </button>
+            </div>
+            <div
+              className={`pos-table-card__action-slot${
+                onReserve ? '' : ' pos-table-card__action-slot--ghost'
+              }`}
+              aria-hidden={!onReserve}
             >
-              Abrir cuenta
-            </button>
-            {table.status === 'free' && onReserve && (
+              {table.status === 'free' && onReserve ? (
+                <button
+                  type="button"
+                  className="pos-btn pos-btn--ghost pos-btn--block"
+                  disabled={busy}
+                  onClick={onReserve}
+                >
+                  Reservar
+                </button>
+              ) : null}
+              {table.status === 'reserved' && onReserve ? (
+                <button
+                  type="button"
+                  className="pos-btn pos-btn--ghost pos-btn--block"
+                  disabled={busy}
+                  onClick={onReserve}
+                >
+                  Quitar reserva
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+        {hasAccount ? (
+          <>
+            <div className="pos-table-card__action-slot">
+              <button
+                type="button"
+                className="pos-btn pos-btn--primary pos-btn--block"
+                disabled={busy}
+                onClick={onEnter}
+              >
+                Entrar
+              </button>
+            </div>
+            <div className="pos-table-card__action-slot">
               <button
                 type="button"
                 className="pos-btn pos-btn--ghost pos-btn--block"
                 disabled={busy}
-                onClick={onReserve}
+                onClick={onClose}
               >
-                Reservar
+                {table.status === 'closing' ? 'Cobrar' : 'Cerrar'}
               </button>
-            )}
-            {table.status === 'reserved' && onReserve && (
-              <button
-                type="button"
-                className="pos-btn pos-btn--ghost pos-btn--block"
-                disabled={busy}
-                onClick={onReserve}
-              >
-                Quitar reserva
-              </button>
-            )}
+            </div>
           </>
-        )}
-        {hasAccount && (
-          <>
-            <button
-              type="button"
-              className="pos-btn pos-btn--primary pos-btn--block"
-              disabled={busy}
-              onClick={onEnter}
-            >
-              Entrar a cuenta
-            </button>
-            <button
-              type="button"
-              className="pos-btn pos-btn--ghost pos-btn--block"
-              disabled={busy}
-              onClick={onClose}
-            >
-              {table.status === 'closing' ? 'Cobrar' : 'Cerrar mesa'}
-            </button>
-          </>
-        )}
+        ) : null}
       </div>
     </article>
   )

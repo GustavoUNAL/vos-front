@@ -1,5 +1,6 @@
 import { isBackendDown } from './backendHealth'
 import { unitCostToNumber } from './lib/productEconomics'
+import { getWhatsAppUrl } from './lib/siteContact'
 
 const STORAGE_KEY = 'vos_api_base'
 const TOKEN_KEY = 'vos_access_token'
@@ -2102,13 +2103,9 @@ export async function askLandingAssistant(
   return res.json() as Promise<{ answer: string; advisorSuggested?: boolean }>
 }
 
-/** URL wa.me solo desde build/env; no hardcodear en UI. */
-export function getLandingAdvisorUrl(prefill?: string): string | null {
-  const raw = (import.meta.env.VITE_LANDING_WHATSAPP_URL as string | undefined)?.trim()
-  if (!raw) return null
-  if (!prefill?.trim()) return raw
-  const sep = raw.includes('?') ? '&' : '?'
-  return `${raw}${sep}text=${encodeURIComponent(prefill)}`
+/** URL de WhatsApp para asesoría (env o contacto por defecto del sitio). */
+export function getLandingAdvisorUrl(prefill?: string): string {
+  return getWhatsAppUrl(prefill)
 }
 
 export type PatchSalePayload = {
@@ -2181,6 +2178,33 @@ export type TasksDayResponse = {
   taskDate: string
   tasks: CompanyTask[]
   summary: { total: number; completed: number; pending: number }
+}
+
+export type TasksCalendarDay = {
+  date: string
+  count: number
+  completedCount: number
+  pendingCount: number
+}
+
+export type TasksCalendarResponse = {
+  year: number
+  month: number
+  days: TasksCalendarDay[]
+}
+
+export async function fetchTasksCalendar(
+  base: string,
+  year: number,
+  month: number,
+): Promise<TasksCalendarResponse> {
+  const q = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  })
+  const res = await apiFetch(`${base}/tasks/calendar?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<TasksCalendarResponse>
 }
 
 export async function fetchTasksByDate(

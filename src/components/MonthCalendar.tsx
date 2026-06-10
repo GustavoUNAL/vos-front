@@ -8,7 +8,9 @@ import { InlineLoader } from './InlineLoader'
 export type MonthCalendarDay = {
   date: string
   count: number
-  totalCOP: string
+  totalCOP?: string
+  pendingCount?: number
+  completedCount?: number
 }
 
 type MonthCalendarProps = {
@@ -31,6 +33,8 @@ type MonthCalendarProps = {
   hideNav?: boolean
   /** No mostrar ni permitir días anteriores a la inauguración (YYYY-MM-DD). */
   inaugurationDate?: string | null
+  /** `tasks`: muestra pendientes en lugar de montos COP. */
+  metricMode?: 'currency' | 'tasks'
 }
 
 const MONTH_NAMES = [
@@ -79,7 +83,9 @@ export function MonthCalendar({
   selectedDate = null,
   hideNav = false,
   inaugurationDate = null,
+  metricMode = 'currency',
 }: MonthCalendarProps) {
+  const isTasks = metricMode === 'tasks'
   const dayMap = useMemo(
     () => new Map(days.map((d) => [d.date, d])),
     [days],
@@ -100,12 +106,16 @@ export function MonthCalendar({
   const monthSummary = useMemo(() => {
     let count = 0
     let total = 0
+    let pending = 0
+    let completed = 0
     for (const d of days) {
       count += d.count
-      const n = parseFloat(d.totalCOP)
+      pending += d.pendingCount ?? 0
+      completed += d.completedCount ?? 0
+      const n = parseFloat(String(d.totalCOP ?? '0'))
       if (Number.isFinite(n)) total += n
     }
-    return { count, total }
+    return { count, total, pending, completed }
   }, [days])
 
   if (loading) {
@@ -163,8 +173,18 @@ export function MonthCalendar({
         <p className="month-calendar__summary muted small">
           {monthSummary.count}{' '}
           {countLabel}
-          {monthSummary.count !== 1 ? 's' : ''} ·{' '}
-          {formatCOP(String(monthSummary.total))}
+          {monthSummary.count !== 1 ? 's' : ''}
+          {isTasks ? (
+            <>
+              {' '}
+              · {monthSummary.pending} pend.
+              {monthSummary.completed > 0
+                ? ` · ${monthSummary.completed} listas`
+                : ''}
+            </>
+          ) : (
+            <> · {formatCOP(String(monthSummary.total))}</>
+          )}
         </p>
       </header>
 
@@ -219,9 +239,13 @@ export function MonthCalendar({
               onClick={() => onDayClick(cell.date!)}
               aria-label={
                 hasData
-                  ? `${cell.date}: ${count} ${countLabel}${count !== 1 ? 's' : ''}, ${formatCOP(cell.data!.totalCOP)}`
+                  ? isTasks
+                    ? `${cell.date}: ${count} ${countLabel}${count !== 1 ? 's' : ''}, ${cell.data!.pendingCount ?? 0} pendientes`
+                    : `${cell.date}: ${count} ${countLabel}${count !== 1 ? 's' : ''}, ${formatCOP(cell.data!.totalCOP ?? '0')}`
                   : showZero
-                    ? `${cell.date}: 0 ${countLabel}s, ${formatCOP('0')}`
+                    ? isTasks
+                      ? `${cell.date}: 0 ${countLabel}s`
+                      : `${cell.date}: 0 ${countLabel}s, ${formatCOP('0')}`
                     : `${cell.date}: sin ${countLabel}s`
               }
             >
@@ -231,16 +255,29 @@ export function MonthCalendar({
               {hasData ? (
                 <>
                   <span className="month-calendar__day-count">{count}</span>
-                  <span className="month-calendar__day-total">
-                    {formatCOP(cell.data!.totalCOP)}
+                  <span
+                    className={[
+                      'month-calendar__day-total',
+                      isTasks ? 'month-calendar__day-total--tasks' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {isTasks
+                      ? (cell.data!.pendingCount ?? 0) > 0
+                        ? `${cell.data!.pendingCount} pend.`
+                        : '✓'
+                      : formatCOP(cell.data!.totalCOP ?? '0')}
                   </span>
                 </>
               ) : showZero ? (
                 <>
                   <span className="month-calendar__day-count">0</span>
-                  <span className="month-calendar__day-total">
-                    {formatCOP('0')}
-                  </span>
+                  {!isTasks ? (
+                    <span className="month-calendar__day-total">
+                      {formatCOP('0')}
+                    </span>
+                  ) : null}
                 </>
               ) : null}
             </button>

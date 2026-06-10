@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { login, type AuthUser } from '../api'
-import { BRAND_LOGIN_TITLE, BRAND_TAGLINE } from '../lib/brand'
+import { BRAND_LOGIN_TITLE, BRAND_NAME } from '../lib/brand'
 import { getAccessRequestUrl, getLandingUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
+import { PublicAuthMobileIntro } from './PublicAuthMobileIntro'
 import { LandingSalesChat } from './landing/LandingSalesChat'
 import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
@@ -61,29 +62,37 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
         className="public-auth__theme"
       />
 
+      <PublicAuthMobileIntro chips={['Ventas', 'POS', 'Inventario', 'IA 24/7']} />
+
       <div className="public-auth__layout">
         <aside className="public-auth__visual">
           <BrandMark size="md" showTagline />
           <div>
-            <h2>Panel de tu empresa</h2>
+            <h2>Tu panel empresarial</h2>
             <p>
-              Acceso con las credenciales que te proporcionamos. Cada tenant tiene ruta y datos
-              aislados.
+              Ingresá con las credenciales de tu empresa para ver ventas, stock y el
+              asistente IA con tus datos.
             </p>
           </div>
           <ul className="public-auth__bullets">
-            <li>Inventario, ventas y compras</li>
+            <li>Ventas, inventario y compras</li>
             <li>POS y pedidos web</li>
-            <li>Personal y finanzas</li>
+            <li>Asistente IA con datos de tu operación</li>
             <li>Ruta #/e/tu-empresa/…</li>
           </ul>
+          <p className="public-auth__aside-note muted">
+            ¿Todavía no tenés acceso?{' '}
+            <a href={getAccessRequestUrl()}>Quiero VOS AI en mi negocio</a>
+          </p>
         </aside>
 
         <div className="public-auth__form-wrap">
           <form className="public-auth__form vos-card" onSubmit={handleSubmit}>
             <header className="public-auth__head">
               <h1 className="public-auth__title">Iniciar sesión</h1>
-              <p className="public-auth__subtitle">{BRAND_TAGLINE}</p>
+              <p className="public-auth__subtitle">
+                Email y contraseña de tu empresa en {BRAND_NAME}.
+              </p>
             </header>
 
             {initialMessage ? (
@@ -102,6 +111,7 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
                 required
                 autoFocus
                 disabled={submitting}
+                placeholder="tu@empresa.com"
               />
             </Label>
 
@@ -120,16 +130,22 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
             {error ? (
               <div className="vos-alert vos-alert--error" role="alert">
                 {error}
+                <p className="public-auth__error-hint">
+                  Si aún no tenés cuenta,{' '}
+                  <a href={getAccessRequestUrl()}>solicitá acceso acá</a>.
+                </p>
               </div>
             ) : null}
 
             <Button type="submit" size="lg" block disabled={submitting}>
-              {submitting ? 'Ingresando…' : 'Entrar'}
+              {submitting ? 'Ingresando…' : 'Entrar a mi negocio'}
             </Button>
 
-            <p className="public-auth__footer-link">
-              ¿Querés probar la plataforma? <a href={getAccessRequestUrl()}>Solicitar una prueba</a>
-            </p>
+            <div className="public-auth__alt-action">
+              <a className="public-btn public-btn--ghost" href={getAccessRequestUrl()}>
+                Quiero VOS AI en mi negocio
+              </a>
+            </div>
           </form>
         </div>
       </div>

@@ -40,6 +40,7 @@ import { useNavigation } from './NavigationContext'
 import { NavigationHub, type HubTargetView } from './components/NavigationHub'
 import { LoginView } from './components/LoginView'
 import { LandingView } from './components/LandingView'
+import { LegalPageView } from './components/LegalPageView'
 import { BrandMark } from './components/BrandMark'
 import { CompanyBrand } from './components/CompanyBrand'
 import {
@@ -58,7 +59,10 @@ import { setPendingPosTableId } from './lib/pending-pos-navigation'
 import {
   isAccessRequestHash,
   isLandingHash,
+  isLegalHash,
   isLoginHash,
+  isPrivacyHash,
+  isTermsHash,
   navigateAfterLogin,
   navigateToAccessRequest,
   navigateToLanding,
@@ -339,9 +343,9 @@ export default function App() {
       const v = window.localStorage.getItem('vos_sidebar_collapsed')
       if (v === '0') return false
       if (v === '1') return true
-      return true
+      return false
     } catch {
-      return true
+      return false
     }
   })
 
@@ -362,6 +366,9 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     if (view === 'analytics' && !canViewFinance(user)) {
+      setView('home')
+    }
+    if (view === 'tasks' && !canViewTasks(user)) {
       setView('home')
     }
   }, [user, view])
@@ -506,7 +513,7 @@ export default function App() {
 
   useEffect(() => {
     if (authInitializing || user) return
-    if (isLoginHash() || isLandingHash() || isAccessRequestHash()) return
+    if (isLoginHash() || isLandingHash() || isAccessRequestHash() || isLegalHash()) return
     navigateToLanding()
   }, [authInitializing, user])
 
@@ -591,6 +598,12 @@ export default function App() {
           }}
         />
       )
+    }
+    if (isPrivacyHash()) {
+      return <LegalPageView page="privacy" />
+    }
+    if (isTermsHash()) {
+      return <LegalPageView page="terms" />
     }
     navigateToLanding()
     return null
@@ -721,6 +734,9 @@ export default function App() {
                 if (tableId) setPendingPosTableId(tableId)
                 setView('pos')
               }}
+              onOpenTasks={
+                canViewTasks(user) ? () => setView('tasks') : undefined
+              }
             />
           )}
           {PLATFORM_MODE && view === 'shop' && (
@@ -845,6 +861,40 @@ export default function App() {
             {user && (
               <div className="header-auth header-auth--profile">
                 <UserProfileCard user={user} compact />
+                {PLATFORM_MODE ? (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-compact app-sidebar__assistant"
+                    onClick={() => setAssistantOpen(true)}
+                    aria-expanded={assistantOpen}
+                  >
+                    <svg
+                      className="app-sidebar__assistant-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <rect
+                        x="5"
+                        y="8"
+                        width="14"
+                        height="11"
+                        rx="3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <circle cx="9.5" cy="13" r="1.25" fill="currentColor" />
+                      <circle cx="14.5" cy="13" r="1.25" fill="currentColor" />
+                      <path
+                        d="M10 16h4M12 4v3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    VOS AI
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn-secondary btn-compact"
@@ -1114,6 +1164,33 @@ export default function App() {
             </div>
             )}
 
+            {PLATFORM_MODE && canViewTasks(user) && (
+            <div className="app-nav-group app-nav-group--tasks">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
+                id="nav-head-tasks"
+              >
+                <span className="app-nav-group__toggle-main">
+                  <span className="app-nav-group__title">Tareas</span>
+                  <span className="app-nav-group__hint">
+                    Calendario compartido · todo list por día
+                  </span>
+                </span>
+              </div>
+              <ul className="app-nav-list" aria-labelledby="nav-head-tasks">
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'tasks' ? 'active' : ''}
+                    onClick={() => setView('tasks')}
+                  >
+                    Calendario de tareas
+                  </button>
+                </li>
+              </ul>
+            </div>
+            )}
+
             {PLATFORM_MODE && (
             <div className="app-nav-group app-nav-group--staff">
               <div
@@ -1138,33 +1215,6 @@ export default function App() {
                     onClick={() => setView('staff')}
                   >
                     Personal
-                  </button>
-                </li>
-              </ul>
-            </div>
-            )}
-
-            {PLATFORM_MODE && canViewTasks(user) && (
-            <div className="app-nav-group app-nav-group--tasks">
-              <div
-                className="app-nav-group__toggle app-nav-group__toggle--static"
-                id="nav-head-tasks"
-              >
-                <span className="app-nav-group__toggle-main">
-                  <span className="app-nav-group__title">Tareas</span>
-                  <span className="app-nav-group__hint">
-                    Actividades diarias del equipo
-                  </span>
-                </span>
-              </div>
-              <ul className="app-nav-list" aria-labelledby="nav-head-tasks">
-                <li>
-                  <button
-                    type="button"
-                    className={view === 'tasks' ? 'active' : ''}
-                    onClick={() => setView('tasks')}
-                  >
-                    Tareas del día
                   </button>
                 </li>
               </ul>

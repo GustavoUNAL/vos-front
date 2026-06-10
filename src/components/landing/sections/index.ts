@@ -1,0 +1,5 @@
+export { LandingCompareSection } from './LandingCompareSection'
+export { LandingAutomationsSection } from './LandingAutomationsSection'
+export { LandingIndustriesSection } from './LandingIndustriesSection'
+export { LandingResultsSection } from './LandingResultsSection'
+export { LandingFinalCtaSection } from './LandingFinalCtaSection'

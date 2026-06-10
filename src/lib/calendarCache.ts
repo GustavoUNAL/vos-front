@@ -1,4 +1,4 @@
-import { readApiCache, writeApiCache } from './apiCache'
+import { invalidateApiCachePrefix, readApiCache, writeApiCache } from './apiCache'
 import type { MonthCalendarDay } from '../components/MonthCalendar'
 
 export const CALENDAR_MONTH_TTL_MS = 20 * 60 * 1000
@@ -34,4 +34,9 @@ export function storeCalendarMonth(
     days,
     CALENDAR_MONTH_TTL_MS,
   )
+}
+
+/** Limpia meses cacheados (p. ej. tras borrar ventas/compras o pulsar Actualizar). */
+export function invalidateCalendarNamespace(namespace: string): void {
+  invalidateApiCachePrefix(`calendar:${namespace}:`)
 }

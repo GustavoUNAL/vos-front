@@ -3,6 +3,7 @@ import { submitAccessRequest } from '../api'
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand'
 import { getLandingUrl, getLoginUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
+import { PublicAuthMobileIntro } from './PublicAuthMobileIntro'
 import { LandingSalesChat } from './landing/LandingSalesChat'
 import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
@@ -28,7 +29,7 @@ export function AccessRequestView({ baseUrl }: Props) {
   const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
-    document.title = `Solicitar una prueba · ${BRAND_NAME}`
+    document.title = `Quiero VOS AI en mi negocio · ${BRAND_NAME}`
   }, [])
 
   async function handleSubmit(e: FormEvent) {
@@ -75,21 +76,23 @@ export function AccessRequestView({ baseUrl }: Props) {
         className="public-auth__theme"
       />
 
+      <PublicAuthMobileIntro chips={['Sin costo inicial', 'POS incluido', 'Tienda web', 'Datos aislados']} />
+
       <div className="public-auth__layout">
         <aside className="public-auth__visual">
           <BrandMark size="md" showTagline />
           <div>
-            <h2>Solicitar una prueba</h2>
+            <h2>Acceso para tu empresa</h2>
             <p>
-              Contanos sobre tu empresa. Revisamos cada solicitud y te enviamos credenciales
-              personalizadas para tu tenant.
+              Completá el formulario y activamos tu espacio con credenciales propias
+              para empezar a operar con {BRAND_NAME}.
             </p>
           </div>
           <ul className="public-auth__bullets">
-            <li>Sin registro automático — onboarding guiado</li>
-            <li>Empresa aislada con URL propia</li>
-            <li>POS, tienda y panel incluidos</li>
-            <li>Soporte al activar tu cuenta</li>
+            <li>Activación guiada en pocos días</li>
+            <li>URL y datos aislados por empresa</li>
+            <li>POS, tienda web y panel incluidos</li>
+            <li>Soporte durante el onboarding</li>
           </ul>
         </aside>
 
@@ -112,7 +115,7 @@ export function AccessRequestView({ baseUrl }: Props) {
           ) : (
             <form className="public-auth__form vos-card" onSubmit={handleSubmit}>
               <header className="public-auth__head">
-                <h1 className="public-auth__title">Solicitar una prueba</h1>
+                <h1 className="public-auth__title">Quiero VOS AI en mi negocio</h1>
                 <p className="public-auth__subtitle">{BRAND_TAGLINE}</p>
               </header>
 
@@ -150,8 +153,8 @@ export function AccessRequestView({ baseUrl }: Props) {
                 />
               </Label>
 
-              <Label>
-                <span>Teléfono / WhatsApp (opcional)</span>
+              <Label className="public-auth__field--optional">
+                <span>WhatsApp (opcional)</span>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -160,13 +163,13 @@ export function AccessRequestView({ baseUrl }: Props) {
                 />
               </Label>
 
-              <Label>
-                <span>¿Qué necesitás? (opcional)</span>
+              <Label className="public-auth__field--optional">
+                <span>Mensaje (opcional)</span>
                 <Input
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   disabled={submitting}
-                  placeholder="POS, tienda online, inventario…"
+                  placeholder="Ej. bar con 4 mesas y pedidos web"
                 />
               </Label>
 
@@ -180,9 +183,11 @@ export function AccessRequestView({ baseUrl }: Props) {
                 {submitting ? 'Enviando…' : 'Enviar solicitud'}
               </Button>
 
-              <p className="public-auth__footer-link">
-                ¿Ya tenés cuenta? <a href={getLoginUrl()}>Iniciar sesión</a>
-              </p>
+              <div className="public-auth__alt-action">
+                <a className="public-btn public-btn--ghost" href={getLoginUrl()}>
+                  Ya tengo cuenta · Entrar
+                </a>
+              </div>
             </form>
           )}
         </div>

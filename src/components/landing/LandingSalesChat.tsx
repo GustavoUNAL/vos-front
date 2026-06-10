@@ -24,16 +24,16 @@ type ChatMessage = {
 
 const WELCOME = `¡Hola! Soy el asistente de **${BRAND_NAME}**.
 
-Te explico en segundos cómo digitalizar ventas, inventario y finanzas de tu empresa — sin tecnicismos.
+Somos un sistema operativo inteligente para tu negocio. Estamos en etapa de validación con usuarios reales y te explico cómo usar la plataforma con tu operación.
 
 ¿Por dónde empezamos?`
 
 const SUGGESTIONS = [
   '¿Qué es VOS AI?',
-  '¿Cómo funciona?',
-  '¿Para qué empresas sirve?',
-  '¿Cuánto cuesta?',
-  'Quiero hablar con un asesor',
+  '¿Cómo empiezo con mi negocio?',
+  '¿Para qué negocios sirve?',
+  'Quiero VOS AI en mi negocio',
+  'Hablar con un asesor',
 ] as const
 
 function sanitizePartialMarkdown(text: string): string {
@@ -296,7 +296,6 @@ export function LandingSalesChat() {
       setInput('')
       setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', text: q }])
       setBusy(true)
-      setShowAdvisorCta(false)
       try {
         const history: AssistantHistoryItem[] = messages
           .filter((m) => m.id !== 'welcome')
@@ -315,7 +314,7 @@ export function LandingSalesChat() {
             id: `e-${Date.now()}`,
             role: 'assistant',
             text:
-              'No pude conectar con el asistente en este momento. Probá de nuevo en unos segundos o usá **Hablar con un asesor** si necesitás ayuda humana.',
+              'No pude conectar con el asistente en este momento. Intenta de nuevo en unos segundos o escribe **Hablar con un asesor** si necesitas ayuda humana.',
             animate: true,
           },
         ])
@@ -411,14 +410,14 @@ export function LandingSalesChat() {
             ) : null}
             {showAdvisorCta && advisorUrl ? (
               <div className="landing-sales-chat__advisor-card">
-                <p>¿Preferís que te guíe un asesor?</p>
+                <p>Listo — un asesor puede seguir por WhatsApp.</p>
                 <a
                   className="landing-sales-chat__advisor-btn"
                   href={advisorUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Hablar con un asesor
+                  Continuar por WhatsApp
                 </a>
               </div>
             ) : null}
@@ -460,7 +459,7 @@ export function LandingSalesChat() {
                 onBlur={() => {
                   setInputFocused(false)
                 }}
-                placeholder="Preguntá sobre VOS AI…"
+                placeholder="Pregunta sobre VOS AI…"
                 disabled={busy}
                 enterKeyHint="send"
                 autoComplete="off"
@@ -471,16 +470,6 @@ export function LandingSalesChat() {
             </form>
           </div>
 
-          {advisorUrl && !composing ? (
-            <a
-              className="landing-sales-chat__wa"
-              href={advisorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Hablar con un asesor por WhatsApp
-            </a>
-          ) : null}
         </div>
       ) : null}
 

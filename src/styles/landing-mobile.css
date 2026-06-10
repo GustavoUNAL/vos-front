@@ -1,0 +1,685 @@
+/**
+ * Landing + auth — experiencia móvil moderna (≤720px)
+ */
+
+@media (max-width: 720px) {
+  .public-wrap,
+  .landing-v2__wrap {
+    padding-inline: max(1rem, env(safe-area-inset-left))
+      max(1rem, env(safe-area-inset-right));
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .public-topbar {
+    padding-block: 0.55rem;
+  }
+
+  .landing-v2__top-login .landing-v2__top-login-label--full {
+    display: none;
+  }
+
+  .landing-v2__top-login .landing-v2__top-login-label--short {
+    display: inline;
+  }
+
+  /* ——— Texto izquierda · conversaciones derecha ——— */
+  .landing-v2__wrap--scroll {
+    text-align: left;
+  }
+
+  .landing-v2__wrap--scroll .public-section__head,
+  .landing-v2__wrap--scroll .landing-section__split-copy,
+  .landing-v2__wrap--scroll .landing-how-grid__steps,
+  .landing-v2__wrap--scroll .landing-validation-grid,
+  .landing-v2__wrap--scroll .landing-compare-cards,
+  .landing-v2__wrap--scroll .landing-chips,
+  .landing-v2__wrap--scroll .landing-pillars-compact,
+  .landing-v2__wrap--scroll .landing-bullets,
+  .landing-v2__wrap--scroll .landing-results,
+  .landing-v2__wrap--scroll .landing-validation-cta {
+    text-align: left;
+    margin-right: auto;
+    max-width: 100%;
+  }
+
+  .landing-v2__wrap--scroll .landing-chat-figure,
+  .landing-v2__wrap--scroll .landing-section__demo {
+    margin-left: auto;
+    margin-right: -0.15rem;
+    width: min(96%, 23.65rem);
+    max-width: 23.65rem;
+    transform-origin: top right;
+  }
+
+  .landing-v2__wrap--scroll .landing-chat-figure__caption {
+    text-align: right;
+    padding-right: 0.15rem;
+  }
+
+  .landing-v2__wrap--scroll .landing-chat-device {
+    padding: 0.5rem 0.45rem 0.6rem;
+    border-radius: 24px;
+    transform: scale(1);
+    transform-origin: top right;
+  }
+
+  .landing-v2__wrap--scroll .landing-chat--compact .landing-chat__body {
+    max-height: min(26.25rem, 58vh);
+    padding: 0.75rem 0.8rem 0.85rem;
+  }
+
+  .landing-v2__wrap--scroll .landing-section__demo--wide {
+    width: min(98%, 24.75rem);
+    max-width: 24.75rem;
+  }
+
+  /* ——— Hero ——— */
+  .landing-hero {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1.15rem 0 1.5rem;
+    align-items: stretch;
+  }
+
+  .landing-hero__copy {
+    order: 1;
+    text-align: left;
+    max-width: 100%;
+  }
+
+  .landing-hero .landing-chat-figure {
+    order: 2;
+    width: min(88%, 19.5rem);
+    max-width: 19.5rem;
+    margin-top: 0.15rem;
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  .landing-hero .landing-chat-device {
+    transform: scale(1);
+    border-radius: 34px;
+    padding: 0.65rem 0.5rem 0.55rem;
+  }
+
+  .landing-hero .landing-chat--demo-loop .landing-chat__body {
+    height: min(27rem, 62vh);
+    max-height: min(27rem, 62vh);
+  }
+
+  .landing-hero__eyebrow {
+    margin-bottom: 0.65rem;
+    font-size: 0.64rem;
+  }
+
+  .landing-hero h1 {
+    font-size: clamp(1.85rem, 8.2vw, 2.35rem);
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    margin-bottom: 0.65rem;
+    text-align: left;
+  }
+
+  .landing-hero__lead {
+    font-size: 0.94rem;
+    line-height: 1.55;
+    max-width: 34rem;
+    text-align: left;
+  }
+
+  .landing-hero__actions {
+    margin-top: 1.1rem;
+    gap: 0.5rem;
+  }
+
+  .landing-hero__actions .public-btn {
+    min-height: 3rem;
+    width: 100%;
+    font-size: 0.92rem;
+    border-radius: 14px;
+  }
+
+  .landing-hero__actions .landing-hero__cta-secondary {
+    min-height: 2.75rem;
+    font-size: 0.88rem;
+  }
+
+  /* ——— Secciones ——— */
+  .landing-v2 .public-section {
+    margin-top: 2rem;
+    padding: 1.1rem 1rem 1.15rem;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    background: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface));
+  }
+
+  .landing-v2 .landing-section--split,
+  .landing-v2 .landing-section--split-reverse {
+    padding: 0;
+    border: none;
+    background: transparent;
+    gap: 1rem;
+  }
+
+  .landing-v2 .landing-section--split .landing-section__split-copy,
+  .landing-v2 .landing-section--split-reverse .landing-section__split-copy {
+    padding: 1.1rem 1rem 0.25rem;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    background: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface));
+  }
+
+  .landing-v2 .public-section__head {
+    margin-bottom: 0.85rem;
+  }
+
+  .landing-v2 .public-section__head h2,
+  .landing-v2 .landing-section__split-copy h2 {
+    font-size: clamp(1.2rem, 5.5vw, 1.45rem);
+    line-height: 1.2;
+  }
+
+  .landing-v2 .public-section__head p,
+  .landing-v2 .landing-section__split-copy p {
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .landing-section__kicker {
+    font-size: 0.68rem;
+    margin-bottom: 0.3rem;
+  }
+
+  /* Pasos — carrusel horizontal */
+  .landing-validation-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.65rem;
+    margin-top: 1rem;
+    padding-bottom: 0.35rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .landing-validation-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .landing-validation-step {
+    flex: 0 0 min(78vw, 17.5rem);
+    scroll-snap-align: start;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    background: var(--surface);
+  }
+
+  .landing-validation-cta .public-btn {
+    width: 100%;
+    min-height: 3rem;
+    border-radius: 14px;
+  }
+
+  .landing-section__demo {
+    margin-top: 0.65rem;
+  }
+
+  .landing-validation .landing-section__demo {
+    margin-top: 0.75rem;
+  }
+
+  .landing-section--split .landing-section__demo,
+  .landing-section--split-reverse .landing-section__demo {
+    margin-top: 0.35rem;
+  }
+
+  .landing-section--split-reverse .landing-section__split-copy {
+    order: 1;
+  }
+
+  .landing-section--split-reverse .landing-section__demo {
+    order: 2;
+  }
+
+  /* Preguntas — chips scroll */
+  .landing-questions--inline {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+
+  .landing-questions--inline li {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 999px;
+  }
+
+  .landing-section--solution__head {
+    text-align: center;
+  }
+
+  .landing-section--solution .landing-solution-demo,
+  .landing-section--solution .landing-solution-demo .landing-section__demo,
+  .landing-section--solution .landing-solution-demo .landing-chat-figure {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    transform-origin: center center !important;
+  }
+
+  .landing-section--solution .landing-solution-demo .landing-chat-figure {
+    width: min(92%, 22rem);
+    max-width: 22rem;
+  }
+
+  .landing-section--solution .landing-solution-demo .landing-chat-figure__caption {
+    text-align: center !important;
+    padding-right: 0;
+  }
+
+  .landing-section--solution .landing-solution-demo .landing-chat-device {
+    transform-origin: center center;
+  }
+
+  .landing-section--solution .landing-chat-reveal.is-visible {
+    transform: translate3d(0, 0, 0) scale(1) !important;
+  }
+
+  .landing-solution-demo .landing-chat-device {
+    border-radius: 36px;
+    padding: 0.7rem 0.52rem 0.6rem;
+  }
+
+  .landing-solution-demo .landing-chat--conversation-loop .landing-chat__body {
+    height: min(30.5rem, 66vh);
+    max-height: min(30.5rem, 66vh);
+  }
+
+  /* Comparativa — tarjetas en móvil */
+  .landing-compare-wrap {
+    display: none;
+  }
+
+  .landing-compare-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .landing-compare-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.72rem 0.85rem;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    background: var(--surface-elevated);
+  }
+
+  .landing-compare-card__feature {
+    margin: 0;
+    font-size: 0.84rem;
+    font-weight: 650;
+    color: var(--heading);
+    line-height: 1.3;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .landing-compare-card__marks {
+    display: flex;
+    gap: 0.65rem;
+    flex-shrink: 0;
+  }
+
+  .landing-compare-card__col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    min-width: 2.5rem;
+  }
+
+  .landing-compare-card__col span {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Pilares 2 col compactos */
+  .landing-pillars-compact {
+    gap: 0.5rem;
+  }
+
+  .landing-pillars-compact .public-card {
+    padding: 0.7rem 0.75rem;
+    border-radius: 14px;
+  }
+
+  .landing-pillars-compact h3 {
+    font-size: 0.86rem;
+  }
+
+  .landing-pillars-compact p {
+    font-size: 0.76rem;
+  }
+
+  /* Industrias */
+  .landing-chips {
+    gap: 0.4rem;
+  }
+
+  .landing-chip {
+    font-size: 0.78rem;
+    padding: 0.38rem 0.7rem;
+  }
+
+  /* Resultados */
+  .landing-results {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .landing-results li {
+    padding: 0.72rem 0.8rem;
+    font-size: 0.82rem;
+    border-radius: 14px;
+  }
+
+  /* CTA final */
+  .landing-v2 .public-cta {
+    margin-top: 2rem;
+    padding: 1.35rem 1rem 1.25rem;
+    border-radius: 20px;
+    text-align: center;
+  }
+
+  .landing-final-cta h2 {
+    font-size: clamp(1.25rem, 5.5vw, 1.5rem);
+  }
+
+  .landing-final-cta p {
+    font-size: 0.88rem;
+  }
+
+  .public-cta__actions .public-btn {
+    min-height: 3rem;
+    border-radius: 14px;
+  }
+
+  /* Cómo funciona: pasos izq · chat der */
+  .landing-how-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .landing-how-grid__steps {
+    gap: 0.5rem;
+    order: 1;
+  }
+
+  .landing-how-grid__chat {
+    order: 2;
+    margin-left: auto;
+    margin-right: -0.15rem;
+    width: min(96%, 23.25rem);
+    max-width: 23.25rem;
+  }
+
+  .landing-how-grid__steps .public-step {
+    padding: 0.85rem 0.9rem;
+    border-radius: 14px;
+  }
+
+  /* Barra fija inferior */
+  .landing-mobile-cta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: fixed;
+    z-index: 40;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0.6rem max(0.85rem, env(safe-area-inset-left))
+      max(0.6rem, env(safe-area-inset-bottom, 0px))
+      max(0.85rem, env(safe-area-inset-right));
+    border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+    backdrop-filter: blur(16px) saturate(1.15);
+    box-shadow: 0 -8px 28px color-mix(in srgb, var(--shadow-soft) 45%, transparent);
+  }
+
+  .landing-mobile-cta__primary {
+    flex: 1 1 auto;
+    min-height: 2.85rem;
+    border-radius: 14px;
+    font-size: 0.88rem;
+    padding-inline: 0.85rem;
+  }
+
+  .landing-sales-chat {
+    bottom: calc(4.35rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .landing-mobile-cta__ghost {
+    flex: 0 0 auto;
+    min-height: 2.85rem;
+    min-width: 5.25rem;
+    padding-inline: 1rem;
+    border-radius: 14px;
+    font-size: 0.86rem;
+    font-weight: 650;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  /* ——— Auth móvil ——— */
+  .public-auth {
+    padding: 3.75rem max(1rem, env(safe-area-inset-left)) 2rem
+      max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(5rem, calc(4.5rem + env(safe-area-inset-bottom, 0px)));
+  }
+
+  .public-auth__back {
+    min-height: 2.5rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.82rem;
+    border-radius: 12px;
+  }
+
+  .public-auth__layout {
+    max-width: 26rem;
+    border-radius: 20px;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--shadow-soft) 55%, transparent);
+  }
+
+  .public-auth__mobile-intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.55rem;
+    width: 100%;
+    max-width: 26rem;
+    margin-bottom: 1rem;
+  }
+
+  .public-auth__mobile-tagline {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--muted);
+    max-width: 22rem;
+  }
+
+  .public-auth__chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+
+  .public-auth__chip {
+    padding: 0.28rem 0.62rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: var(--heading);
+    background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-elevated));
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  }
+
+  .public-auth__form-wrap {
+    padding: 1.25rem 1.1rem 1.35rem;
+  }
+
+  .public-auth__form {
+    gap: 0.85rem;
+  }
+
+  .public-auth__title {
+    font-size: 1.25rem;
+  }
+
+  .public-auth__subtitle {
+    font-size: 0.84rem;
+    line-height: 1.45;
+  }
+
+  .public-auth__form label span {
+    font-size: 0.8rem;
+  }
+
+  .public-auth__form input {
+    min-height: 3rem;
+    font-size: 1rem;
+    border-radius: 12px;
+  }
+
+  .public-auth__form .vos-btn,
+  .public-auth__form button[type='submit'] {
+    min-height: 3rem;
+    border-radius: 14px;
+    font-size: 0.95rem;
+  }
+
+  .public-auth__footer-link {
+    font-size: 0.82rem;
+    padding-top: 0.15rem;
+  }
+
+  .public-auth__alt-action {
+    display: flex;
+    margin-top: 0.15rem;
+  }
+
+  .public-auth__alt-action .public-btn {
+    width: 100%;
+    min-height: 2.85rem;
+    border-radius: 14px;
+    font-size: 0.88rem;
+  }
+
+  /* ——— Scroll: solo conversaciones (texto siempre fijo) ——— */
+  .landing-chat-reveal {
+    opacity: 0;
+    transform: translate3d(32px, 22px, 0) scale(0.86);
+    filter: blur(8px);
+    transition:
+      opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.75s cubic-bezier(0.34, 1.12, 0.48, 1),
+      filter 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform, filter;
+  }
+
+  .landing-chat-reveal.is-visible {
+    opacity: 1;
+    filter: blur(0);
+  }
+
+  .landing-hero .landing-chat-reveal.is-visible {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  .landing-section__demo .landing-chat-reveal.is-visible,
+  .landing-how-grid__chat .landing-chat-reveal.is-visible {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  .landing-chat-reveal.is-visible .landing-chat-device {
+    transform: scale(1);
+  }
+
+  .landing-chat-reveal:not(.is-visible) .landing-chat__row--enter,
+  .landing-chat-reveal:not(.is-visible) .landing-chat__ai-content--stagger > * {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .landing-chat-reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+}
+
+/* Desktop: ocultar elementos solo móvil */
+.landing-mobile-cta,
+.landing-compare-cards,
+.public-auth__mobile-intro {
+  display: none;
+}
+
+.landing-compare-cards {
+  display: none;
+}
+
+.landing-v2__top-login-label--short {
+  display: none;
+}
+
+.landing-hero__eyebrow {
+  display: inline-flex;
+  margin: 0 0 0.75rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+
+.public-auth__alt-action {
+  display: flex;
+  width: 100%;
+  margin-top: 0.1rem;
+}
+
+.public-auth__alt-action .public-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 2.75rem;
+  border-radius: 14px;
+}

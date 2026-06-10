@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { formatCOP } from '../lib/money'
-import { BRAND_NAME } from '../lib/brand'
 import { PublicThemeSwitch } from '../components/PublicThemeSwitch'
 import '../public-shell.css'
 import {
@@ -19,6 +24,12 @@ import {
   type ShopOrder,
   type ShopProduct,
 } from './shopApi'
+import {
+  groupProductsByCategory,
+  initialsHue,
+  productInitials,
+  productThumbEmoji,
+} from './shopProductUi'
 import './shop.css'
 
 function loadCart(key: string): ShopCartLine[] {
@@ -61,19 +72,47 @@ function ShopHomeIcon() {
   )
 }
 
-function ShopCartIcon() {
+function ShopCartIcon({ size = 18 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" aria-hidden>
+      <circle cx="9" cy="21" r="1" stroke="currentColor" strokeWidth="2" />
+      <circle cx="20" cy="21" r="1" stroke="currentColor" strokeWidth="2" />
       <path
-        d="M6 9h15l-1.5 9h-12L6 9Zm0 0L5 3H2"
+        d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="9" cy="20" r="1.5" fill="currentColor" />
-      <circle cx="18" cy="20" r="1.5" fill="currentColor" />
     </svg>
+  )
+}
+
+function ShopProductThumb({
+  name,
+  imageUrl,
+}: {
+  name: string
+  imageUrl: string | null
+}) {
+  if (imageUrl) {
+    return <img src={imageUrl} alt="" loading="lazy" />
+  }
+  const emoji = productThumbEmoji(name)
+  const initials = productInitials(name)
+  const hue = initialsHue(name)
+  return (
+    <div
+      className={`shop-card__initials${emoji ? ' shop-card__initials--emoji' : ''}`}
+      style={
+        {
+          '--shop-initial-hue': hue,
+        } as CSSProperties
+      }
+      aria-hidden
+    >
+      <span>{emoji ?? initials}</span>
+    </div>
   )
 }
 
@@ -191,45 +230,52 @@ export function PublicShopApp() {
     [cart],
   )
 
-  const renderShopHeader = (
-    companyName: string,
-    tag: string,
-    options?: { showCart?: boolean },
-  ) => (
-    <header className="shop-header">
-      <div className="shop-brand">
-        <span className="shop-brand__berry" aria-hidden />
-        <div>
-          <strong>{companyName}</strong>
-          <span className="shop-brand__tag">{tag}</span>
+  const renderShopHeader = (options?: { showCart?: boolean }) => {
+    if (embed) return null
+    return (
+      <header className="shop-header shop-header--minimal">
+        <div className="shop-header__actions">
+          <a href="#/" className="shop-header-btn" aria-label="Inicio VOS AI">
+            <ShopHomeIcon />
+          </a>
+          <PublicThemeSwitch
+            theme={theme}
+            onToggle={toggleTheme}
+            compact
+            className="shop-theme"
+          />
+          {options?.showCart !== false ? (
+            <button
+              type="button"
+              className="shop-cart-btn"
+              onClick={() => setCartOpen(true)}
+              aria-label={`Carrito, ${cartCount} productos`}
+            >
+              <ShopCartIcon />
+              {cartCount > 0 ? (
+                <span className="shop-cart-btn__badge">{cartCount}</span>
+              ) : null}
+            </button>
+          ) : null}
         </div>
-      </div>
-      <div className="shop-header__actions">
-        <a href="#/" className="shop-header-btn" aria-label="Inicio VOS AI">
-          <ShopHomeIcon />
-        </a>
-        <PublicThemeSwitch
-          theme={theme}
-          onToggle={toggleTheme}
-          compact
-          className="shop-theme"
-        />
-        {options?.showCart !== false ? (
-          <button
-            type="button"
-            className="shop-cart-btn"
-            onClick={() => setCartOpen(true)}
-            aria-label={`Carrito, ${cartCount} productos`}
-          >
-            <ShopCartIcon />
-            {cartCount > 0 ? (
-              <span className="shop-cart-btn__badge">{cartCount}</span>
-            ) : null}
-          </button>
+      </header>
+    )
+  }
+
+  const renderMobileCartFab = () =>
+    cartOpen ? null : (
+      <button
+        type="button"
+        className="shop-cart-fab"
+        onClick={() => setCartOpen(true)}
+        aria-label={`Abrir carrito, ${cartCount} productos`}
+      >
+        <ShopCartIcon size={22} />
+        {cartCount > 0 ? (
+          <span className="shop-cart-fab__badge">{cartCount}</span>
         ) : null}
-      </div>
-    </header>
-  )
+      </button>
+    )
 
   const products = useMemo(() => {
     if (!catalog) return []
@@ -245,6 +291,80 @@ export function PublicShopApp() {
     }
     return list
   }, [catalog, categoryId, search])
+
+  const catalogProducts = useMemo(() => {
+    if (!catalog) return []
+    if (categoryId) return products
+    return groupProductsByCategory(products, catalog.categories).flatMap(
+      (g) => g.products,
+    )
+  }, [catalog, categoryId, products])
+
+  const renderCartLines = () => {
+    if (!cart.length) {
+      return (
+        <div className="shop-cart-panel__empty">
+          <ShopCartIcon size={28} />
+          <p>Carrito vacío</p>
+          <span className="muted small">Elegí productos del menú</span>
+        </div>
+      )
+    }
+    return (
+      <ul className="shop-cart-list">
+        {cart.map((line) => (
+          <li key={line.productId} className="shop-cart-item">
+            <div className="shop-cart-item__info">
+              <strong>{line.productName}</strong>
+              <span className="shop-cart-item__unit">
+                {formatCOP(line.unitPrice)} c/u
+              </span>
+            </div>
+            <div className="shop-cart-item__actions">
+              <div className="shop-qty">
+                <button
+                  type="button"
+                  className="shop-icon-btn"
+                  aria-label="Quitar uno"
+                  onClick={() => updateQty(line.productId, line.quantity - 1)}
+                >
+                  −
+                </button>
+                <span>{line.quantity}</span>
+                <button
+                  type="button"
+                  className="shop-icon-btn"
+                  aria-label="Agregar uno"
+                  onClick={() => updateQty(line.productId, line.quantity + 1)}
+                >
+                  +
+                </button>
+              </div>
+              <span className="shop-cart-item__subtotal">
+                {formatCOP(line.quantity * line.unitPrice)}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  const renderCartFooter = () => (
+    <footer className="shop-sheet__foot">
+      <p className="shop-sheet__total">
+        Total <strong>{formatCOP(cartTotal)}</strong>
+      </p>
+      <button
+        type="button"
+        className="shop-btn shop-btn--primary shop-btn--block"
+        disabled={!cart.length}
+        onClick={openPaymentStep}
+      >
+        Elegir método de pago
+      </button>
+    </footer>
+  )
 
   const addToCart = (product: ShopProduct) => {
     setCart((prev) => {
@@ -266,7 +386,9 @@ export function PublicShopApp() {
         },
       ]
     })
-    setCartOpen(true)
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      setCartOpen(true)
+    }
   }
 
   const updateQty = (productId: string, quantity: number) => {
@@ -327,9 +449,7 @@ export function PublicShopApp() {
   if (route.screen === 'success' && activeOrder) {
     return (
       <div className={`shop-app${embed ? ' shop-app--embed' : ''}`}>
-        {renderShopHeader(activeOrder.companyName, 'Pedido confirmado', {
-          showCart: false,
-        })}
+        {renderShopHeader({ showCart: false })}
         <main className="shop-main shop-main--center">
           <section className="shop-success">
             <div className="shop-success__icon" aria-hidden>
@@ -376,11 +496,7 @@ export function PublicShopApp() {
   if ((route.screen === 'pedido' || route.screen === 'payment') && activeOrder) {
     return (
       <div className={`shop-app${embed ? ' shop-app--embed' : ''}`}>
-        {renderShopHeader(
-          activeOrder.companyName,
-          `Pedido · ${activeOrder.orderCode}`,
-          { showCart: false },
-        )}
+        {renderShopHeader({ showCart: false })}
         <main className="shop-main shop-main--narrow">
           {error ? (
             <p className="error" role="alert">
@@ -448,10 +564,7 @@ export function PublicShopApp() {
 
   return (
     <div className={`shop-app${embed ? ' shop-app--embed' : ''}`}>
-      {renderShopHeader(
-        catalog?.company.name ?? 'Tienda',
-        `Tienda en línea · ${BRAND_NAME}`,
-      )}
+      {renderShopHeader()}
 
       <main className="shop-main">
         {error ? (
@@ -467,72 +580,101 @@ export function PublicShopApp() {
         ) : null}
 
         {!loading && catalog ? (
-          <>
-            <div className="shop-toolbar">
-              <input
-                type="search"
-                className="shop-search"
-                placeholder="Buscar en la carta…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <select
-                className="shop-filter"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                aria-label="Filtrar por categoría"
-              >
-                <option value="">Todas las categorías</option>
-                {catalog.categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+          <div className="shop-layout">
+            <div className="shop-layout__catalog">
+              <div className="shop-toolbar shop-toolbar--combined">
+                <input
+                  type="search"
+                  className="shop-search"
+                  placeholder="Buscar…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Buscar productos"
+                />
+                <div
+                  className="shop-filters-scroll"
+                  role="group"
+                  aria-label="Categorías"
+                >
+                  <div className="shop-filters-track">
+                    <button
+                      type="button"
+                      className={`shop-filter-chip${categoryId === '' ? ' shop-filter-chip--active' : ''}`}
+                      onClick={() => setCategoryId('')}
+                    >
+                      Todos
+                    </button>
+                    {catalog.categories.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`shop-filter-chip${categoryId === c.id ? ' shop-filter-chip--active' : ''}`}
+                        onClick={() => setCategoryId(c.id)}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {catalogProducts.length === 0 ? (
+                <p className="shop-empty-grid">No hay productos con ese filtro.</p>
+              ) : (
+                <ul className="shop-grid">
+                  {catalogProducts.map((p) => (
+                    <li key={p.id} className="shop-card">
+                      <div className="shop-card__media">
+                        <ShopProductThumb name={p.name} imageUrl={p.imageUrl} />
+                      </div>
+                      <div className="shop-card__body">
+                        <h3 className="shop-card__title">{p.name}</h3>
+                        {p.description ? (
+                          <p className="shop-card__desc">{p.description}</p>
+                        ) : (
+                          <p className="shop-card__desc" aria-hidden>
+                            &nbsp;
+                          </p>
+                        )}
+                        <div className="shop-card__foot">
+                          <p className="shop-card__price">{formatCOP(p.price)}</p>
+                          <button
+                            type="button"
+                            className="shop-btn shop-btn--primary shop-btn--add"
+                            onClick={() => addToCart(p)}
+                            aria-label={`Agregar ${p.name} al carrito`}
+                          >
+                            <ShopCartIcon size={18} />
+                            <span>Agregar</span>
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {!embed ? (
+                <>
+                  <div className="shop-note shop-note--info">
+                    Productos artesanales. La disponibilidad puede variar según el día.
+                  </div>
+                  <div className="shop-note shop-note--warn">
+                    Prohibida la venta de bebidas alcohólicas a menores de edad.
+                  </div>
+                </>
+              ) : null}
             </div>
 
-            <ul className="shop-grid">
-              {products.length === 0 ? (
-                <li className="shop-empty-grid">
-                  No hay productos con ese filtro.
-                </li>
-              ) : null}
-              {products.map((p) => (
-                <li key={p.id} className="shop-card">
-                  <div className="shop-card__media">
-                    {p.imageUrl ? (
-                      <img src={p.imageUrl} alt="" loading="lazy" />
-                    ) : (
-                      <div className="shop-card__placeholder" aria-hidden />
-                    )}
-                  </div>
-                  <div className="shop-card__body">
-                    <span className="shop-card__category">{p.category.name}</span>
-                    <h2 className="shop-card__title">{p.name}</h2>
-                    {p.description ? (
-                      <p className="shop-card__desc">{p.description}</p>
-                    ) : (
-                      <p className="shop-card__desc" aria-hidden>
-                        &nbsp;
-                      </p>
-                    )}
-                    <div className="shop-card__foot">
-                      <p className="shop-card__price">{formatCOP(p.price)}</p>
-                      <button
-                        type="button"
-                        className="shop-btn shop-btn--primary shop-btn--block"
-                        onClick={() => addToCart(p)}
-                      >
-                        Agregar
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
+            <aside className="shop-layout__cart shop-cart-panel" aria-label="Carrito">
+              {renderCartLines()}
+              {renderCartFooter()}
+            </aside>
+          </div>
         ) : null}
       </main>
+
+      {renderMobileCartFab()}
 
       {cartOpen ? (
         <div
@@ -544,64 +686,13 @@ export function PublicShopApp() {
         >
           <aside className="shop-sheet" role="dialog" aria-label="Carrito">
             <header className="shop-sheet__head">
-              <h2>Tu pedido</h2>
+              <h2>Carrito</h2>
               <button type="button" className="shop-icon-btn" onClick={() => setCartOpen(false)}>
                 ×
               </button>
             </header>
-            {cart.length === 0 ? (
-              <p className="shop-sheet__empty">El carrito está vacío.</p>
-            ) : (
-              <ul className="shop-cart-list">
-                {cart.map((line) => (
-                  <li key={line.productId} className="shop-cart-item">
-                    <div className="shop-cart-item__info">
-                      <strong>{line.productName}</strong>
-                      <span className="shop-cart-item__unit">
-                        {formatCOP(line.unitPrice)} c/u
-                      </span>
-                    </div>
-                    <div className="shop-cart-item__actions">
-                      <div className="shop-qty">
-                        <button
-                          type="button"
-                          className="shop-icon-btn"
-                          aria-label="Quitar uno"
-                          onClick={() => updateQty(line.productId, line.quantity - 1)}
-                        >
-                          −
-                        </button>
-                        <span>{line.quantity}</span>
-                        <button
-                          type="button"
-                          className="shop-icon-btn"
-                          aria-label="Agregar uno"
-                          onClick={() => updateQty(line.productId, line.quantity + 1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                      <span className="shop-cart-item__subtotal">
-                        {formatCOP(line.quantity * line.unitPrice)}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <footer className="shop-sheet__foot">
-              <p className="shop-sheet__total">
-                Total <strong>{formatCOP(cartTotal)}</strong>
-              </p>
-              <button
-                type="button"
-                className="shop-btn shop-btn--primary shop-btn--block"
-                disabled={!cart.length}
-                onClick={openPaymentStep}
-              >
-                Elegir método de pago
-              </button>
-            </footer>
+            {renderCartLines()}
+            {renderCartFooter()}
           </aside>
         </div>
       ) : null}

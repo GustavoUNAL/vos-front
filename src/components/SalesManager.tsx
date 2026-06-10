@@ -27,7 +27,11 @@ import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
-import { FloatingGearFab, FloatingGearFabDockAdd } from './FloatingGearFab'
+import {
+  FloatingGearFab,
+  FloatingGearFabDockAdd,
+  FloatingGearFabDockRefresh,
+} from './FloatingGearFab'
 import { MobileModuleToolbar } from './MobileModuleToolbar'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
@@ -50,6 +54,7 @@ import {
   readDefaultSaleParty,
   writeDefaultSaleParty,
 } from '../lib/salesDefaults'
+import { invalidateCalendarNamespace } from '../lib/calendarCache'
 import {
   invalidateDaySales,
   peekSaleDetail,
@@ -335,6 +340,7 @@ export function SalesManager({
   const [filterDateTo, setFilterDateTo] = useState('')
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  const [listRefreshKey, setListRefreshKey] = useState(0)
 
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
@@ -455,7 +461,7 @@ export function SalesManager({
     return () => {
       cancelled = true
     }
-  }, [baseUrl, page, salesListQuery])
+  }, [baseUrl, page, salesListQuery, listRefreshKey])
 
   useEffect(() => {
     if (viewMode !== 'calendar' || isMobileFilters) return
@@ -475,7 +481,7 @@ export function SalesManager({
     return () => {
       cancelled = true
     }
-  }, [baseUrl, viewMode, calendarYear, calendarMonth, isMobileFilters])
+  }, [baseUrl, viewMode, calendarYear, calendarMonth, isMobileFilters, calendarRefreshKey])
 
   useEffect(() => {
     if (!selectedId && !creating) return
@@ -608,6 +614,14 @@ export function SalesManager({
     isMobileFilters,
     viewMode,
   ])
+
+  const reloadSalesData = useCallback(() => {
+    invalidateCalendarNamespace('sales')
+    if (dayModalDate) invalidateDaySales(dayModalDate)
+    setListRefreshKey((k) => k + 1)
+    refreshDayAndCalendar()
+    if (selectedId) void loadDetail(selectedId)
+  }, [dayModalDate, loadDetail, refreshDayAndCalendar, selectedId])
 
   const openCreate = useCallback(() => {
     setCreating(true)
@@ -1091,6 +1105,14 @@ export function SalesManager({
           trailing={
             isMobileFilters ? (
               <MobileModuleToolbar
+                leading={
+                  <FloatingGearFabDockRefresh
+                    title="Actualizar ventas"
+                    ariaLabel="Actualizar ventas desde la base de datos"
+                    onClick={reloadSalesData}
+                    disabled={loading || calendarLoading}
+                  />
+                }
                 onAdd={openCreate}
                 addTitle="Nueva venta"
                 addAriaLabel="Nueva venta"
@@ -1178,6 +1200,14 @@ export function SalesManager({
             </button>
             <button
               type="button"
+              className="btn-secondary btn-compact"
+              onClick={reloadSalesData}
+              disabled={loading || calendarLoading}
+            >
+              Actualizar
+            </button>
+            <button
+              type="button"
               className="btn-primary"
               data-mobile-filter-primary="inside"
               onClick={openCreate}
@@ -1207,6 +1237,12 @@ export function SalesManager({
               </button>
             }
           >
+            <FloatingGearFabDockRefresh
+              title="Actualizar ventas"
+              ariaLabel="Actualizar ventas desde la base de datos"
+              onClick={reloadSalesData}
+              disabled={loading || calendarLoading}
+            />
             <FloatingGearFabDockAdd
               title="Nueva venta"
               ariaLabel="Nueva venta"

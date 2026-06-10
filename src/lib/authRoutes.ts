@@ -1,10 +1,17 @@
 /** Rutas públicas de la app operativa (no tienda). */
+import {
+  PLATFORM_MODE,
+  SALES_FLOOR_DEFAULT_VIEW,
+  SALES_FLOOR_ONLY,
+} from '../appScope'
 import { buildCompanyViewHash, getCompanySlugFromUser } from './companyRoutes'
 import type { AuthUser } from '../api'
 
 export const LANDING_HASH = '#/'
 export const LOGIN_HASH = '#/login'
 export const ACCESS_REQUEST_HASH = '#/solicitar-acceso'
+export const PRIVACY_HASH = '#/privacidad'
+export const TERMS_HASH = '#/terminos'
 export const PLATFORM_HASH = '#/platform'
 /** @deprecated usar ACCESS_REQUEST_HASH */
 export const REGISTER_HASH = ACCESS_REQUEST_HASH
@@ -28,6 +35,18 @@ export function isAccessRequestHash(): boolean {
   return p === 'solicitar-acceso' || p === 'registro'
 }
 
+export function isPrivacyHash(): boolean {
+  return getPublicHashPath() === 'privacidad'
+}
+
+export function isTermsHash(): boolean {
+  return getPublicHashPath() === 'terminos'
+}
+
+export function isLegalHash(): boolean {
+  return isPrivacyHash() || isTermsHash()
+}
+
 export function isPlatformHash(): boolean {
   return getPublicHashPath() === 'platform'
 }
@@ -49,6 +68,14 @@ export function navigateToAccessRequest(replace = true): void {
   setHash(ACCESS_REQUEST_HASH, replace)
 }
 
+export function navigateToPrivacy(replace = true): void {
+  setHash(PRIVACY_HASH, replace)
+}
+
+export function navigateToTerms(replace = true): void {
+  setHash(TERMS_HASH, replace)
+}
+
 export function navigateToPlatform(replace = true): void {
   setHash(PLATFORM_HASH, replace)
 }
@@ -63,7 +90,12 @@ export function navigateAfterLogin(user: AuthUser): void {
     return
   }
   const slug = getCompanySlugFromUser(user)
-  window.location.hash = buildCompanyViewHash(slug, 'home')
+  const view = SALES_FLOOR_ONLY
+    ? SALES_FLOOR_DEFAULT_VIEW
+    : PLATFORM_MODE
+      ? 'home'
+      : 'menu'
+  window.location.hash = buildCompanyViewHash(slug, view)
 }
 
 function setHash(target: string, replace: boolean): void {
@@ -101,4 +133,12 @@ export function getLandingUrl(appBase?: string): string {
   const fromEnv = (import.meta.env.VITE_LANDING_URL as string | undefined)?.trim()
   if (fromEnv) return fromEnv
   return `${appBaseUrl(appBase)}${LANDING_HASH}`
+}
+
+export function getPrivacyUrl(appBase?: string): string {
+  return `${appBaseUrl(appBase)}${PRIVACY_HASH}`
+}
+
+export function getTermsUrl(appBase?: string): string {
+  return `${appBaseUrl(appBase)}${TERMS_HASH}`
 }

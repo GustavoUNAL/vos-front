@@ -53,7 +53,8 @@ function formatInaugurationLabel(date: string): string {
 type MonthCalendarScrollFeedProps = {
   baseUrl: string
   countLabel: string
-  cacheNamespace: 'sales' | 'purchases'
+  cacheNamespace: 'sales' | 'purchases' | 'tasks'
+  metricMode?: 'currency' | 'tasks'
   selectedDate?: string | null
   onDayClick: (date: string) => void
   onGoToToday?: (date: string) => void
@@ -86,6 +87,7 @@ export function MonthCalendarScrollFeed({
   refreshKey = 0,
   inaugurationDate = null,
   ariaLabel = 'Calendario por mes',
+  metricMode = 'currency',
   fetchMonth,
 }: MonthCalendarScrollFeedProps) {
   const maxMonthsBack = useMemo(
@@ -285,6 +287,7 @@ export function MonthCalendarScrollFeed({
                 countLabel={countLabel}
                 selectedDate={selectedDate}
                 inaugurationDate={inaugurationDate}
+                metricMode={metricMode}
                 hideNav
                 onDayClick={onDayClick}
               />

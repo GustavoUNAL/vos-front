@@ -2,6 +2,8 @@ import { PAYMENT_METHOD_LABEL, PAYMENT_METHOD_HINT } from '../../constants'
 import { hasTransferReceipt } from '../../lib/transferReceipt'
 import type { PaymentMethod } from '../../types'
 import { PosCashInline } from '../payment/PosCashInline'
+import { PosTransferQr } from '../payment/PosTransferQr'
+import { PosTransferReceiptCapture } from '../payment/PosTransferReceiptCapture'
 
 const PAYMENT_OPTIONS: PaymentMethod[] = ['cash', 'transfer']
 
@@ -11,8 +13,12 @@ type Props = {
   amountDueCOP: number
   cashTenderedCOP: number
   hideHeading?: boolean
+  /** QR + comprobante dentro del mismo panel (sin sheet aparte). */
+  embedTransfer?: boolean
+  orderCode?: string
+  onTransferReceipt?: (dataUrl: string | null) => void
   onPaymentMethod: (method: PaymentMethod) => void
-  onOpenTransferSheet: () => void
+  onOpenTransferSheet?: () => void
   onCashTenderedChange: (value: number) => void
 }
 
@@ -22,6 +28,9 @@ export function PosOrderPaymentPicker({
   amountDueCOP,
   cashTenderedCOP,
   hideHeading = false,
+  embedTransfer = false,
+  orderCode = '',
+  onTransferReceipt,
   onPaymentMethod,
   onOpenTransferSheet,
   onCashTenderedChange,
@@ -31,12 +40,10 @@ export function PosOrderPaymentPicker({
   const hasReceipt = hasTransferReceipt(transferReceiptDataUrl)
 
   const handleMethodClick = (method: PaymentMethod) => {
-    if (method === 'transfer') {
-      onPaymentMethod('transfer')
-      onOpenTransferSheet()
-      return
-    }
     onPaymentMethod(method)
+    if (method === 'transfer' && !embedTransfer) {
+      onOpenTransferSheet?.()
+    }
   }
 
   return (
@@ -76,11 +83,23 @@ export function PosOrderPaymentPicker({
         />
       ) : null}
 
-      {isTransfer ? (
+      {isTransfer && embedTransfer && orderCode && onTransferReceipt ? (
+        <div className="pos-order-payment__transfer-embed">
+          <PosTransferQr amountCOP={amountDueCOP} orderCode={orderCode} sheet />
+          <PosTransferReceiptCapture
+            amountCOP={amountDueCOP}
+            orderCode={orderCode}
+            receiptDataUrl={transferReceiptDataUrl}
+            onReceiptChange={onTransferReceipt}
+            showQr={false}
+            sheet
+          />
+        </div>
+      ) : isTransfer ? (
         <button
           type="button"
           className="pos-order-payment__extra-btn"
-          onClick={onOpenTransferSheet}
+          onClick={() => onOpenTransferSheet?.()}
         >
           {hasReceipt ? (
             <>

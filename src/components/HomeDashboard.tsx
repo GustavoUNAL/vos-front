@@ -4,9 +4,11 @@ import {
   fetchSale,
   fetchSales,
   fetchSalesCalendar,
+  fetchTasksByDate,
   saleListRowLineCount,
   saleRowTotalNumeric,
   type SaleListRow,
+  type TasksDayResponse,
 } from '../api'
 import { useMatchMedia } from '../hooks/useMatchMedia'
 import { BRAND_NAME } from '../lib/brand'
@@ -79,6 +81,7 @@ type HomeDashboardProps = {
   onOpenSales: (date: string) => void
   onOpenPurchases: (date: string) => void
   onOpenPos: (tableId?: string) => void
+  onOpenTasks?: () => void
 }
 
 export function HomeDashboard({
@@ -88,6 +91,7 @@ export function HomeDashboard({
   onOpenSales,
   onOpenPurchases,
   onOpenPos,
+  onOpenTasks,
 }: HomeDashboardProps) {
   const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const todayKey = useMemo(() => localDateKey(), [])
@@ -109,6 +113,7 @@ export function HomeDashboard({
   const [openPosTables, setOpenPosTables] = useState<OpenPosTableSnapshot[]>(() =>
     getOpenPosTables(),
   )
+  const [tasksToday, setTasksToday] = useState<TasksDayResponse | null>(null)
 
   const refreshOpenPosTables = useCallback(() => {
     setOpenPosTables(getOpenPosTables())
@@ -139,15 +144,20 @@ export function HomeDashboard({
       const purchasesCalPromise = isMobile
         ? Promise.resolve(null)
         : fetchPurchaseLotsCalendar(baseUrl, calendarYear, calendarMonth)
+      const tasksTodayPromise = onOpenTasks
+        ? fetchTasksByDate(baseUrl, todayKey).catch(() => null)
+        : Promise.resolve(null)
 
-      const [salesRes, salesCal, purchasesCal] = await Promise.all([
+      const [salesRes, salesCal, purchasesCal, tasksRes] = await Promise.all([
         salesResPromise,
         salesCalPromise,
         purchasesCalPromise,
+        tasksTodayPromise,
       ])
       setSalesToday(salesRes.data)
       setSalesCalendar(salesCal)
       setPurchasesCalendar(purchasesCal)
+      setTasksToday(tasksRes)
 
       if (isMobile) {
         setTopProducts([])
@@ -188,7 +198,7 @@ export function HomeDashboard({
     } finally {
       setLoading(false)
     }
-  }, [baseUrl, calendarMonth, calendarYear, isMobile, todayKey])
+  }, [baseUrl, calendarMonth, calendarYear, isMobile, onOpenTasks, todayKey])
 
   useEffect(() => {
     void load()
@@ -209,6 +219,8 @@ export function HomeDashboard({
     }
     return { count, total, avg, byPayment }
   }, [salesToday])
+
+  const todayTasks = tasksToday?.summary ?? { total: 0, completed: 0, pending: 0 }
 
   const todayPurchase = useMemo(() => {
     const day = purchasesCalendar?.days.find((d) => d.date === todayKey)
@@ -268,6 +280,15 @@ export function HomeDashboard({
             >
               POS
             </button>
+            {onOpenTasks ? (
+              <button
+                type="button"
+                className="btn-secondary btn-compact"
+                onClick={onOpenTasks}
+              >
+                Tareas del equipo
+              </button>
+            ) : null}
           </div>
         ) : null}
       </header>
@@ -366,7 +387,43 @@ export function HomeDashboard({
                   : `${todayPurchase.count} · ${formatCOP(todayPurchase.total)}`}
               </strong>
             </article>
+            {onOpenTasks ? (
+              <article className="home-dashboard__kpi home-dashboard__kpi--tasks">
+                <span className="home-dashboard__kpi-label">Tareas hoy</span>
+                <button
+                  type="button"
+                  className="home-dashboard__kpi-link"
+                  onClick={onOpenTasks}
+                >
+                  <strong className="home-dashboard__kpi-value">
+                    {loading
+                      ? '…'
+                      : todayTasks.total > 0
+                        ? `${todayTasks.pending} pend. · ${todayTasks.completed}/${todayTasks.total}`
+                        : 'Sin tareas'}
+                  </strong>
+                </button>
+              </article>
+            ) : null}
           </>
+        ) : null}
+        {isMobile && onOpenTasks ? (
+          <article className="home-dashboard__kpi home-dashboard__kpi--tasks">
+            <span className="home-dashboard__kpi-label">Tareas del equipo</span>
+            <button
+              type="button"
+              className="home-dashboard__kpi-link"
+              onClick={onOpenTasks}
+            >
+              <strong className="home-dashboard__kpi-value">
+                {loading
+                  ? '…'
+                  : todayTasks.total > 0
+                    ? `${todayTasks.pending} pendientes`
+                    : 'Ver calendario'}
+              </strong>
+            </button>
+          </article>
         ) : null}
       </section>
 

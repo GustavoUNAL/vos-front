@@ -41,12 +41,18 @@ import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
 } from './MobileAwareFilterBar'
+import {
+  FloatingGearFab,
+  FloatingGearFabDockAdd,
+  FloatingGearFabDockRefresh,
+} from './FloatingGearFab'
 import { MobileModuleToolbar } from './MobileModuleToolbar'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 import { type SectionSummaryItem } from './SectionSummaryBar'
 import { MonthCalendar } from './MonthCalendar'
 import { MonthCalendarScrollFeed } from './MonthCalendarScrollFeed'
 import { consumePendingPurchasesDate } from '../lib/pending-view-filter'
+import { invalidateCalendarNamespace } from '../lib/calendarCache'
 import {
   invalidateDayPurchases,
   peekPurchaseLot,
@@ -578,6 +584,7 @@ export function PurchaseLotsView({
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
   const [listRefreshKey, setListRefreshKey] = useState(0)
+  const purchasesSearchInputRef = useRef<HTMLInputElement>(null)
 
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
@@ -760,7 +767,7 @@ export function PurchaseLotsView({
     return () => {
       cancelled = true
     }
-  }, [baseUrl, viewMode, calendarYear, calendarMonth, isMobileFilters])
+  }, [baseUrl, viewMode, calendarYear, calendarMonth, isMobileFilters, calendarRefreshKey])
 
   const openCreatePurchase = useCallback((dateKey?: string) => {
     setCreateInitialDate(dateKey || filterDateFrom || undefined)
@@ -813,6 +820,33 @@ export function PurchaseLotsView({
     },
     [baseUrl, draftFromLot],
   )
+
+  const reloadPurchasesData = useCallback(() => {
+    invalidateCalendarNamespace('purchases')
+    if (dayModalDate) invalidateDayPurchases(dayModalDate)
+    setListRefreshKey((k) => k + 1)
+    setCalendarRefreshKey((k) => k + 1)
+    if (dayModalDate) setDayPanelRefresh((k) => k + 1)
+    if (viewMode === 'calendar' && !isMobileFilters) {
+      setCalendarLoading(true)
+      setCalendarError(null)
+      void fetchPurchaseLotsCalendar(baseUrl, calendarYear, calendarMonth)
+        .then(setCalendarData)
+        .catch((e: Error) => setCalendarError(e.message))
+        .finally(() => setCalendarLoading(false))
+    }
+    if (selectedId) void openLot(selectedId, selectedLotRow ?? undefined, false)
+  }, [
+    baseUrl,
+    calendarMonth,
+    calendarYear,
+    dayModalDate,
+    isMobileFilters,
+    openLot,
+    selectedId,
+    selectedLotRow,
+    viewMode,
+  ])
 
   const closePanelState = useCallback(() => {
     setSelectedId(null)
@@ -3187,6 +3221,14 @@ export function PurchaseLotsView({
           trailing={
             isMobileFilters ? (
               <MobileModuleToolbar
+                leading={
+                  <FloatingGearFabDockRefresh
+                    title="Actualizar compras"
+                    ariaLabel="Actualizar compras desde la base de datos"
+                    onClick={reloadPurchasesData}
+                    disabled={loading || calendarLoading}
+                  />
+                }
                 onAdd={() => openCreatePurchase()}
                 addTitle="Nueva compra"
                 addAriaLabel="Nueva compra"
@@ -3216,6 +3258,7 @@ export function PurchaseLotsView({
             <label className="inventory-filter">
               <span className="inventory-filter__label">Buscar</span>
               <input
+                ref={purchasesSearchInputRef}
                 className="inventory-filter__input"
                 type="search"
                 placeholder="Lote, proveedor, notas…"
@@ -3285,6 +3328,14 @@ export function PurchaseLotsView({
             </button>
             <button
               type="button"
+              className="btn-secondary btn-compact"
+              onClick={reloadPurchasesData}
+              disabled={loading || calendarLoading}
+            >
+              Actualizar
+            </button>
+            <button
+              type="button"
               className="btn-primary"
               data-mobile-filter-primary="inside"
               onClick={() => openCreatePurchase()}
@@ -3294,6 +3345,45 @@ export function PurchaseLotsView({
           </div>
         </div>
         </MobileAwareFilterBar>
+
+        {!isMobileFilters && (
+          <FloatingGearFab
+            navAriaLabel="Compras"
+            menuToggleTitleClosed="Configuración del listado"
+            menuToggleTitleOpen="Cerrar menú"
+            ariaLabelMenuClosed="Abrir menú: buscar y ver resumen"
+            ariaLabelMenuOpen="Cerrar menú de compras"
+            filterToggle={
+              <button
+                type="button"
+                className="btn-catalog-dock-tool btn-catalog-dock-tool--search"
+                onClick={() => purchasesSearchInputRef.current?.focus()}
+                aria-label="Buscar compras"
+                title="Buscar compras"
+              >
+                <span className="icon-mobile-search" aria-hidden />
+              </button>
+            }
+          >
+            <FloatingGearFabDockRefresh
+              title="Actualizar compras"
+              ariaLabel="Actualizar compras desde la base de datos"
+              onClick={reloadPurchasesData}
+              disabled={loading || calendarLoading}
+            />
+            <FloatingGearFabDockAdd
+              title="Nueva compra"
+              ariaLabel="Nueva compra"
+              onClick={() => openCreatePurchase()}
+            />
+            <SectionSummaryDeck
+              section="purchases"
+              items={purchasesSummaryItems}
+              loading={loading}
+              suspendDetailWhileLoading
+            />
+          </FloatingGearFab>
+        )}
 
         {viewMode === 'calendar' ? (
           <>

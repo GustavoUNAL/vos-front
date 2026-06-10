@@ -19,7 +19,6 @@ import { PosStaffPicker } from '../ui/PosStaffPicker'
 import { PosCashSheet } from './PosCashSheet'
 import { PosCashTender } from './PosCashTender'
 import { PosPaymentSuccess } from './PosPaymentSuccess'
-import { PosTransferReceiptSheet } from './PosTransferReceiptSheet'
 
 type SuccessState = {
   saleId: string
@@ -50,7 +49,6 @@ export function PaymentView({ baseUrl }: Props) {
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [success, setSuccess] = useState<SuccessState | null>(null)
   const [tipOpen, setTipOpen] = useState(false)
-  const [transferSheetOpen, setTransferSheetOpen] = useState(false)
   const [cashSheetOpen, setCashSheetOpen] = useState(false)
   const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
 
@@ -68,22 +66,15 @@ export function PaymentView({ baseUrl }: Props) {
     setFieldError(null)
     setError(null)
     setTipOpen(false)
-    setTransferSheetOpen(false)
     setCashSheetOpen(false)
   }, [order?.id])
 
   useEffect(() => {
     if (!order) return
-    if (order.paymentMethod === 'transfer' && !hasTransferReceipt(order.transferReceiptDataUrl)) {
-      setTransferSheetOpen(true)
-      setCashSheetOpen(false)
-      return
-    }
     if (order.paymentMethod === 'cash' && isMobile) {
       setCashSheetOpen(true)
-      setTransferSheetOpen(false)
     }
-  }, [order?.id, order?.paymentMethod, order?.transferReceiptDataUrl, isMobile])
+  }, [order?.id, order?.paymentMethod, isMobile])
 
   const totalDue = order?.totalCOP ?? 0
   const amountDue = totalDue + tipCOP
@@ -136,7 +127,6 @@ export function PaymentView({ baseUrl }: Props) {
     }
     if (isTransfer && !hasTransferReceipt(order.transferReceiptDataUrl)) {
       setFieldError('Adjuntá el comprobante de transferencia.')
-      setTransferSheetOpen(true)
       return
     }
 
@@ -235,10 +225,8 @@ export function PaymentView({ baseUrl }: Props) {
     setActiveOrder(next)
     setFieldError(null)
     if (method === 'transfer') {
-      setTransferSheetOpen(true)
       setCashSheetOpen(false)
     } else {
-      setTransferSheetOpen(false)
       setCashSheetOpen(true)
       if (paymentMethod === 'transfer') {
         setCashTendered(0)
@@ -298,11 +286,10 @@ export function PaymentView({ baseUrl }: Props) {
                 transferReceiptDataUrl={order.transferReceiptDataUrl ?? null}
                 amountDueCOP={amountDue}
                 cashTenderedCOP={cashTendered}
+                embedTransfer
+                orderCode={orderRef}
+                onTransferReceipt={setTransferReceipt}
                 onPaymentMethod={setPaymentMethod}
-                onOpenTransferSheet={() => {
-                  setCashSheetOpen(false)
-                  setTransferSheetOpen(true)
-                }}
                 onCashTenderedChange={updateCashTendered}
               />
 
@@ -428,14 +415,6 @@ export function PaymentView({ baseUrl }: Props) {
         requireCover
       />
 
-      <PosTransferReceiptSheet
-        open={transferSheetOpen && isTransfer}
-        amountCOP={amountDue}
-        orderCode={orderRef}
-        receiptDataUrl={order.transferReceiptDataUrl ?? null}
-        onReceiptChange={setTransferReceipt}
-        onClose={() => setTransferSheetOpen(false)}
-      />
     </div>
   )
 }
