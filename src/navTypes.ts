@@ -3,6 +3,7 @@ export type NavGroupId =
   | 'stock'
   | 'sales'
   | 'purchases'
+  | 'tasks'
   | 'staff'
   | 'finance'
   | 'data'

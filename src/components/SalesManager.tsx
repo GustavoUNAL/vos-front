@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createSale,
+  deleteSale,
   downloadSaleInvoicePdf,
   downloadSaleReceiptTxt,
   fetchProducts,
@@ -11,6 +12,7 @@ import {
   patchSale,
   replaceSaleLines,
   sendSaleReceiptWhatsApp,
+  type AuthUser,
   type ProductRow,
   type SalesCalendarResponse,
   saleListRowLineCount,
@@ -19,6 +21,7 @@ import {
   type SaleLineDetail,
   type SaleListRow,
 } from '../api'
+import { canDeleteSales } from '../lib/permissions'
 import { useMatchMedia } from '../hooks/useMatchMedia'
 import {
   MobileAwareFilterBar,
@@ -305,13 +308,16 @@ function invoiceLineMeta(r: LineDraft): string | null {
 
 export function SalesManager({
   baseUrl,
+  user = null,
   inaugurationDate = null,
   companyName = null,
 }: {
   baseUrl: string
+  user?: AuthUser | null
   inaugurationDate?: string | null
   companyName?: string | null
 }) {
+  const allowDeleteSales = canDeleteSales(user)
   const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const salesSearchInputRef = useRef<HTMLInputElement>(null)
   const [list, setList] = useState<SaleListRow[]>([])
@@ -660,6 +666,52 @@ export function SalesManager({
     setLinesBaseline(null)
     setAdvancedMode(false)
   }, [isSaleDirty])
+
+  const handleDeleteSale = useCallback(async () => {
+    if (!detail?.id || creating || !allowDeleteSales) return
+    const label = detail.code?.trim() || detail.id.slice(0, 8)
+    if (
+      !window.confirm(
+        `¿Eliminar la venta ${label}? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return
+    }
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await deleteSale(baseUrl, detail.id)
+      setSelectedId(null)
+      setCreating(false)
+      setDetail(null)
+      setHeader(null)
+      setLineRows([])
+      setHeaderBaseline(null)
+      setLinesBaseline(null)
+      setAdvancedMode(false)
+      setDayPanelRefresh((n) => n + 1)
+      const res = await fetchSales(baseUrl, {
+        page,
+        limit: LIMIT,
+        ...salesListQuery,
+      })
+      setList(res.data)
+      setMeta(res.meta)
+      refreshDayAndCalendar()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'No se pudo eliminar la venta')
+    } finally {
+      setSaving(false)
+    }
+  }, [
+    allowDeleteSales,
+    baseUrl,
+    creating,
+    detail,
+    page,
+    refreshDayAndCalendar,
+    salesListQuery,
+  ])
 
   const saveNewSale = useCallback(async () => {
     if (!header) return
@@ -2314,6 +2366,16 @@ export function SalesManager({
                 aria-label="Acciones de venta"
               >
                 <div className="product-editor-footer__actions sales-editor-footer__actions">
+                  {!creating && detail && allowDeleteSales ? (
+                    <button
+                      type="button"
+                      className="product-editor-btn product-editor-btn--danger"
+                      disabled={saving}
+                      onClick={() => void handleDeleteSale()}
+                    >
+                      Eliminar venta
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="product-editor-btn product-editor-btn--secondary"

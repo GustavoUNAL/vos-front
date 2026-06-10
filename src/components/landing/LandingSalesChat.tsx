@@ -12,7 +12,7 @@ import {
   type AssistantHistoryItem,
 } from '../../api'
 import { BRAND_NAME } from '../../lib/brand'
-import { useVisualViewport } from '../../hooks/useVisualViewport'
+import { useMobileChatKeyboard } from '../../hooks/useMobileChatKeyboard'
 import './LandingSalesChat.css'
 
 type ChatMessage = {
@@ -22,7 +22,11 @@ type ChatMessage = {
   animate?: boolean
 }
 
-const WELCOME = `Hola, soy el asistente de ${BRAND_NAME}.\n\nTe explico en segundos qué hacemos y cómo puede ayudarte tu empresa. ¿Qué te gustaría saber?`
+const WELCOME = `¡Hola! Soy el asistente de **${BRAND_NAME}**.
+
+Te explico en segundos cómo digitalizar ventas, inventario y finanzas de tu empresa — sin tecnicismos.
+
+¿Por dónde empezamos?`
 
 const SUGGESTIONS = [
   '¿Qué es VOS AI?',
@@ -32,8 +36,15 @@ const SUGGESTIONS = [
   'Quiero hablar con un asesor',
 ] as const
 
+function sanitizePartialMarkdown(text: string): string {
+  const open = (text.match(/\*\*/g) ?? []).length
+  if (open % 2 === 1) return text.replace(/\*\*([^*]*)$/, '$1')
+  return text
+}
+
 function formatInline(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
+  const safe = sanitizePartialMarkdown(text)
+  return safe.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
     part.startsWith('**') && part.endsWith('**') ? (
       <strong key={j}>{part.slice(2, -2)}</strong>
     ) : (
@@ -42,10 +53,31 @@ function formatInline(text: string): ReactNode[] {
   )
 }
 
-function MessageBody({ text }: { text: string }) {
+function tokenizeForTyping(text: string): string[] {
+  const tokens: string[] = []
+  const re = /\S+\s*|\n/g
+  let match: RegExpExecArray | null
+  while ((match = re.exec(text)) !== null) {
+    tokens.push(match[0])
+  }
+  return tokens.length ? tokens : [text]
+}
+
+function typingDelay(token: string, prevChar: string | undefined): number {
+  if (token === '\n') return 120
+  const last = token.trim().slice(-1)
+  if (last === '.' || last === '?' || last === '!' || last === ':') return 85
+  if (prevChar === '\n') return 45
+  if (token.length > 12) return 38
+  return 22
+}
+
+function MessageBody({ text, lead }: { text: string; lead?: boolean }) {
   const lines = text.split('\n')
   const blocks: ReactNode[] = []
   let bulletLines: string[] = []
+  let numberedLines: string[] = []
+  let leadUsed = !lead
 
   const flushBullets = (key: string) => {
     if (!bulletLines.length) return
@@ -59,21 +91,58 @@ function MessageBody({ text }: { text: string }) {
     bulletLines = []
   }
 
+  const flushNumbered = (key: string) => {
+    if (!numberedLines.length) return
+    blocks.push(
+      <ol key={key} className="landing-sales-chat__list landing-sales-chat__list--ordered">
+        {numberedLines.map((line, i) => (
+          <li key={`${key}-${i}`}>{formatInline(line)}</li>
+        ))}
+      </ol>,
+    )
+    numberedLines = []
+  }
+
   lines.forEach((line, i) => {
     const trimmed = line.trim()
     if (!trimmed) {
       flushBullets(`b-${i}`)
+      flushNumbered(`n-${i}`)
       blocks.push(<div key={`g-${i}`} className="landing-sales-chat__gap" />)
       return
     }
     if (/^[•\-]\s/.test(trimmed)) {
+      flushNumbered(`pre-b-${i}`)
       bulletLines.push(trimmed.replace(/^[•\-]\s*/, ''))
       return
     }
+    if (/^\d+\.\s/.test(trimmed)) {
+      flushBullets(`pre-n-${i}`)
+      numberedLines.push(trimmed.replace(/^\d+\.\s*/, ''))
+      return
+    }
+    if (/^[💡📌✅🎯🛒📈⚠️🏆]/.test(trimmed)) {
+      flushBullets(`pre-c-${i}`)
+      flushNumbered(`pre-c2-${i}`)
+      blocks.push(
+        <p key={`c-${i}`} className="landing-sales-chat__callout">
+          {formatInline(trimmed)}
+        </p>,
+      )
+      return
+    }
     flushBullets(`pre-${i}`)
-    blocks.push(<p key={`p-${i}`}>{formatInline(trimmed)}</p>)
+    flushNumbered(`pre2-${i}`)
+    const isLead = lead && !leadUsed
+    if (isLead) leadUsed = true
+    blocks.push(
+      <p key={`p-${i}`} className={isLead ? 'landing-sales-chat__lead' : undefined}>
+        {formatInline(trimmed)}
+      </p>,
+    )
   })
   flushBullets('end')
+  flushNumbered('end-num')
   return <>{blocks}</>
 }
 
@@ -87,50 +156,60 @@ function prefersReducedMotion(): boolean {
 function TypewriterMessage({
   text,
   onTick,
+  onDone,
 }: {
   text: string
   onTick?: () => void
+  onDone?: () => void
 }) {
   const reduced = prefersReducedMotion()
   const [displayed, setDisplayed] = useState(reduced ? text : '')
   const [done, setDone] = useState(reduced)
+  const onTickRef = useRef(onTick)
+  const onDoneRef = useRef(onDone)
+  onTickRef.current = onTick
+  onDoneRef.current = onDone
 
   useEffect(() => {
     if (reduced) {
       setDisplayed(text)
       setDone(true)
+      onDoneRef.current?.()
       return
     }
     setDisplayed('')
     setDone(false)
-    let i = 0
+    const tokens = tokenizeForTyping(text)
+    let index = 0
+    let built = ''
     let timer = 0
 
     const step = () => {
-      i += 1
-      const next = text.slice(0, i)
-      setDisplayed(next)
-      onTick?.()
-      if (i >= text.length) {
+      if (index >= tokens.length) {
+        setDisplayed(text)
         setDone(true)
+        onDoneRef.current?.()
         return
       }
-      const ch = text[i - 1]
-      const delay =
-        ch === '\n' ? 100 : ch === '.' || ch === '?' || ch === '!' ? 70 : 14
-      timer = window.setTimeout(step, delay)
+      built += tokens[index]
+      index += 1
+      setDisplayed(built)
+      onTickRef.current?.()
+      const token = tokens[index - 1]
+      const prev = index > 1 ? tokens[index - 2] : undefined
+      timer = window.setTimeout(step, typingDelay(token, prev?.slice(-1)))
     }
 
-    timer = window.setTimeout(step, 200)
+    timer = window.setTimeout(step, 280)
     return () => window.clearTimeout(timer)
-  }, [text, onTick, reduced])
+  }, [text, reduced])
 
   return (
     <span className="landing-sales-chat__typewriter">
-      <MessageBody text={displayed} />
+      <MessageBody text={displayed} lead />
       {!done ? (
         <span className="landing-sales-chat__cursor" aria-hidden>
-          ▍
+          |
         </span>
       ) : null}
     </span>
@@ -153,6 +232,7 @@ function RobotIcon() {
 function TypingIndicator() {
   return (
     <div className="landing-sales-chat__bubble landing-sales-chat__bubble--assistant landing-sales-chat__typing">
+      <span className="landing-sales-chat__typing-label">Escribiendo</span>
       <span className="landing-sales-chat__dot" />
       <span className="landing-sales-chat__dot" />
       <span className="landing-sales-chat__dot" />
@@ -167,7 +247,6 @@ export function LandingSalesChat() {
   )
 
   const [open, setOpen] = useState(false)
-  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [showAdvisorCta, setShowAdvisorCta] = useState(false)
@@ -177,11 +256,20 @@ export function LandingSalesChat() {
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useVisualViewport(open, rootRef)
+  const keyboardOpen = useMobileChatKeyboard(open, rootRef)
+  const [inputFocused, setInputFocused] = useState(false)
+  const hideSuggestions = inputFocused || keyboardOpen
+  const composing = hideSuggestions
 
   const scrollToEnd = useCallback(() => {
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
+  }, [])
+
+  const finishTyping = useCallback((id: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, animate: false } : m)),
+    )
   }, [])
 
   useEffect(() => {
@@ -193,15 +281,7 @@ export function LandingSalesChat() {
   }, [open])
 
   useEffect(() => {
-    if (!open || typeof window === 'undefined') return
-    const vv = window.visualViewport
-    if (!vv) return
-    const check = () => {
-      setKeyboardOpen(window.innerHeight - vv.height > 80)
-    }
-    check()
-    vv.addEventListener('resize', check)
-    return () => vv.removeEventListener('resize', check)
+    if (!open) setInputFocused(false)
   }, [open])
 
   useEffect(() => {
@@ -250,6 +330,7 @@ export function LandingSalesChat() {
     'landing-sales-chat',
     open ? 'landing-sales-chat--open' : '',
     keyboardOpen ? 'landing-sales-chat--kb' : '',
+    composing ? 'landing-sales-chat--composing' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -306,9 +387,13 @@ export function LandingSalesChat() {
                 >
                   {m.role === 'assistant' ? (
                     m.animate ? (
-                      <TypewriterMessage text={m.text} onTick={scrollToEnd} />
+                      <TypewriterMessage
+                        text={m.text}
+                        onTick={scrollToEnd}
+                        onDone={() => finishTyping(m.id)}
+                      />
                     ) : (
-                      <MessageBody text={m.text} />
+                      <MessageBody text={m.text} lead />
                     )
                   ) : (
                     <p>{m.text}</p>
@@ -339,7 +424,7 @@ export function LandingSalesChat() {
             ) : null}
           </div>
 
-          {!keyboardOpen ? (
+          {!hideSuggestions ? (
             <div className="landing-sales-chat__suggestions">
               {SUGGESTIONS.map((s) => (
                 <button
@@ -355,29 +440,38 @@ export function LandingSalesChat() {
             </div>
           ) : null}
 
-          <form
-            className="landing-sales-chat__form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              void send(input)
-            }}
-          >
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Preguntá sobre VOS AI…"
-              disabled={busy}
-              enterKeyHint="send"
-              autoComplete="off"
-            />
-            <button type="submit" disabled={busy || !input.trim()} aria-label="Enviar">
-              ↑
-            </button>
-          </form>
+          <div className="landing-sales-chat__composer">
+            <form
+              className="landing-sales-chat__form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void send(input)
+              }}
+            >
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onFocus={() => {
+                  setInputFocused(true)
+                  requestAnimationFrame(() => scrollToEnd())
+                }}
+                onBlur={() => {
+                  setInputFocused(false)
+                }}
+                placeholder="Preguntá sobre VOS AI…"
+                disabled={busy}
+                enterKeyHint="send"
+                autoComplete="off"
+              />
+              <button type="submit" disabled={busy || !input.trim()} aria-label="Enviar">
+                ↑
+              </button>
+            </form>
+          </div>
 
-          {advisorUrl ? (
+          {advisorUrl && !composing ? (
             <a
               className="landing-sales-chat__wa"
               href={advisorUrl}

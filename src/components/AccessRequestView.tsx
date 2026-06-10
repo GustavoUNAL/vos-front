@@ -3,6 +3,7 @@ import { submitAccessRequest } from '../api'
 import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand'
 import { getLandingUrl, getLoginUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
+import { LandingSalesChat } from './landing/LandingSalesChat'
 import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -186,6 +187,7 @@ export function AccessRequestView({ baseUrl }: Props) {
           )}
         </div>
       </div>
+      <LandingSalesChat />
     </div>
   )
 }

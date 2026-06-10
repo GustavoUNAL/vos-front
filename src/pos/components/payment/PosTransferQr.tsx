@@ -1,9 +1,7 @@
-import QRCode from 'qrcode'
-import { useEffect, useState } from 'react'
 import { formatCOP } from '../../lib/money'
 import {
   POS_TRANSFER_BREB_KEY,
-  buildTransferQrPayload,
+  POS_TRANSFER_QR_IMAGE,
 } from '../../config/transferPayment'
 
 type Props = {
@@ -22,26 +20,8 @@ export function PosTransferQr({
   compact = false,
   sheet = false,
 }: Props) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null)
-  const qrSize = sheet ? 320 : compact ? 160 : 200
-
-  useEffect(() => {
-    let cancelled = false
-    const payload = buildTransferQrPayload({ brebKey, amountCOP, orderCode })
-    void QRCode.toDataURL(payload, {
-      width: qrSize,
-      margin: 1,
-      errorCorrectionLevel: 'M',
-    }).then((url) => {
-      if (!cancelled) setDataUrl(url)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [amountCOP, orderCode, brebKey, qrSize])
-
   const label = sheet
-    ? `Escaneá para transferir ${formatCOP(amountCOP)}`
+    ? `Escaneá para transferir ${formatCOP(amountCOP)} · Ref. ${orderCode.trim().toUpperCase()}`
     : 'Escaneá para transferir (Bre-B)'
 
   return (
@@ -50,18 +30,13 @@ export function PosTransferQr({
     >
       <p className="pos-transfer-qr__label muted small">{label}</p>
       <div className="pos-transfer-qr__frame">
-        {dataUrl ? (
-          <img
-            src={dataUrl}
-            alt={`Código QR de pago Bre-B ${brebKey}`}
-            width={qrSize}
-            height={qrSize}
-            className="pos-transfer-qr__img"
-          />
-        ) : (
-          <div className="pos-transfer-qr__placeholder" aria-hidden />
-        )}
+        <img
+          src={POS_TRANSFER_QR_IMAGE}
+          alt={`Código QR de pago Bre-B ${brebKey}`}
+          className="pos-transfer-qr__img"
+        />
       </div>
+      <p className="pos-transfer-qr__key">{brebKey}</p>
     </div>
   )
 }

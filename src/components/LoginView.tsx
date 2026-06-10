@@ -3,6 +3,7 @@ import { login, type AuthUser } from '../api'
 import { BRAND_LOGIN_TITLE, BRAND_TAGLINE } from '../lib/brand'
 import { getAccessRequestUrl, getLandingUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
+import { LandingSalesChat } from './landing/LandingSalesChat'
 import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -132,6 +133,7 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
           </form>
         </div>
       </div>
+      <LandingSalesChat />
     </div>
   )
 }

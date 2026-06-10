@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MOBILE_FILTER_BREAKPOINT } from '../../../components/MobileAwareFilterBar'
 import { useMatchMedia } from '../../../hooks/useMatchMedia'
+import { DEFAULT_POS_STAFF } from '../../constants'
 import { formatPosOrderCode } from '../../lib/orderCode'
 import { formatCOP } from '../../lib/money'
 import { isValidColombiaMobile } from '../../lib/phone'
@@ -60,7 +61,7 @@ export function PaymentView({ baseUrl }: Props) {
   useEffect(() => {
     if (!order) return
     setCustomerPhone(order.customerPhone ?? '')
-    setAttendedBy(order.attendedBy ?? null)
+    setAttendedBy(order.attendedBy ?? DEFAULT_POS_STAFF)
     setCashTendered(order.cashTenderedCOP ?? 0)
     setTipCOP(0)
     setSuccess(null)
@@ -88,7 +89,8 @@ export function PaymentView({ baseUrl }: Props) {
   const amountDue = totalDue + tipCOP
   const change = isCash ? cashTendered - amountDue : 0
   const canConfirm = useMemo(() => {
-    if (!order || !attendedBy) return false
+    if (!order) return false
+    if (!(attendedBy ?? DEFAULT_POS_STAFF)) return false
     if (isTransfer && !hasTransferReceipt(order.transferReceiptDataUrl)) return false
     if (isCash) return cashTendered >= amountDue
     return true
@@ -118,7 +120,8 @@ export function PaymentView({ baseUrl }: Props) {
   }
 
   const confirmPay = async () => {
-    if (!attendedBy) {
+    const staff = attendedBy ?? DEFAULT_POS_STAFF
+    if (!staff) {
       setFieldError('Elegí quién atendió la orden.')
       return
     }
@@ -150,7 +153,7 @@ export function PaymentView({ baseUrl }: Props) {
         printReceipt,
         customerPhone: phone || undefined,
         saleComment: order.notes?.trim() || undefined,
-        attendedBy,
+        attendedBy: staff,
         cashTenderedCOP: isCash ? cashTendered : undefined,
         transferReceiptDataUrl: order.transferReceiptDataUrl ?? undefined,
       }
@@ -160,7 +163,7 @@ export function PaymentView({ baseUrl }: Props) {
         tipCOP: payload.tipCOP,
         printReceipt: payload.printReceipt,
         customerPhone: phone || undefined,
-        attendedBy,
+        attendedBy: staff,
         cashTenderedCOP: payload.cashTenderedCOP,
         transferReceiptDataUrl: payload.transferReceiptDataUrl,
       })
@@ -187,7 +190,7 @@ export function PaymentView({ baseUrl }: Props) {
         partyName,
         totalCOP: amountDue,
         changeCOP: isCash ? change : 0,
-        attendedBy,
+        attendedBy: staff,
         paymentMethod,
         whatsappHint,
       })
@@ -211,15 +214,6 @@ export function PaymentView({ baseUrl }: Props) {
     writeCachedOrderMeta(next.id, pickOrderMeta(next))
     setActiveOrder(next)
     setFieldError(null)
-  }
-
-  const setTransferReference = (value: string) => {
-    const next = {
-      ...order,
-      transferReference: value.trim() || null,
-    }
-    writeCachedOrderMeta(next.id, pickOrderMeta(next))
-    setActiveOrder(next)
   }
 
   const updateCashTendered = (value: number) => {
@@ -266,7 +260,7 @@ export function PaymentView({ baseUrl }: Props) {
         <div>
           <h1 className="pos-topbar__title">{tableLabel}</h1>
           <p className="pos-topbar__sub muted">
-            Cobrar
+            Forma de pago
             {partyName !== tableLabel ? ` · ${partyName}` : ''}
             {' · '}
             <span className="mono">{orderRef}</span>
@@ -439,9 +433,7 @@ export function PaymentView({ baseUrl }: Props) {
         amountCOP={amountDue}
         orderCode={orderRef}
         receiptDataUrl={order.transferReceiptDataUrl ?? null}
-        transferReference={order.transferReference ?? ''}
         onReceiptChange={setTransferReceipt}
-        onTransferReferenceChange={setTransferReference}
         onClose={() => setTransferSheetOpen(false)}
       />
     </div>

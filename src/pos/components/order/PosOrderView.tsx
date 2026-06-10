@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { MOBILE_FILTER_BREAKPOINT } from '../../../components/MobileAwareFilterBar'
 import { useMatchMedia } from '../../../hooks/useMatchMedia'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -6,11 +6,14 @@ import { usePosCatalog } from '../../hooks/usePosCatalog'
 import { usePosCheckout } from '../../hooks/usePosCheckout'
 import { usePosSalesRanking } from '../../hooks/usePosSalesRanking'
 import { usePosOrder } from '../../hooks/usePosOrder'
+import { DEFAULT_POS_STAFF } from '../../constants'
+import { formatPosOrderCode } from '../../lib/orderCode'
 import { usePosStore } from '../../store/posStore'
 import type { PaymentMethod } from '../../types'
 import { PosErrorBanner } from '../ui/PosErrorBanner'
 import { PosLoader } from '../ui/PosLoader'
 import { PosOrderComanda } from './PosOrderComanda'
+import { PosOrderPaymentModal } from './PosOrderPaymentModal'
 
 type Props = { baseUrl: string }
 
@@ -51,8 +54,15 @@ export function PosOrderView({ baseUrl }: Props) {
     : null
 
   const [addedFlash, setAddedFlash] = useState<string | null>(null)
+  const [paymentOpen, setPaymentOpen] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [transferSheetOpen, setTransferSheetOpen] = useState(false)
+
+  useEffect(() => {
+    setPaymentOpen(false)
+    setConfirmError(null)
+    setTransferSheetOpen(false)
+  }, [order?.id])
 
   const handleAdd = useCallback(
     async (p: { id: string; name: string; price: number }) => {
@@ -63,22 +73,51 @@ export function PosOrderView({ baseUrl }: Props) {
     [addProduct],
   )
 
+  const handleOpenPayment = useCallback(() => {
+    if (!order || order.lines.length === 0) return
+    setConfirmError(null)
+    setPaymentOpen(true)
+    updateMeta({
+      attendedBy: order.attendedBy ?? meta?.attendedBy ?? DEFAULT_POS_STAFF,
+      paymentMethod: null,
+      transferReceiptDataUrl: null,
+      transferReference: null,
+      cashTenderedCOP: null,
+    })
+  }, [meta?.attendedBy, order, updateMeta])
+
+  const handleClosePayment = useCallback(() => {
+    if (confirmBusy) return
+    setPaymentOpen(false)
+    setTransferSheetOpen(false)
+    setConfirmError(null)
+  }, [confirmBusy])
+
   const handleConfirm = useCallback(async () => {
     if (!order || !meta) return
     setConfirmError(null)
 
-    const paymentMethod: PaymentMethod = meta.paymentMethod ?? 'cash'
+    const paymentMethod: PaymentMethod | null = meta.paymentMethod ?? order.paymentMethod ?? null
+    if (!paymentMethod) {
+      setConfirmError('Elegí efectivo o transferencia.')
+      return
+    }
+
     const result = await confirmSale({
       order,
       totalCOP: totals.totalCOP,
       paymentMethod,
-      attendedBy: meta.attendedBy,
+      attendedBy: order.attendedBy ?? meta.attendedBy ?? DEFAULT_POS_STAFF,
       cashTenderedCOP: meta.cashTenderedCOP,
       transferReceiptDataUrl: meta.transferReceiptDataUrl,
       notes: meta.notes,
     })
 
-    if (result.ok) return
+    if (result.ok) {
+      setPaymentOpen(false)
+      setTransferSheetOpen(false)
+      return
+    }
 
     setConfirmError(result.message)
     if (result.reason === 'transfer') setTransferSheetOpen(true)
@@ -91,8 +130,14 @@ export function PosOrderView({ baseUrl }: Props) {
           document.querySelector<HTMLInputElement>('.pos-order-cart .pos-input--search')?.focus()
         })
       },
-      'mod+enter': () => void handleConfirm(),
-      escape: () => navigate('tables'),
+      'mod+enter': () => {
+        if (paymentOpen) void handleConfirm()
+        else handleOpenPayment()
+      },
+      escape: () => {
+        if (paymentOpen) handleClosePayment()
+        else navigate('tables')
+      },
     },
     Boolean(order),
   )
@@ -117,7 +162,7 @@ export function PosOrderView({ baseUrl }: Props) {
           <div className="pos-order-header__title-wrap">
             <h1 className="pos-order-header__title">{tableLabel}</h1>
             <p className="pos-order-header__sub muted">
-              Agregá productos y confirmá la venta
+              Agregá productos y tocá forma de pago para cobrar
             </p>
           </div>
         ) : null}
@@ -143,48 +188,52 @@ export function PosOrderView({ baseUrl }: Props) {
             tableName={tableLabel}
             totalCOP={totals.totalCOP}
             mesa={meta.mesa}
-            paymentMethod={meta.paymentMethod ?? 'cash'}
-            transferReceiptDataUrl={meta.transferReceiptDataUrl}
-            transferReference={meta.transferReference}
-            cashTenderedCOP={meta.cashTenderedCOP}
-            attendedBy={meta.attendedBy}
             catalogProducts={products}
             catalogCategories={categories}
             catalogLoading={catalogLoading}
             topProductIds={hasRanking ? topProductIds : []}
             unitsSoldByProductId={unitsSoldByProductId}
             highlightId={addedFlash}
-            transferSheetOpen={transferSheetOpen}
-            onTransferSheetOpenChange={setTransferSheetOpen}
             onMesa={(value) => updateMeta({ mesa: value })}
-            onPaymentMethod={(method) => {
-              updateMeta({
-                paymentMethod: method,
-                ...(method === 'cash'
-                  ? { transferReceiptDataUrl: null, transferReference: null }
-                  : { cashTenderedCOP: null }),
-              })
-              if (method === 'transfer') setTransferSheetOpen(true)
-              else setTransferSheetOpen(false)
-            }}
-            onTransferReceipt={(dataUrl) =>
-              updateMeta({ transferReceiptDataUrl: dataUrl })
-            }
-            onTransferReference={(value) =>
-              updateMeta({ transferReference: value.trim() || null })
-            }
-            onCashTendered={(value) => updateMeta({ cashTenderedCOP: value })}
-            onAttendedBy={(staff) => updateMeta({ attendedBy: staff })}
+            onOpenPayment={handleOpenPayment}
             onAddProduct={(p) => void handleAdd(p)}
             onQty={(id, q) => void setQuantity(id, q)}
             onLineNotes={(id, n) => void setLineNotes(id, n)}
             onRemove={(id) => void removeLine(id)}
-            onConfirm={() => void handleConfirm()}
-            confirmBusy={confirmBusy}
-            confirmError={confirmError}
+            paymentBusy={confirmBusy}
           />
         </section>
       </div>
+
+      <PosOrderPaymentModal
+        open={paymentOpen}
+        tableName={tableLabel}
+        orderCode={formatPosOrderCode(order)}
+        totalCOP={totals.totalCOP}
+        paymentMethod={meta.paymentMethod ?? order.paymentMethod ?? null}
+        transferReceiptDataUrl={meta.transferReceiptDataUrl}
+        cashTenderedCOP={meta.cashTenderedCOP}
+        saleComment={meta.notes}
+        confirmBusy={confirmBusy}
+        confirmError={confirmError}
+        transferSheetOpen={transferSheetOpen}
+        onClose={handleClosePayment}
+        onPaymentMethod={(method) => {
+          updateMeta({
+            paymentMethod: method,
+            ...(method === 'cash'
+              ? { transferReceiptDataUrl: null, transferReference: null }
+              : { cashTenderedCOP: null }),
+          })
+          if (method === 'transfer') setTransferSheetOpen(true)
+          else setTransferSheetOpen(false)
+        }}
+        onTransferReceipt={(dataUrl) => updateMeta({ transferReceiptDataUrl: dataUrl })}
+        onCashTendered={(value) => updateMeta({ cashTenderedCOP: value })}
+        onCommentChange={(value) => updateMeta({ notes: value })}
+        onTransferSheetOpenChange={setTransferSheetOpen}
+        onConfirm={() => void handleConfirm()}
+      />
       {orderSaving && <div className="pos-saving-indicator" aria-hidden />}
     </div>
   )

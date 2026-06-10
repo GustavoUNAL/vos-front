@@ -11698,6 +11698,19 @@ html.app--mobile-sheet-open body {
   overflow: hidden;
 }
 
+html.app--chat-sheet-open,
+html.app--chat-sheet-open body {
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  overscroll-behavior: none;
+}
+
+html.app--chat-sheet-open body {
+  position: fixed;
+  inset: 0;
+}
+
 @media (max-width: 480px) {
   .nav-hub-card {
     min-height: 3.05rem;
@@ -13711,4 +13724,169 @@ html.app--mobile-sheet-open body {
 
 .shop-admin__hint code {
   word-break: break-all;
+}
+
+/* —— Tareas diarias —— */
+.tasks-view__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.tasks-view__lead {
+  margin: 0.2rem 0 0;
+}
+
+.tasks-view__date-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tasks-view__nav-btn {
+  padding-inline: 0.45rem;
+}
+
+.tasks-view__today {
+  min-width: 3.5rem;
+}
+
+.tasks-view__date-title {
+  margin: 0 0 0.65rem;
+  font-weight: 650;
+  color: var(--heading);
+  text-transform: capitalize;
+}
+
+.tasks-view__progress {
+  margin-bottom: 0.85rem;
+}
+
+.tasks-view__progress-bar {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  overflow: hidden;
+}
+
+.tasks-view__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 78%, var(--heading));
+  transition: width 180ms ease;
+}
+
+.tasks-view__progress-label {
+  margin: 0.35rem 0 0;
+}
+
+.tasks-view__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.tasks-view__item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 94%, var(--heading));
+}
+
+.tasks-view__item--done {
+  opacity: 0.72;
+}
+
+.tasks-view__item--done .tasks-view__title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.tasks-view__check {
+  flex-shrink: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.tasks-view__check:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tasks-view__check-ring {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.tasks-view__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tasks-view__title {
+  display: block;
+  font-weight: 600;
+  color: var(--heading);
+  word-break: break-word;
+}
+
+.tasks-view__meta {
+  display: block;
+  margin-top: 0.1rem;
+}
+
+.tasks-view__delete {
+  flex-shrink: 0;
+  padding: 0.35rem 0.45rem;
+}
+
+.tasks-view__empty {
+  margin: 0.5rem 0 0.85rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  text-align: center;
+}
+
+.tasks-view__composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.tasks-view__input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: var(--surface);
+  color: var(--heading);
+}
+
+.tasks-view__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }

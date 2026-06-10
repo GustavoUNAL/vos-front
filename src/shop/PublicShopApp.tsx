@@ -100,10 +100,10 @@ export function PublicShopApp() {
   const [error, setError] = useState<string | null>(null)
   const [cart, setCart] = useState<ShopCartLine[]>(() => loadCart(cartKey))
   const [cartOpen, setCartOpen] = useState(false)
-  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<'idle' | 'payment' | 'confirm'>('idle')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'NEQUI' | 'BREB' | 'CASH'>('NEQUI')
+  const [paymentMethod, setPaymentMethod] = useState<'NEQUI' | 'CASH' | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [activeOrder, setActiveOrder] = useState<ShopOrder | null>(null)
   const [search, setSearch] = useState('')
@@ -280,7 +280,7 @@ export function PublicShopApp() {
   }
 
   const startCheckout = async () => {
-    if (!cart.length) return
+    if (!cart.length || !paymentMethod) return
     setSubmitting(true)
     setError(null)
     try {
@@ -292,9 +292,10 @@ export function PublicShopApp() {
         customerNotes: orderComment.trim() || undefined,
       })
       setCart([])
-      setCheckoutOpen(false)
+      setCheckoutStep('idle')
       setCartOpen(false)
       setOrderComment('')
+      setPaymentMethod(null)
       setActiveOrder(order)
       navigateShop(`pedido/${order.id}`)
       setRoute({ screen: 'pedido', orderId: order.id })
@@ -304,6 +305,24 @@ export function PublicShopApp() {
       setSubmitting(false)
     }
   }
+
+  const closeCheckout = () => {
+    setCheckoutStep('idle')
+  }
+
+  const openPaymentStep = () => {
+    if (!cart.length) return
+    setCartOpen(false)
+    setCheckoutStep('payment')
+  }
+
+  const selectPaymentMethod = (method: 'CASH' | 'NEQUI') => {
+    setPaymentMethod(method)
+    setCheckoutStep('confirm')
+  }
+
+  const paymentMethodLabel =
+    paymentMethod === 'CASH' ? 'Efectivo' : paymentMethod === 'NEQUI' ? 'Nequi' : ''
 
   if (route.screen === 'success' && activeOrder) {
     return (
@@ -578,37 +597,136 @@ export function PublicShopApp() {
                 type="button"
                 className="shop-btn shop-btn--primary shop-btn--block"
                 disabled={!cart.length}
-                onClick={() => {
-                  setCartOpen(false)
-                  setCheckoutOpen(true)
-                }}
+                onClick={openPaymentStep}
               >
-                Enviar pedido al local
+                Elegir método de pago
               </button>
             </footer>
           </aside>
         </div>
       ) : null}
 
-      {checkoutOpen ? (
+      {checkoutStep === 'payment' ? (
         <div
           className="shop-sheet-backdrop"
           role="presentation"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setCheckoutOpen(false)
+            if (e.target === e.currentTarget) closeCheckout()
           }}
         >
-          <aside className="shop-sheet" role="dialog" aria-label="Checkout">
+          <aside className="shop-sheet shop-sheet--step" role="dialog" aria-label="Método de pago">
             <header className="shop-sheet__head">
-              <h2>Datos del pedido</h2>
+              <h2>Elegir método de pago</h2>
               <button
                 type="button"
                 className="shop-icon-btn"
-                onClick={() => setCheckoutOpen(false)}
+                aria-label="Cerrar"
+                onClick={closeCheckout}
               >
                 ×
               </button>
             </header>
+            <p className="shop-checkout-intro muted">
+              Total del pedido: <strong>{formatCOP(cartTotal)}</strong>
+              <br />
+              Pagás al recibir tu pedido en el local.
+            </p>
+            <div className="shop-pay-methods" role="group" aria-label="Formas de pago">
+              <button
+                type="button"
+                className={`shop-pay-method-card${paymentMethod === 'CASH' ? ' shop-pay-method-card--active' : ''}`}
+                onClick={() => selectPaymentMethod('CASH')}
+              >
+                <span className="shop-pay-method-card__icon" aria-hidden>
+                  💵
+                </span>
+                <strong>Efectivo</strong>
+                <span className="shop-pay-method-card__hint">Pagás en caja al recibir</span>
+              </button>
+              <button
+                type="button"
+                className={`shop-pay-method-card${paymentMethod === 'NEQUI' ? ' shop-pay-method-card--active' : ''}`}
+                onClick={() => selectPaymentMethod('NEQUI')}
+              >
+                <span className="shop-pay-method-card__icon" aria-hidden>
+                  📱
+                </span>
+                <strong>Nequi</strong>
+                <span className="shop-pay-method-card__hint">Transferencia al recibir</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              className="shop-btn shop-btn--ghost shop-btn--block"
+              onClick={() => {
+                closeCheckout()
+                setCartOpen(true)
+              }}
+            >
+              Volver al carrito
+            </button>
+          </aside>
+        </div>
+      ) : null}
+
+      {checkoutStep === 'confirm' ? (
+        <div
+          className="shop-sheet-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeCheckout()
+          }}
+        >
+          <aside className="shop-sheet shop-sheet--step" role="dialog" aria-label="Confirmar pedido">
+            <header className="shop-sheet__head">
+              <h2>Confirmar compra</h2>
+              <button
+                type="button"
+                className="shop-icon-btn"
+                aria-label="Cerrar"
+                onClick={closeCheckout}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="shop-checkout-summary">
+              <div className="shop-checkout-summary__row">
+                <span className="muted small">Método de pago</span>
+                <div className="shop-checkout-summary__value">
+                  <strong>{paymentMethodLabel}</strong>
+                  <button
+                    type="button"
+                    className="shop-text-btn"
+                    onClick={() => setCheckoutStep('payment')}
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              </div>
+              <div className="shop-checkout-summary__row">
+                <span className="muted small">Productos</span>
+                <strong>
+                  {cartCount} {cartCount === 1 ? 'ítem' : 'ítems'}
+                </strong>
+              </div>
+              <div className="shop-checkout-summary__row shop-checkout-summary__row--total">
+                <span>Total</span>
+                <strong>{formatCOP(cartTotal)}</strong>
+              </div>
+            </div>
+
+            <ul className="shop-checkout-items">
+              {cart.map((line) => (
+                <li key={line.productId}>
+                  <span>
+                    {line.quantity}× {line.productName}
+                  </span>
+                  <span>{formatCOP(line.quantity * line.unitPrice)}</span>
+                </li>
+              ))}
+            </ul>
+
             <label className="shop-field">
               <span>Nombre (opcional)</span>
               <input
@@ -635,35 +753,27 @@ export function PublicShopApp() {
                 placeholder="Ej. sin cebolla, mesa 3, para llevar…"
               />
             </label>
-            <fieldset className="shop-pay-chips">
-              <legend className="sr-only">Preferencia de pago en caja</legend>
-              {(
-                [
-                  ['CASH', 'Efectivo'],
-                  ['NEQUI', 'Nequi'],
-                  ['BREB', 'Bre-B'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`shop-pay-chip${paymentMethod === value ? ' shop-pay-chip--active' : ''}`}
-                  onClick={() => setPaymentMethod(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </fieldset>
+
             <p className="shop-checkout-note">
-              Total: <strong>{formatCOP(cartTotal)}</strong> · Pagás al recibir el pedido.
+              Al confirmar, enviamos tu pedido al local. Pagás con{' '}
+              <strong>{paymentMethodLabel.toLowerCase()}</strong> al recibirlo.
             </p>
+
             <button
               type="button"
               className="shop-btn shop-btn--primary shop-btn--block"
-              disabled={submitting || !customerPhone.trim()}
+              disabled={submitting || !customerPhone.trim() || !paymentMethod}
               onClick={() => void startCheckout()}
             >
-              {submitting ? 'Enviando…' : 'Confirmar y enviar al POS'}
+              {submitting ? 'Confirmando…' : 'Confirmar compra'}
+            </button>
+            <button
+              type="button"
+              className="shop-btn shop-btn--ghost shop-btn--block"
+              disabled={submitting}
+              onClick={() => setCheckoutStep('payment')}
+            >
+              Volver a método de pago
             </button>
           </aside>
         </div>

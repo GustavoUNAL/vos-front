@@ -2150,6 +2150,90 @@ export async function fetchSale(base: string, id: string): Promise<SaleDetail> {
   return res.json() as Promise<SaleDetail>
 }
 
+export async function deleteSale(
+  base: string,
+  id: string,
+): Promise<{ ok: boolean; id: string; code?: string | null }> {
+  const res = await apiFetch(`${base}/sales/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<{ ok: boolean; id: string; code?: string | null }>
+}
+
+// ——— Tasks API ———
+
+export type CompanyTask = {
+  id: string
+  taskDate: string
+  title: string
+  description?: string | null
+  completed: boolean
+  completedAt?: string | null
+  sortOrder: number
+  createdById?: string | null
+  assignedToId?: string | null
+  createdByName?: string | null
+  assignedToName?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type TasksDayResponse = {
+  taskDate: string
+  tasks: CompanyTask[]
+  summary: { total: number; completed: number; pending: number }
+}
+
+export async function fetchTasksByDate(
+  base: string,
+  date: string,
+): Promise<TasksDayResponse> {
+  const q = new URLSearchParams({ date })
+  const res = await apiFetch(`${base}/tasks?${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<TasksDayResponse>
+}
+
+export async function createTask(
+  base: string,
+  body: { taskDate: string; title: string; description?: string },
+): Promise<CompanyTask> {
+  const res = await apiFetch(`${base}/tasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<CompanyTask>
+}
+
+export async function updateTask(
+  base: string,
+  id: string,
+  body: Partial<{
+    title: string
+    description: string | null
+    completed: boolean
+    assignedToId: string | null
+  }>,
+): Promise<CompanyTask> {
+  const res = await apiFetch(`${base}/tasks/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<CompanyTask>
+}
+
+export async function deleteTask(
+  base: string,
+  id: string,
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`${base}/tasks/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<{ ok: boolean }>
+}
+
 async function downloadSaleInvoicePdfCopy(
   base: string,
   saleId: string,

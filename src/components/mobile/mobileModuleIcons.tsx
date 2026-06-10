@@ -10,6 +10,7 @@ export type MobileModuleIconId =
   | 'purchases'
   | 'staff'
   | 'analytics'
+  | 'tasks'
   | 'costs'
   | 'gastos'
   | 'explorer'
@@ -112,6 +113,18 @@ export function MobileModuleIcon({
         <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
           <path
             d="M4 7h16M4 7l1.5 12h13L20 7M9 11v5M15 11v5M10 7V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    case 'tasks':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M9 6h12M9 12h12M9 18h12M5 6l1 1 2-2M5 12l1 1 2-2M5 18l1 1 2-2"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"

@@ -44,6 +44,9 @@ export const TABLE_SECTION_PRESETS = [
 /** Personal que puede atender pedidos en el POS. */
 export const POS_STAFF = ['David', 'Gustavo', 'Sonia'] as const
 
+/** Atendió por defecto si no se elige otro. */
+export const DEFAULT_POS_STAFF = POS_STAFF[0]
+
 /** Billetes frecuentes en Colombia para calcular el cambio. */
 export const CASH_BILL_PRESETS_COP = [
   2_000, 5_000, 10_000, 20_000, 50_000, 100_000,

@@ -25,7 +25,7 @@ export function PosOrderPaymentPicker({
   onCashTenderedChange,
 }: Props) {
   const isTransfer = paymentMethod === 'transfer'
-  const isCash = paymentMethod === 'cash' || paymentMethod == null
+  const isCash = paymentMethod === 'cash'
   const hasReceipt = hasTransferReceipt(transferReceiptDataUrl)
 
   const handleMethodClick = (method: PaymentMethod) => {
@@ -42,8 +42,7 @@ export function PosOrderPaymentPicker({
       <span className="pos-order-payment__label">Forma de pago</span>
       <div className="pos-order-payment__methods" role="group" aria-label="Forma de pago">
         {PAYMENT_OPTIONS.map((method) => {
-          const active =
-            paymentMethod === method || (method === 'cash' && paymentMethod == null)
+          const active = paymentMethod === method
           return (
             <button
               key={method}

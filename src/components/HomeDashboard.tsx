@@ -8,8 +8,10 @@ import {
   saleRowTotalNumeric,
   type SaleListRow,
 } from '../api'
+import { useMatchMedia } from '../hooks/useMatchMedia'
 import { BRAND_NAME } from '../lib/brand'
 import { displayCompanyName } from '../lib/displayLabels'
+import { MOBILE_FILTER_BREAKPOINT } from './MobileAwareFilterBar'
 import { mobileViewClass } from './mobile/mobileView'
 import { DayDetailModal } from './DayDetailModal'
 import { ViewBootSplash } from './DataLoadingSplash'
@@ -43,6 +45,20 @@ function formatLongDate(dateKey: string): string {
   }).format(dt)
 }
 
+/** Encabezado corto para móvil (sin año; cabe en una línea). */
+function formatMobileTodayTitle(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const dt = new Date(y, m - 1, d, 12, 0, 0)
+  const label = new Intl.DateTimeFormat('es-CO', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(dt)
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+const MOBILE_SALES_PREVIEW = 5
+
 function formatTime(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -73,6 +89,7 @@ export function HomeDashboard({
   onOpenPurchases,
   onOpenPos,
 }: HomeDashboardProps) {
+  const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const todayKey = useMemo(() => localDateKey(), [])
   const now = new Date()
   const [calendarYear, setCalendarYear] = useState(now.getFullYear())
@@ -108,19 +125,34 @@ export function HomeDashboard({
     setLoading(true)
     setError(null)
     try {
+      const salesResPromise = fetchSales(baseUrl, {
+        dateFrom: todayKey,
+        dateTo: todayKey,
+        limit: 100,
+        page: 1,
+      })
+      const salesCalPromise = fetchSalesCalendar(
+        baseUrl,
+        calendarYear,
+        calendarMonth,
+      )
+      const purchasesCalPromise = isMobile
+        ? Promise.resolve(null)
+        : fetchPurchaseLotsCalendar(baseUrl, calendarYear, calendarMonth)
+
       const [salesRes, salesCal, purchasesCal] = await Promise.all([
-        fetchSales(baseUrl, {
-          dateFrom: todayKey,
-          dateTo: todayKey,
-          limit: 100,
-          page: 1,
-        }),
-        fetchSalesCalendar(baseUrl, calendarYear, calendarMonth),
-        fetchPurchaseLotsCalendar(baseUrl, calendarYear, calendarMonth),
+        salesResPromise,
+        salesCalPromise,
+        purchasesCalPromise,
       ])
       setSalesToday(salesRes.data)
       setSalesCalendar(salesCal)
       setPurchasesCalendar(purchasesCal)
+
+      if (isMobile) {
+        setTopProducts([])
+        return
+      }
 
       const ids = salesRes.data.map((s) => s.id).slice(0, 40)
       if (ids.length === 0) {
@@ -156,7 +188,7 @@ export function HomeDashboard({
     } finally {
       setLoading(false)
     }
-  }, [baseUrl, calendarMonth, calendarYear, todayKey])
+  }, [baseUrl, calendarMonth, calendarYear, isMobile, todayKey])
 
   useEffect(() => {
     void load()
@@ -191,33 +223,63 @@ export function HomeDashboard({
     const name = displayCompanyName(companyName)
     return name ? `${BRAND_NAME} · ${name}` : BRAND_NAME
   })()
+  const salesPreview = isMobile
+    ? salesToday.slice(0, MOBILE_SALES_PREVIEW)
+    : salesToday
+  const hasMoreSales = isMobile && salesToday.length > MOBILE_SALES_PREVIEW
 
   return (
-    <div className={mobileViewClass('home', 'home-dashboard')}>
-      <header className="home-dashboard__hero">
-        <p className="home-dashboard__brand muted small">{brandLine}</p>
-        <h1 className="home-dashboard__title">{formatLongDate(todayKey)}</h1>
-        <p className="home-dashboard__subtitle muted">
-          Resumen de ventas y actividad del día
-        </p>
-        <div className="home-dashboard__hero-actions">
-          <button
-            type="button"
-            className="btn-secondary btn-compact"
-            onClick={() => {
-              window.location.hash = '#/shop'
-            }}
-          >
-            Tienda en línea
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn-compact"
-            onClick={() => onOpenPos()}
-          >
-            POS
-          </button>
-        </div>
+    <div
+      className={mobileViewClass(
+        'home',
+        'home-dashboard',
+        isMobile && 'home-dashboard--compact',
+      )}
+    >
+      <header
+        className={`home-dashboard__hero${isMobile ? ' home-dashboard__hero--compact' : ''}`}
+      >
+        {!isMobile ? (
+          <p className="home-dashboard__brand muted small">{brandLine}</p>
+        ) : null}
+        <h1 className="home-dashboard__title">
+          {isMobile ? formatMobileTodayTitle(todayKey) : formatLongDate(todayKey)}
+        </h1>
+        {!isMobile ? (
+          <p className="home-dashboard__subtitle muted">
+            Resumen de ventas y actividad del día
+          </p>
+        ) : null}
+        {isMobile ? (
+          <div className="home-dashboard__hero-actions">
+            <button
+              type="button"
+              className="btn-primary btn-compact"
+              onClick={() => onOpenPos()}
+            >
+              Abrir POS
+            </button>
+          </div>
+        ) : (
+          <div className="home-dashboard__hero-actions">
+            <button
+              type="button"
+              className="btn-secondary btn-compact"
+              onClick={() => {
+                window.location.hash = '#/shop'
+              }}
+            >
+              Tienda en línea
+            </button>
+            <button
+              type="button"
+              className="btn-secondary btn-compact"
+              onClick={() => onOpenPos()}
+            >
+              POS
+            </button>
+          </div>
+        )}
       </header>
 
       {error && (
@@ -235,18 +297,20 @@ export function HomeDashboard({
             <div>
               <h2 id="home-open-tables">Mesas abiertas en POS</h2>
               <p className="muted small">
-                {openPosTables.length} comanda
-                {openPosTables.length !== 1 ? 's' : ''} pendiente
-                {openPosTables.length !== 1 ? 's' : ''} de cobro en este dispositivo
+                {isMobile
+                  ? `${openPosTables.length} pendiente${openPosTables.length !== 1 ? 's' : ''} de cobro`
+                  : `${openPosTables.length} comanda${openPosTables.length !== 1 ? 's' : ''} pendiente${openPosTables.length !== 1 ? 's' : ''} de cobro en este dispositivo`}
               </p>
             </div>
-            <button
-              type="button"
-              className="btn-primary btn-compact"
-              onClick={() => onOpenPos()}
-            >
-              Ir al POS
-            </button>
+            {!isMobile ? (
+              <button
+                type="button"
+                className="btn-primary btn-compact"
+                onClick={() => onOpenPos()}
+              >
+                Ir al POS
+              </button>
+            ) : null}
           </div>
           <ul className="home-dashboard__open-tables">
             {openPosTables.map((table) => (
@@ -281,33 +345,39 @@ export function HomeDashboard({
       ) : null}
 
       <section
-        className={`home-dashboard__kpi-grid${isEmptyDay ? ' home-dashboard__kpi-grid--empty' : ''}`}
+        className={`home-dashboard__kpi-grid${isEmptyDay ? ' home-dashboard__kpi-grid--empty' : ''}${isMobile ? ' home-dashboard__kpi-grid--mobile' : ''}`}
         aria-label="Indicadores del día"
       >
-        <article className="home-dashboard__kpi">
+        <article className="home-dashboard__kpi home-dashboard__kpi--primary">
           <span className="home-dashboard__kpi-label">Ventas hoy</span>
           <strong className="home-dashboard__kpi-value">
             {loading ? '…' : stats.count}
           </strong>
         </article>
-        <article className="home-dashboard__kpi">
+        <article className="home-dashboard__kpi home-dashboard__kpi--primary">
           <span className="home-dashboard__kpi-label">Total vendido</span>
           <strong className="home-dashboard__kpi-value">
             {loading ? '…' : formatCOP(stats.total)}
           </strong>
         </article>
-        <article className="home-dashboard__kpi">
-          <span className="home-dashboard__kpi-label">Ticket promedio</span>
-          <strong className="home-dashboard__kpi-value">
-            {loading ? '…' : formatCOP(stats.avg)}
-          </strong>
-        </article>
-        <article className="home-dashboard__kpi">
-          <span className="home-dashboard__kpi-label">Compras hoy</span>
-          <strong className="home-dashboard__kpi-value">
-            {loading ? '…' : `${todayPurchase.count} · ${formatCOP(todayPurchase.total)}`}
-          </strong>
-        </article>
+        {!isMobile ? (
+          <>
+            <article className="home-dashboard__kpi">
+              <span className="home-dashboard__kpi-label">Ticket promedio</span>
+              <strong className="home-dashboard__kpi-value">
+                {loading ? '…' : formatCOP(stats.avg)}
+              </strong>
+            </article>
+            <article className="home-dashboard__kpi">
+              <span className="home-dashboard__kpi-label">Compras hoy</span>
+              <strong className="home-dashboard__kpi-value">
+                {loading
+                  ? '…'
+                  : `${todayPurchase.count} · ${formatCOP(todayPurchase.total)}`}
+              </strong>
+            </article>
+          </>
+        ) : null}
       </section>
 
       {isEmptyDay && !loading ? (
@@ -334,7 +404,7 @@ export function HomeDashboard({
             <p className="muted">Sin ventas registradas.</p>
           ) : (
             <ul className="home-dashboard__sale-list">
-              {salesToday.map((row) => (
+              {salesPreview.map((row) => (
                 <li key={row.id} className="home-dashboard__sale-item">
                   <div>
                     <span className="home-dashboard__sale-time">
@@ -343,7 +413,7 @@ export function HomeDashboard({
                     <span className="home-dashboard__sale-meta muted small">
                       {row.paymentMethod?.trim() || '—'}
                       {row.mesa?.trim() ? ` · ${row.mesa.trim()}` : ''}
-                      {saleListRowLineCount(row) > 0
+                      {!isMobile && saleListRowLineCount(row) > 0
                         ? ` · ${saleListRowLineCount(row)} ítems`
                         : ''}
                     </span>
@@ -355,8 +425,14 @@ export function HomeDashboard({
               ))}
             </ul>
           )}
+          {hasMoreSales ? (
+            <p className="home-dashboard__sale-more muted small">
+              +{salesToday.length - MOBILE_SALES_PREVIEW} ventas más hoy
+            </p>
+          ) : null}
         </section>
 
+        {!isMobile ? (
         <section className="home-dashboard__panel" aria-labelledby="home-top-products">
           <h2 id="home-top-products">Productos vendidos hoy</h2>
           {loading ? (
@@ -390,9 +466,13 @@ export function HomeDashboard({
             </div>
           ) : null}
         </section>
+        ) : null}
       </div>
 
-      <section className="home-dashboard__calendars" aria-label="Calendarios del mes">
+      <section
+        className={`home-dashboard__calendars${isMobile ? ' home-dashboard__calendars--single' : ''}`}
+        aria-label="Calendarios del mes"
+      >
         <div className="home-dashboard__calendar-block">
           <MonthCalendar
             year={calendarYear}
@@ -421,34 +501,36 @@ export function HomeDashboard({
             onDayClick={(date) => setDayDetailDate(date)}
           />
         </div>
-        <div className="home-dashboard__calendar-block">
-          <MonthCalendar
-            year={calendarYear}
-            month={calendarMonth}
-            days={purchasesCalendar?.days ?? []}
-            loading={loading && !purchasesCalendar}
-            error={null}
-            countLabel="compra"
-            showZeroForPastDays
-            inaugurationDate={inaugurationDate}
-            onPrevMonth={() => {
-              const prev = new Date(calendarYear, calendarMonth - 2, 1)
-              setCalendarYear(prev.getFullYear())
-              setCalendarMonth(prev.getMonth() + 1)
-            }}
-            onNextMonth={() => {
-              const next = new Date(calendarYear, calendarMonth, 1)
-              setCalendarYear(next.getFullYear())
-              setCalendarMonth(next.getMonth() + 1)
-            }}
-            onToday={() => {
-              const t = new Date()
-              setCalendarYear(t.getFullYear())
-              setCalendarMonth(t.getMonth() + 1)
-            }}
-            onDayClick={(date) => onOpenPurchases(date)}
-          />
-        </div>
+        {!isMobile ? (
+          <div className="home-dashboard__calendar-block">
+            <MonthCalendar
+              year={calendarYear}
+              month={calendarMonth}
+              days={purchasesCalendar?.days ?? []}
+              loading={loading && !purchasesCalendar}
+              error={null}
+              countLabel="compra"
+              showZeroForPastDays
+              inaugurationDate={inaugurationDate}
+              onPrevMonth={() => {
+                const prev = new Date(calendarYear, calendarMonth - 2, 1)
+                setCalendarYear(prev.getFullYear())
+                setCalendarMonth(prev.getMonth() + 1)
+              }}
+              onNextMonth={() => {
+                const next = new Date(calendarYear, calendarMonth, 1)
+                setCalendarYear(next.getFullYear())
+                setCalendarMonth(next.getMonth() + 1)
+              }}
+              onToday={() => {
+                const t = new Date()
+                setCalendarYear(t.getFullYear())
+                setCalendarMonth(t.getMonth() + 1)
+              }}
+              onDayClick={(date) => onOpenPurchases(date)}
+            />
+          </div>
+        ) : null}
       </section>
 
       <ViewBootSplash ready={!loading} label="Cargando inicio…" />

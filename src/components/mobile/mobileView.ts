@@ -6,6 +6,7 @@ export type MobileViewModule =
   | 'products'
   | 'sales'
   | 'purchases'
+  | 'tasks'
   | 'pos'
 
 /** Clases del sistema móvil unificado (.mobile-view + modificador por módulo). */

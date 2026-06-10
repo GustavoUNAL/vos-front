@@ -10,9 +10,9 @@ const platformFlag = import.meta.env.VITE_PLATFORM_MODE as string | undefined
 export const PLATFORM_MODE =
   platformFlag !== '0' && platformFlag !== 'false' && platformFlag !== 'off'
 
-export const PLATFORM_NAV_GROUPS = ['catalog', 'stock', 'sales', 'purchases', 'staff', 'finance'] as const
+export const PLATFORM_NAV_GROUPS = ['catalog', 'stock', 'sales', 'purchases', 'tasks', 'staff', 'finance'] as const
 
-export const PLATFORM_VIEWS = ['home', 'products', 'inventory', 'sales', 'pos', 'shop', 'purchases', 'staff', 'analytics'] as const
+export const PLATFORM_VIEWS = ['home', 'products', 'inventory', 'sales', 'pos', 'shop', 'purchases', 'tasks', 'staff', 'analytics'] as const
 export type PlatformView = (typeof PLATFORM_VIEWS)[number]
 
 export function isPlatformView(v: string | null | undefined): v is PlatformView {
@@ -24,6 +24,7 @@ export function isPlatformView(v: string | null | undefined): v is PlatformView 
     v === 'pos' ||
     v === 'shop' ||
     v === 'purchases' ||
+    v === 'tasks' ||
     v === 'staff' ||
     v === 'analytics'
   )

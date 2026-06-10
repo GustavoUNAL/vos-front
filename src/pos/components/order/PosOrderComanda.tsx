@@ -1,11 +1,8 @@
 import { useState } from 'react'
 import { formatPosOrderCode } from '../../lib/orderCode'
 import type { CategoryRef, ProductRow } from '../../../api'
-import type { PaymentMethod, PosOrder, PosStaffMember } from '../../types'
-import { PosTransferReceiptSheet } from '../payment/PosTransferReceiptSheet'
+import type { PosOrder } from '../../types'
 import { PosMoney } from '../ui/PosMoney'
-import { PosStaffPicker } from '../ui/PosStaffPicker'
-import { PosOrderPaymentPicker } from './PosOrderPaymentPicker'
 import { PosOrderProductsSection } from './PosOrderProductsSection'
 
 function formatOrderTime(iso: string): string {
@@ -24,10 +21,6 @@ type Props = {
   tableName: string
   totalCOP: number
   mesa: string
-  paymentMethod: PaymentMethod | null
-  transferReceiptDataUrl: string | null
-  transferReference: string
-  attendedBy: PosStaffMember | null
   catalogProducts: ProductRow[]
   catalogCategories: CategoryRef[]
   catalogLoading?: boolean
@@ -35,21 +28,12 @@ type Props = {
   unitsSoldByProductId?: Map<string, number>
   highlightId?: string | null
   onMesa: (value: string) => void
-  onPaymentMethod: (method: PaymentMethod) => void
-  onTransferReceipt: (dataUrl: string | null) => void
-  onTransferReference: (value: string) => void
-  cashTenderedCOP: number
-  onCashTendered: (value: number) => void
-  onAttendedBy: (staff: PosStaffMember) => void
+  onOpenPayment: () => void
   onAddProduct: (product: ProductPick) => void
   onQty: (lineId: string, qty: number) => void
   onLineNotes: (lineId: string, notes: string) => void
   onRemove: (lineId: string) => void
-  onConfirm: () => void
-  confirmBusy?: boolean
-  confirmError?: string | null
-  transferSheetOpen?: boolean
-  onTransferSheetOpenChange?: (open: boolean) => void
+  paymentBusy?: boolean
 }
 
 export function PosOrderComanda({
@@ -57,10 +41,6 @@ export function PosOrderComanda({
   tableName,
   totalCOP,
   mesa,
-  paymentMethod,
-  transferReceiptDataUrl,
-  transferReference,
-  attendedBy,
   catalogProducts,
   catalogCategories,
   catalogLoading,
@@ -68,46 +48,35 @@ export function PosOrderComanda({
   unitsSoldByProductId,
   highlightId,
   onMesa,
-  onPaymentMethod,
-  onTransferReceipt,
-  onTransferReference,
-  cashTenderedCOP,
-  onCashTendered,
-  onAttendedBy,
+  onOpenPayment,
   onAddProduct,
   onQty,
   onLineNotes,
   onRemove,
-  onConfirm,
-  confirmBusy = false,
-  confirmError = null,
-  transferSheetOpen: transferSheetOpenProp,
-  onTransferSheetOpenChange,
+  paymentBusy = false,
 }: Props) {
   const refCode = formatPosOrderCode(order)
-  const isTransfer = paymentMethod === 'transfer'
-  const canConfirm = order.lines.length > 0 && attendedBy != null
   const isEmpty = order.lines.length === 0
   const [pickerActive, setPickerActive] = useState(false)
-  const [transferSheetLocal, setTransferSheetLocal] = useState(false)
-  const transferSheetOpen = transferSheetOpenProp ?? transferSheetLocal
-  const setTransferSheetOpen = onTransferSheetOpenChange ?? setTransferSheetLocal
 
   return (
     <article
-      className={`pos-order-comanda${isEmpty ? ' pos-order-comanda--building' : ''}${pickerActive ? ' pos-order-comanda--picking' : ''}${transferSheetOpen ? ' pos-order-comanda--transfer-sheet' : ''}${isTransfer && !isEmpty && !pickerActive ? ' pos-order-comanda--transfer' : ''}`}
+      className={`pos-order-comanda${isEmpty ? ' pos-order-comanda--building' : ''}${pickerActive ? ' pos-order-comanda--picking' : ''}`}
       aria-label="Comanda del pedido"
     >
       <header className="pos-order-comanda__top">
         <h2 className="pos-order-comanda__table-name">{tableName}</h2>
-        <div className="pos-order-comanda__meta-row">
+        <label className="pos-order-comanda__client-field">
+          <span className="pos-order-comanda__client-label">Cliente</span>
           <input
             className="pos-order-comanda__name-inline"
             value={mesa}
             onChange={(e) => onMesa(e.target.value)}
-            placeholder="Cliente o etiqueta (opcional)"
-            aria-label="Cliente o etiqueta"
+            placeholder="Nombre del cliente"
+            aria-label="Nombre del cliente"
           />
+        </label>
+        <div className="pos-order-comanda__meta-row">
           <span className="pos-order-comanda__ref mono" title="Referencia del pedido">
             {refCode}
           </span>
@@ -135,62 +104,26 @@ export function PosOrderComanda({
           onNotes={onLineNotes}
           onRemove={onRemove}
         />
-
-        {!isEmpty && !pickerActive && !transferSheetOpen ? (
-          <PosStaffPicker
-            value={attendedBy}
-            onChange={onAttendedBy}
-            compact
-          />
-        ) : null}
-
-        {!isEmpty && !pickerActive && !transferSheetOpen ? (
-          <PosOrderPaymentPicker
-            paymentMethod={paymentMethod}
-            transferReceiptDataUrl={transferReceiptDataUrl}
-            amountDueCOP={totalCOP}
-            cashTenderedCOP={cashTenderedCOP}
-            onPaymentMethod={onPaymentMethod}
-            onOpenTransferSheet={() => setTransferSheetOpen(true)}
-            onCashTenderedChange={onCashTendered}
-          />
-        ) : null}
       </div>
 
       <footer className="pos-order-comanda__footer">
-        {!isEmpty && !pickerActive && !transferSheetOpen ? (
-          <div className="pos-order-comanda__total-row">
-            <span>Total</span>
-            <PosMoney value={totalCOP} className="pos-totals__total" />
-          </div>
-        ) : null}
-        {confirmError && !transferSheetOpen ? (
-          <p className="pos-order-comanda__pay-hint pos-order-comanda__pay-hint--error" role="alert">
-            {confirmError}
-          </p>
-        ) : null}
-        {!isEmpty && !pickerActive && !transferSheetOpen ? (
-          <button
-            type="button"
-            className="pos-btn pos-btn--primary pos-btn--block pos-btn--xl"
-            disabled={!canConfirm || confirmBusy}
-            onClick={onConfirm}
-          >
-            {confirmBusy ? 'Procesando…' : 'Confirmar venta'}
-          </button>
+        {!isEmpty && !pickerActive ? (
+          <>
+            <div className="pos-order-comanda__total-row">
+              <span>Total</span>
+              <PosMoney value={totalCOP} className="pos-totals__total" />
+            </div>
+            <button
+              type="button"
+              className="pos-btn pos-btn--primary pos-btn--block pos-btn--xl"
+              disabled={paymentBusy}
+              onClick={onOpenPayment}
+            >
+              Forma de pago
+            </button>
+          </>
         ) : null}
       </footer>
-
-      <PosTransferReceiptSheet
-        open={transferSheetOpen && isTransfer}
-        amountCOP={totalCOP}
-        orderCode={refCode}
-        receiptDataUrl={transferReceiptDataUrl}
-        transferReference={transferReference}
-        onReceiptChange={onTransferReceipt}
-        onTransferReferenceChange={onTransferReference}
-        onClose={() => setTransferSheetOpen(false)}
-      />
     </article>
   )
 }

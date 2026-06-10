@@ -124,6 +124,7 @@
   background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface-elevated));
   border-bottom: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border));
   color: var(--heading);
+  flex-shrink: 0;
 }
 
 .vos-assistant__head .vos-assistant__robot-svg {
@@ -188,7 +189,10 @@
 
 .vos-assistant__messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 0.85rem 0.9rem;
   display: flex;
   flex-direction: column;
@@ -329,6 +333,7 @@
   scrollbar-width: thin;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: color-mix(in srgb, var(--surface-elevated) 92%, var(--accent-soft));
+  flex-shrink: 0;
 }
 
 .vos-assistant__suggestion-group {
@@ -379,6 +384,7 @@
   padding: 0.65rem 0.85rem 0.85rem;
   border-top: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
   background: var(--surface-elevated);
+  flex-shrink: 0;
 }
 
 .vos-assistant__form input {
@@ -388,7 +394,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   padding: 0.55rem 0.7rem;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 16px;
   background: var(--input-bg);
   color: var(--text);
 }
@@ -417,9 +423,89 @@
   cursor: not-allowed;
 }
 
+.vos-assistant__composer {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.vos-assistant--composing .vos-assistant__composer,
+.vos-assistant--kb .vos-assistant__composer {
+  margin-top: auto;
+}
+
+.vos-assistant--composing .vos-assistant__form,
+.vos-assistant--kb .vos-assistant__form {
+  padding-top: 0.45rem;
+  padding-bottom: 0.35rem;
+}
+
 @media (max-width: 640px) {
   .vos-assistant:not(.vos-assistant--dock-only) {
     bottom: calc(4.15rem + env(safe-area-inset-bottom));
+  }
+
+  .vos-assistant--open .vos-assistant__panel {
+    left: max(0.35rem, env(safe-area-inset-left));
+    right: max(0.35rem, env(safe-area-inset-right));
+    top: auto;
+    bottom: calc(4.15rem + env(safe-area-inset-bottom));
+    transform: none;
+    width: auto;
+    max-width: none;
+    height: min(72dvh, calc(var(--vv-height, 100dvh) - 5.5rem));
+    max-height: calc(var(--vv-height, 100dvh) - 5.5rem);
+  }
+
+  .vos-assistant--dock-only.vos-assistant--open .vos-assistant__panel {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(4.15rem + env(safe-area-inset-bottom));
+    transform: none;
+    width: 100%;
+    max-width: none;
+    border-radius: 16px 16px 0 0;
+    height: min(78dvh, calc(var(--vv-height, 100dvh) - 4.15rem - env(safe-area-inset-bottom)));
+    max-height: min(78dvh, calc(var(--vv-height, 100dvh) - 4.15rem - env(safe-area-inset-bottom)));
+  }
+
+  .vos-assistant--kb .vos-assistant__panel {
+    top: max(0.35rem, var(--vv-offset-top, 0px));
+    bottom: auto;
+    left: max(0.35rem, env(safe-area-inset-left));
+    right: max(0.35rem, env(safe-area-inset-right));
+    transform: none;
+    width: auto;
+    height: calc(var(--vv-height, 100dvh) - max(0.35rem, var(--vv-offset-top, 0px)) - 0.35rem);
+    max-height: calc(var(--vv-height, 100dvh) - max(0.35rem, var(--vv-offset-top, 0px)) - 0.35rem);
+    border-radius: 14px;
+  }
+
+  .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__panel {
+    top: max(0px, var(--vv-offset-top, 0px));
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+    border-radius: 0;
+  }
+
+  .vos-assistant--kb .vos-assistant__form,
+  .vos-assistant--composing .vos-assistant__form {
+    padding-bottom: 0.35rem;
+    padding-left: max(0.65rem, env(safe-area-inset-left));
+    padding-right: max(0.65rem, env(safe-area-inset-right));
+  }
+
+  .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__composer,
+  .vos-assistant--dock-only.vos-assistant--composing .vos-assistant__composer {
+    padding-bottom: 0;
+  }
+
+  .vos-assistant--dock-only.vos-assistant--kb .vos-assistant__form,
+  .vos-assistant--dock-only.vos-assistant--composing .vos-assistant__form {
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
   }
 
   .vos-assistant__fab {

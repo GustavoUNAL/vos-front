@@ -7,9 +7,7 @@ type Props = {
   amountCOP: number
   orderCode: string
   receiptDataUrl: string | null
-  transferReference: string
   onReceiptChange: (dataUrl: string | null) => void
-  onTransferReferenceChange: (value: string) => void
   onClose: () => void
 }
 
@@ -18,9 +16,7 @@ export function PosTransferReceiptSheet({
   amountCOP,
   orderCode,
   receiptDataUrl,
-  transferReference,
   onReceiptChange,
-  onTransferReferenceChange,
   onClose,
 }: Props) {
   if (!open) return null
@@ -49,19 +45,6 @@ export function PosTransferReceiptSheet({
 
         <div className="pos-transfer-sheet__scroll">
           <PosTransferQr amountCOP={amountCOP} orderCode={orderCode} sheet />
-
-          <label className="pos-order-payment__ref-field pos-order-payment__ref-field--sheet">
-            <span className="pos-order-payment__ref-label">ID transferencia (opcional)</span>
-            <input
-              type="text"
-              className="pos-input"
-              value={transferReference}
-              onChange={(e) => onTransferReferenceChange(e.target.value)}
-              placeholder="Ej. 1234567890"
-              inputMode="numeric"
-              autoComplete="off"
-            />
-          </label>
 
           <PosTransferReceiptCapture
             amountCOP={amountCOP}

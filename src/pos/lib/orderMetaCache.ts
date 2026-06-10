@@ -1,4 +1,5 @@
 import type { PosOrder } from '../types'
+import { DEFAULT_POS_STAFF } from '../constants'
 
 const KEY = 'vos_pos_order_meta_v1'
 
@@ -65,7 +66,7 @@ export function mergeOrderMeta(order: PosOrder): PosOrder {
     transferReceiptDataUrl:
       order.transferReceiptDataUrl ?? cached.transferReceiptDataUrl ?? null,
     notes: order.notes ?? cached.notes ?? null,
-    attendedBy: order.attendedBy ?? cached.attendedBy ?? 'David',
+    attendedBy: order.attendedBy ?? cached.attendedBy ?? DEFAULT_POS_STAFF,
     cashTenderedCOP: order.cashTenderedCOP ?? cached.cashTenderedCOP ?? null,
   }
 }

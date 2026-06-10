@@ -1,7 +1,8 @@
 import { Home, Menu, Moon, Sun, User, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AuthUser } from '../api'
 import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
+import { canViewFinance, canViewTasks } from '../lib/permissions'
 import { BRAND_NAME } from '../lib/brand'
 import { displayCompanyName } from '../lib/displayLabels'
 import { cn } from '../lib/utils'
@@ -25,6 +26,7 @@ export type MobileChromeView =
   | 'purchases'
   | 'staff'
   | 'analytics'
+  | 'tasks'
   | 'costs'
   | 'gastos'
   | 'explorer'
@@ -41,6 +43,7 @@ const SCREEN_TITLE: Record<MobileChromeView, string> = {
   purchases: 'Compras',
   staff: 'Personal',
   analytics: 'Finanzas',
+  tasks: 'Tareas',
   costs: 'Costos',
   gastos: 'Gastos',
   explorer: 'Datos',
@@ -58,6 +61,7 @@ const PLATFORM_SHEET_LINKS: SheetLink[] = [
   { view: 'pos', label: 'POS · Mesas', icon: 'pos' },
   { view: 'sales', label: 'Ventas', icon: 'sales' },
   { view: 'purchases', label: 'Compras', icon: 'purchases' },
+  { view: 'tasks', label: 'Tareas', icon: 'tasks' },
   { view: 'inventory', label: 'Inventario', icon: 'inventory' },
   { view: 'shop', label: 'Tienda en línea', icon: 'shop' },
   { view: 'staff', label: 'Personal', icon: 'staff' },
@@ -144,14 +148,21 @@ export function MobileAppChrome({
       : DOCK_TABS_FULL
   const showDock = dockTabs.length > 0
 
-  const sheetLinks: SheetLink[] = PLATFORM_MODE
-    ? PLATFORM_SHEET_LINKS
-    : SALES_FLOOR_ONLY
-      ? [
-          { view: 'products', label: 'Productos a la venta', icon: 'products' },
-          { view: 'sales', label: 'Ventas', icon: 'sales' },
-        ]
-      : FULL_SHEET_LINKS
+  const sheetLinks: SheetLink[] = useMemo(() => {
+    const base = PLATFORM_MODE
+      ? PLATFORM_SHEET_LINKS
+      : SALES_FLOOR_ONLY
+        ? [
+            { view: 'products' as const, label: 'Productos a la venta', icon: 'products' as const },
+            { view: 'sales' as const, label: 'Ventas', icon: 'sales' as const },
+          ]
+        : FULL_SHEET_LINKS
+    return base.filter((link) => {
+      if (link.view === 'analytics') return canViewFinance(user)
+      if (link.view === 'tasks') return canViewTasks(user)
+      return true
+    })
+  }, [user])
 
   const companyLabel = displayCompanyName(user?.companyName)
   const showMenuButton = sheetLinks.length > 0 || Boolean(user)

@@ -17,6 +17,8 @@ import { HomeDashboard } from './components/HomeDashboard'
 import { ShopAdminView } from './components/ShopAdminView'
 import { StaffManager } from './components/StaffManager'
 import { FinanceAnalyticsView } from './components/FinanceAnalyticsView'
+import { TasksView } from './components/TasksView'
+import { canViewFinance, canViewTasks } from './lib/permissions'
 import { SalesManager } from './components/SalesManager'
 import { InventoryManager } from './components/InventoryManager'
 import { CostsView } from './components/CostsView'
@@ -89,6 +91,7 @@ const VIEW_TO_GROUP: Partial<Record<View, NavGroupId>> = {
   pos: 'sales',
   shop: 'sales',
   purchases: 'purchases',
+  tasks: 'tasks',
   staff: 'staff',
   analytics: 'finance',
   costs: 'finance',
@@ -106,6 +109,7 @@ const COLLAPSED_GROUP_LABEL: Record<NavGroupId, string> = {
   stock: 'Inventario',
   purchases: 'Compras',
   sales: 'Ventas',
+  tasks: 'Tareas',
   staff: 'Personal',
   finance: 'Finanzas',
   data: 'Datos',
@@ -181,6 +185,18 @@ function NavGlyph({ group }: { group: NavGroupId }) {
           <circle cx="18" cy="20" r="1.35" fill="currentColor" />
         </svg>
       )
+    case 'tasks':
+      return (
+        <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M9 6h12M9 12h12M9 18h12M5 6l1 1 2-2M5 12l1 1 2-2M5 18l1 1 2-2"
+            stroke="currentColor"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
     case 'staff':
       return (
         <svg className={c} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -231,17 +247,14 @@ function SidebarCollapsedRail({
   onPick,
   onHome,
   showHome,
+  groups,
 }: {
   view: View
   onPick: (g: NavGroupId) => void
   onHome?: () => void
   showHome?: boolean
+  groups: NavGroupId[]
 }) {
-  const groups: NavGroupId[] = PLATFORM_MODE
-    ? [...PLATFORM_NAV_GROUPS]
-    : SALES_FLOOR_ONLY
-      ? [...SALES_FLOOR_NAV_GROUPS]
-      : ['catalog', 'stock', 'purchases', 'sales', 'finance', 'data']
   const homeActive = view === 'home' || view === 'menu'
   return (
     <nav
@@ -336,6 +349,23 @@ export default function App() {
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
 
+  const sidebarNavGroups: NavGroupId[] = PLATFORM_MODE
+    ? PLATFORM_NAV_GROUPS.filter((g) => {
+        if (g === 'finance') return canViewFinance(user)
+        if (g === 'tasks') return canViewTasks(user)
+        return true
+      })
+    : SALES_FLOOR_ONLY
+      ? [...SALES_FLOOR_NAV_GROUPS]
+      : ['catalog', 'stock', 'purchases', 'sales', 'finance', 'data']
+
+  useEffect(() => {
+    if (!user) return
+    if (view === 'analytics' && !canViewFinance(user)) {
+      setView('home')
+    }
+  }, [user, view])
+
   useEffect(() => {
     if (!isMobileNav) setMobileSheetOpen(false)
   }, [isMobileNav])
@@ -368,6 +398,9 @@ export default function App() {
         return
       case 'staff':
         setView('staff')
+        return
+      case 'tasks':
+        setView('tasks')
         return
       case 'sales':
         setView('sales')
@@ -707,6 +740,7 @@ export default function App() {
           {view === 'sales' && (
             <SalesManager
               baseUrl={baseUrl}
+              user={user}
               inaugurationDate={inaugurationDateForUser(user)}
               companyName={user.companyName}
             />
@@ -722,7 +756,10 @@ export default function App() {
           {PLATFORM_MODE && view === 'staff' && (
             <StaffManager baseUrl={baseUrl} />
           )}
-          {PLATFORM_MODE && view === 'analytics' && (
+          {PLATFORM_MODE && view === 'tasks' && canViewTasks(user) && (
+            <TasksView baseUrl={baseUrl} user={user} />
+          )}
+          {PLATFORM_MODE && view === 'analytics' && canViewFinance(user) && (
             <FinanceAnalyticsView baseUrl={baseUrl} />
           )}
           {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'costs' && (
@@ -833,6 +870,7 @@ export default function App() {
           {sidebarCollapsed ? (
             <SidebarCollapsedRail
               view={view}
+              groups={sidebarNavGroups}
               onPick={goCollapsedGroup}
               showHome={!SALES_FLOOR_ONLY}
               onHome={() => setView(PLATFORM_MODE ? 'home' : 'menu')}
@@ -1106,7 +1144,34 @@ export default function App() {
             </div>
             )}
 
-            {PLATFORM_MODE && (
+            {PLATFORM_MODE && canViewTasks(user) && (
+            <div className="app-nav-group app-nav-group--tasks">
+              <div
+                className="app-nav-group__toggle app-nav-group__toggle--static"
+                id="nav-head-tasks"
+              >
+                <span className="app-nav-group__toggle-main">
+                  <span className="app-nav-group__title">Tareas</span>
+                  <span className="app-nav-group__hint">
+                    Actividades diarias del equipo
+                  </span>
+                </span>
+              </div>
+              <ul className="app-nav-list" aria-labelledby="nav-head-tasks">
+                <li>
+                  <button
+                    type="button"
+                    className={view === 'tasks' ? 'active' : ''}
+                    onClick={() => setView('tasks')}
+                  >
+                    Tareas del día
+                  </button>
+                </li>
+              </ul>
+            </div>
+            )}
+
+            {PLATFORM_MODE && canViewFinance(user) && (
             <div className="app-nav-group app-nav-group--finance">
               <div
                 className="app-nav-group__toggle app-nav-group__toggle--static"

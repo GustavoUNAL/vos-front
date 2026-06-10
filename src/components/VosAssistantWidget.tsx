@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import { askBusinessAssistant, type AssistantHistoryItem } from '../api'
+import { useMobileChatKeyboard } from '../hooks/useMobileChatKeyboard'
 import './VosAssistantWidget.css'
 
 type ChatMessage = {
@@ -133,13 +134,27 @@ export function VosAssistantWidget({
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'welcome', role: 'assistant', text: WELCOME },
   ])
+  const rootRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const keyboardOpen = useMobileChatKeyboard(open, rootRef)
+  const [inputFocused, setInputFocused] = useState(false)
+  const hideSuggestions = inputFocused || keyboardOpen
+  const composing = hideSuggestions
+
+  const scrollToEnd = useCallback(() => {
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [])
+
+  useEffect(() => {
+    if (!open) setInputFocused(false)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
-    const el = listRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages, open, busy])
+    scrollToEnd()
+  }, [messages, open, busy, scrollToEnd])
 
   const send = useCallback(
     async (question: string) => {
@@ -180,7 +195,16 @@ export function VosAssistantWidget({
 
   return (
     <div
-      className={`vos-assistant${open ? ' vos-assistant--open' : ''}${hideFab ? ' vos-assistant--dock-only' : ''}`}
+      ref={rootRef}
+      className={[
+        'vos-assistant',
+        open ? ' vos-assistant--open' : '',
+        hideFab ? ' vos-assistant--dock-only' : '',
+        keyboardOpen ? ' vos-assistant--kb' : '',
+        composing ? ' vos-assistant--composing' : '',
+      ]
+        .filter(Boolean)
+        .join('')}
     >
       {open ? (
         <button
@@ -248,46 +272,60 @@ export function VosAssistantWidget({
             ) : null}
           </div>
 
-          <div className="vos-assistant__suggestions">
-            {SUGGESTION_GROUPS.map((group) => (
-              <div key={group.label} className="vos-assistant__suggestion-group">
-                <span className="vos-assistant__suggestion-label">{group.label}</span>
-                <div className="vos-assistant__suggestion-chips">
-                  {group.items.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className="vos-assistant__chip"
-                      disabled={busy}
-                      onClick={() => void send(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
+          {!hideSuggestions ? (
+            <div className="vos-assistant__suggestions">
+              {SUGGESTION_GROUPS.map((group) => (
+                <div key={group.label} className="vos-assistant__suggestion-group">
+                  <span className="vos-assistant__suggestion-label">{group.label}</span>
+                  <div className="vos-assistant__suggestion-chips">
+                    {group.items.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="vos-assistant__chip"
+                        disabled={busy}
+                        onClick={() => void send(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
 
-          <form
-            className="vos-assistant__form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              void send(input)
-            }}
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Preguntá sobre ventas, stock, compras…"
-              disabled={busy}
-              aria-label="Pregunta al asistente"
-            />
-            <button type="submit" disabled={busy || !input.trim()}>
-              Enviar
-            </button>
-          </form>
+          <div className="vos-assistant__composer">
+            <form
+              className="vos-assistant__form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void send(input)
+              }}
+            >
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onFocus={() => {
+                  setInputFocused(true)
+                  requestAnimationFrame(() => scrollToEnd())
+                }}
+                onBlur={() => {
+                  setInputFocused(false)
+                }}
+                placeholder="Preguntá sobre ventas, stock, compras…"
+                disabled={busy}
+                enterKeyHint="send"
+                autoComplete="off"
+                aria-label="Pregunta al asistente"
+              />
+              <button type="submit" disabled={busy || !input.trim()}>
+                Enviar
+              </button>
+            </form>
+          </div>
         </div>
       ) : null}
 

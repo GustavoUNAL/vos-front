@@ -112,21 +112,24 @@ export function TableCard({
         </button>
       )}
 
-      {(table.section || table.capacity) && (
+      <div className="pos-table-card__body">
         <p className="pos-table-card__section muted small">
           {[table.section, table.capacity ? `${table.capacity} pax` : null]
             .filter(Boolean)
-            .join(' · ')}
+            .join(' · ') || '\u00A0'}
         </p>
-      )}
-      {hasAccount && (
-        <div className="pos-table-card__meta">
-          <span className="pos-table-card__total">{formatCOP(table.totalCOP)}</span>
+        <div
+          className={`pos-table-card__meta${hasAccount ? '' : ' pos-table-card__meta--empty'}`}
+          aria-hidden={!hasAccount}
+        >
+          <span className="pos-table-card__total">
+            {hasAccount ? formatCOP(table.totalCOP) : '—'}
+          </span>
           <span className="pos-table-card__time muted">
-            {formatElapsedSince(table.openedAt)}
+            {hasAccount ? formatElapsedSince(table.openedAt) : '—'}
           </span>
         </div>
-      )}
+      </div>
       <div className="pos-table-card__actions">
         {canOpen && (
           <>

@@ -4,6 +4,7 @@ import { formatPosOrderCode } from '../lib/orderCode'
 import { hasTransferReceipt } from '../lib/transferReceipt'
 import { fetchPosTables, payPosOrder } from '../services/posApi'
 import { registerPlatformSaleFromPosOrder } from '../services/platformPosPay'
+import { DEFAULT_POS_STAFF } from '../constants'
 import { usePosStore } from '../store/posStore'
 import type { PaymentMethod, PaymentSplit, PosOrder, PosStaffMember } from '../types'
 
@@ -28,8 +29,9 @@ export function usePosCheckout(baseUrl: string) {
   const validate = useCallback((input: ConfirmInput): ConfirmResult | { ok: true; ready: true } => {
     const { paymentMethod, attendedBy, cashTenderedCOP, transferReceiptDataUrl, totalCOP } =
       input
+    const staff = attendedBy ?? DEFAULT_POS_STAFF
 
-    if (!attendedBy) {
+    if (!staff) {
       return { ok: false, reason: 'staff', message: 'Elegí quién atendió.' }
     }
     if (paymentMethod === 'transfer' && !hasTransferReceipt(transferReceiptDataUrl)) {
@@ -72,7 +74,7 @@ export function usePosCheckout(baseUrl: string) {
           tipCOP: 0,
           printReceipt: true,
           saleComment: notes?.trim() || undefined,
-          attendedBy: attendedBy!,
+          attendedBy: attendedBy ?? DEFAULT_POS_STAFF,
           cashTenderedCOP: paymentMethod === 'cash' ? cashTenderedCOP : undefined,
           transferReceiptDataUrl: transferReceiptDataUrl ?? undefined,
         }

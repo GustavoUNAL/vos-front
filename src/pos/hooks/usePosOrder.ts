@@ -5,6 +5,7 @@ import {
   pickOrderMeta,
   writeCachedOrderMeta,
 } from '../lib/orderMetaCache'
+import { DEFAULT_POS_STAFF } from '../constants'
 import { fetchPosOrder, isPosDemoMode, updatePosOrder } from '../services/posApi'
 import { localPosApi } from '../services/offlineStorage'
 import { usePosStore } from '../store/posStore'
@@ -173,7 +174,7 @@ export function usePosOrder(baseUrl: string) {
             transferReference: order.transferReference ?? '',
             transferReceiptDataUrl: order.transferReceiptDataUrl ?? null,
             notes: order.notes ?? '',
-            attendedBy: order.attendedBy ?? 'David',
+            attendedBy: order.attendedBy ?? DEFAULT_POS_STAFF,
             cashTenderedCOP: order.cashTenderedCOP ?? 0,
           }
         : null,
