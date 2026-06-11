@@ -78,7 +78,7 @@ export function PosOrderDiscount({
             <span
               className={`pos-order-discount__payment-trigger-value mono${discountCOP > 0 ? ' pos-order-discount__payment-trigger-value--set' : ''}`}
             >
-              {discountCOP > 0 ? formatCOP(-discountCOP) : formatCOP(0)}
+              {discountCOP > 0 ? formatCOP(-discountCOP) : '—'}
             </span>
             <ChevronDown aria-hidden size={18} className="pos-order-discount__payment-chevron" />
           </button>
@@ -109,7 +109,7 @@ export function PosOrderDiscount({
           <span
             className={`pos-order-discount__payment-head-value mono${discountCOP > 0 ? ' pos-order-discount__payment-trigger-value--set' : ''}`}
           >
-            {discountCOP > 0 ? formatCOP(-discountCOP) : formatCOP(0)}
+            {discountCOP > 0 ? formatCOP(-discountCOP) : '—'}
           </span>
           <ChevronUp aria-hidden size={18} className="pos-order-discount__payment-chevron" />
         </button>
@@ -124,7 +124,7 @@ export function PosOrderDiscount({
               max={maxDiscountCOP}
               step={500}
               inputMode="numeric"
-              value={discountCOP}
+              value={discountCOP > 0 ? discountCOP : ''}
               disabled={disabled || !canAdd}
               onChange={(e) => {
                 const raw = parseMoney(e.target.value)
@@ -217,7 +217,7 @@ export function PosOrderDiscount({
               max={maxDiscountCOP}
               step={500}
               inputMode="numeric"
-              value={discountCOP}
+              value={discountCOP > 0 ? discountCOP : ''}
               disabled={disabled || !canAdd}
               onChange={(e) => {
                 const raw = parseMoney(e.target.value)

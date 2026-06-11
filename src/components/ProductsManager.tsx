@@ -27,6 +27,7 @@ import {
   type ProductRow,
 } from '../api'
 import { useMatchMedia } from '../hooks/useMatchMedia'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import { invalidateApiCache } from '../lib/apiCache'
 import { POS_ACTIVE_CATALOG_CACHE_KEY } from '../lib/posCatalogLoader'
 import { ProductRecipePopup } from './ProductRecipePopup'
@@ -421,6 +422,7 @@ function ProductGridCard({
 
 export function ProductsManager({ baseUrl }: { baseUrl: string }) {
   const isMobile = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
+  const { panelClass, runPanelRemove, flashSaved } = useEntityActionAnimation()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [categories, setCategories] = useState<CategoryRef[]>([])
   const [catError, setCatError] = useState<string | null>(null)
@@ -886,6 +888,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         refreshCatalogSummary()
         if (creating) {
           showSavedBanner()
+          flashSaved(savedRow.id)
           if (saveCloseTimerRef.current) {
             clearTimeout(saveCloseTimerRef.current)
           }
@@ -896,6 +899,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         } else {
           syncDraftAfterServerProduct(savedRow as ProductRow)
           showSavedBanner()
+          flashSaved(savedRow.id)
         }
         opts?.afterSuccess?.()
       }
@@ -944,7 +948,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     setSaving(true)
     setSaveError(null)
     try {
-      await deleteProduct(baseUrl, selectedId)
+      await runPanelRemove(async () => {
+        await deleteProduct(baseUrl, selectedId)
+      })
       invalidateApiCache(POS_ACTIVE_CATALOG_CACHE_KEY)
       setAllProducts((prev) => prev.filter((p) => p.id !== selectedId))
       setArchiveConfirmOpen(false)
@@ -956,7 +962,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
     } finally {
       setSaving(false)
     }
-  }, [baseUrl, closePanel, refreshCatalogSummary, selectedId])
+  }, [baseUrl, closePanel, refreshCatalogSummary, runPanelRemove, selectedId])
 
   const recipeCardMeta = useMemo(() => {
     const r = parseProductRecipeFull(detailRecipe)
@@ -1494,7 +1500,9 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
           }}
         >
           <section
-            className="modal modal--config modal--config-full modal--product-editor"
+            className={panelClass(
+              'modal modal--config modal--config-full modal--product-editor',
+            )}
             role="dialog"
             aria-modal="true"
             aria-labelledby="product-editor-title"

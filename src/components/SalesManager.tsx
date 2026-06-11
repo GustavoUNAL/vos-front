@@ -23,6 +23,7 @@ import {
 } from '../api'
 import { canDeleteSales } from '../lib/permissions'
 import { useMatchMedia } from '../hooks/useMatchMedia'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
@@ -327,6 +328,7 @@ export function SalesManager({
 }) {
   const allowDeleteSales = canDeleteSales(user)
   const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
+  const { rowClass, panelClass, runPanelRemove, flashSaved } = useEntityActionAnimation()
   const salesSearchInputRef = useRef<HTMLInputElement>(null)
   const [list, setList] = useState<SaleListRow[]>([])
   const [meta, setMeta] = useState<{
@@ -697,7 +699,9 @@ export function SalesManager({
     setSaving(true)
     setSaveError(null)
     try {
-      await deleteSale(baseUrl, detail.id)
+      await runPanelRemove(async () => {
+        await deleteSale(baseUrl, detail.id)
+      })
       setSelectedId(null)
       setCreating(false)
       setDetail(null)
@@ -727,6 +731,7 @@ export function SalesManager({
     detail,
     page,
     refreshDayAndCalendar,
+    runPanelRemove,
     salesListQuery,
   ])
 
@@ -800,6 +805,7 @@ export function SalesManager({
       openSale(created.id)
       refreshDayAndCalendar()
       showSavedBanner()
+      flashSaved(created.id)
       if (created.whatsappSent && created.internalNotified) {
         setSaleNotice('Venta registrada. WhatsApp enviado al cliente y a ti.')
       } else if (created.whatsappSent) {
@@ -822,7 +828,7 @@ export function SalesManager({
     } finally {
       setSaving(false)
     }
-  }, [baseUrl, header, lineRows, openSale, refreshDayAndCalendar, salesListQuery, showSavedBanner])
+  }, [baseUrl, header, lineRows, openSale, refreshDayAndCalendar, salesListQuery, showSavedBanner, flashSaved])
 
   const buildLinePayload = useCallback(() => {
     const payloadLines = []
@@ -907,6 +913,7 @@ export function SalesManager({
       setMeta(res.meta)
       refreshDayAndCalendar()
       showSavedBanner()
+      flashSaved(selectedId)
     } catch (e) {
       setSaveError((e as Error).message)
     } finally {
@@ -927,6 +934,7 @@ export function SalesManager({
     saveNewSale,
     selectedId,
     showSavedBanner,
+    flashSaved,
   ])
 
   const sendWhatsAppReceipt = useCallback(async () => {
@@ -1379,11 +1387,10 @@ export function SalesManager({
                   return (
                     <tr
                       key={row.id}
-                      className={
-                        active
-                          ? 'row-active sales-table-row--active'
-                          : undefined
-                      }
+                      className={rowClass(
+                        row.id,
+                        active && 'row-active sales-table-row--active',
+                      )}
                       onDoubleClick={() => openSale(row.id)}
                     >
                       <td className="sales-table-cell sales-table-cell--id">
@@ -1523,7 +1530,9 @@ export function SalesManager({
           }}
         >
           <section
-            className="modal modal--config modal--config-full modal--sales-editor"
+            className={panelClass(
+              'modal modal--config modal--config-full modal--sales-editor',
+            )}
             role="dialog"
             aria-modal="true"
             aria-labelledby="sales-editor-title"

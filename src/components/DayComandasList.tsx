@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type DailyCashClose } from '../api'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import {
   saleDisplayClient,
   saleDisplayCode,
@@ -32,6 +33,7 @@ export function DayComandasList({
   companyName,
   onEditSale,
 }: DayComandasListProps) {
+  const { rowClass } = useEntityActionAnimation()
   const [detailSale, setDetailSale] = useState<DailyCashClose['sales'][number] | null>(
     null,
   )
@@ -59,7 +61,7 @@ export function DayComandasList({
           const client = saleDisplayClient(display)
           const extras = saleDisplayExtras(display)
           return (
-            <li key={s.id} className="cash-close-sale-item">
+            <li key={s.id} className={rowClass(s.id, 'cash-close-sale-item')}>
               <button
                 type="button"
                 className="cash-close-sale-item__head cash-close-sale-item__head--rich"

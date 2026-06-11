@@ -21,6 +21,7 @@ import {
 } from '../api'
 import { useNavigation } from '../NavigationContext'
 import { useMatchMedia } from '../hooks/useMatchMedia'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import {
   MobileAwareFilterBar,
   MOBILE_FILTER_BREAKPOINT,
@@ -187,6 +188,7 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
   const { inventorySubtitle } = useNavigation()
   const isMobileFilters = useMatchMedia(MOBILE_FILTER_BREAKPOINT)
   const inventoryEditorMobile = useMatchMedia(INVENTORY_EDITOR_MOBILE_MQ)
+  const { rowClass, panelClass, runPanelRemove, flashSaved } = useEntityActionAnimation()
   const [categories, setCategories] = useState<CategoryRef[]>([])
   const [catError, setCatError] = useState<string | null>(null)
 
@@ -435,6 +437,7 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
       setList(res.data)
       setMeta(res.meta)
       refreshLotIndex()
+      if (selectedId) flashSaved(selectedId)
     } catch (e) {
       setSaveError((e as Error).message)
     } finally {
@@ -461,7 +464,9 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
     setSaving(true)
     setSaveError(null)
     try {
-      await deleteInventoryItem(baseUrl, selectedId)
+      await runPanelRemove(async () => {
+        await deleteInventoryItem(baseUrl, selectedId)
+      })
       closePanel()
       const res = await fetchInventoryItems(baseUrl, {
         page,
@@ -475,7 +480,7 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
     } finally {
       setSaving(false)
     }
-  }, [baseUrl, closePanel, inventoryListQuery, page, selectedId])
+  }, [baseUrl, closePanel, flashSaved, inventoryListQuery, page, runPanelRemove, selectedId])
 
   const panelOpen = creating || selectedId !== null
 
@@ -779,13 +784,14 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
                   return (
                     <tr
                       key={r.id}
-                      className={
+                      className={rowClass(
+                        r.id,
                         selectedId === r.id
                           ? 'row-active'
                           : low
                             ? 'row-warn'
-                            : ''
-                      }
+                            : '',
+                      )}
                     >
                       <td>
                         <button
@@ -907,11 +913,11 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
             />
           )}
           <aside
-            className={
+            className={panelClass(
               inventoryEditorMobile
                 ? 'editor-panel editor-panel--modal-mobile'
-                : 'editor-panel'
-            }
+                : 'editor-panel',
+            )}
             aria-label="Editor de inventario"
           >
           <div className="editor-panel-head">

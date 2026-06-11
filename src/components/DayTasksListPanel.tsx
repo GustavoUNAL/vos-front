@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Plus, Trash2 } from 'lucide-react'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import {
   createTask,
   deleteTask,
@@ -36,6 +37,7 @@ export function DayTasksListPanel({
   const canCreate = canManageTasks(user, 'create')
   const canUpdate = canManageTasks(user, 'update')
   const canDelete = canManageTasks(user, 'delete')
+  const { rowClass, runRemove, flashSaved } = useEntityActionAnimation()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -81,6 +83,7 @@ export function DayTasksListPanel({
           : prev,
       )
       onMutate?.()
+      flashSaved(task.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo actualizar')
     } finally {
@@ -114,6 +117,7 @@ export function DayTasksListPanel({
             },
       )
       onMutate?.()
+      flashSaved(created.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear la tarea')
     } finally {
@@ -126,21 +130,23 @@ export function DayTasksListPanel({
     if (!window.confirm(`¿Eliminar "${task.title}"?`)) return
     setBusyId(task.id)
     try {
-      await deleteTask(baseUrl, task.id)
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              tasks: prev.tasks.filter((t) => t.id !== task.id),
-              summary: {
-                total: prev.summary.total - 1,
-                completed: prev.summary.completed - (task.completed ? 1 : 0),
-                pending: prev.summary.pending - (task.completed ? 0 : 1),
-              },
-            }
-          : prev,
-      )
-      onMutate?.()
+      await runRemove(task.id, async () => {
+        await deleteTask(baseUrl, task.id)
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                tasks: prev.tasks.filter((t) => t.id !== task.id),
+                summary: {
+                  total: prev.summary.total - 1,
+                  completed: prev.summary.completed - (task.completed ? 1 : 0),
+                  pending: prev.summary.pending - (task.completed ? 0 : 1),
+                },
+              }
+            : prev,
+        )
+        onMutate?.()
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo eliminar')
     } finally {
@@ -189,7 +195,10 @@ export function DayTasksListPanel({
           {tasks.map((task) => (
             <li
               key={task.id}
-              className={`tasks-view__item${task.completed ? ' tasks-view__item--done' : ''}`}
+              className={rowClass(
+                task.id,
+                `tasks-view__item${task.completed ? ' tasks-view__item--done' : ''}`,
+              )}
             >
               <button
                 type="button"

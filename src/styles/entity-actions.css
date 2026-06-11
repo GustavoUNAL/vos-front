@@ -1,0 +1,110 @@
+/* Filas de listas: eliminar / guardar */
+.entity-action-row {
+  transition: background-color 0.18s ease;
+}
+
+.entity-action-row--exit {
+  animation: entity-action-row-exit 320ms cubic-bezier(0.4, 0, 0.9, 0.6) forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.entity-action-row--saved {
+  animation: entity-action-row-saved 680ms ease;
+}
+
+@keyframes entity-action-row-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    max-height: 8rem;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(1.25rem) scale(0.98);
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
+
+@keyframes entity-action-row-saved {
+  0% {
+    background-color: color-mix(in srgb, var(--accent, #2563eb) 0%, transparent);
+  }
+  35% {
+    background-color: color-mix(in srgb, var(--accent, #2563eb) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Modales / paneles de edición */
+.entity-action-panel--exit {
+  animation: entity-action-panel-exit 320ms cubic-bezier(0.4, 0, 0.9, 0.6) forwards;
+  pointer-events: none;
+}
+
+.entity-action-panel--saved {
+  animation: entity-action-panel-saved 680ms ease;
+}
+
+@keyframes entity-action-panel-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(10px);
+  }
+}
+
+@keyframes entity-action-panel-saved {
+  0% {
+    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--accent, #2563eb) 0%, transparent);
+  }
+  40% {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+
+/* POS descuento: expandir / contraer */
+.pos-order-discount--payment {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pos-order-discount--payment.pos-order-discount--active {
+  animation: entity-action-discount-open 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes entity-action-discount-open {
+  from {
+    opacity: 0.6;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entity-action-row--exit,
+  .entity-action-row--saved,
+  .entity-action-panel--exit,
+  .entity-action-panel--saved,
+  .pos-order-discount--payment.pos-order-discount--active {
+    animation: none;
+  }
+
+  .entity-action-row--exit {
+    opacity: 0;
+  }
+}

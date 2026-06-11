@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import {
   createStaffMember,
   createStaffShift,
@@ -151,6 +152,7 @@ function emptyShiftDraft(members: StaffMemberRow[]): ShiftDraft {
 }
 
 export function StaffManager({ baseUrl }: { baseUrl: string }) {
+  const { rowClass, panelClass, runPanelRemove, flashSaved } = useEntityActionAnimation()
   const [tab, setTab] = useState<Tab>('shifts')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -266,6 +268,7 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
       }
       if (editingMemberId) {
         await updateStaffMember(baseUrl, editingMemberId, payload)
+        flashSaved(editingMemberId)
       } else {
         await createStaffMember(baseUrl, payload)
       }
@@ -332,6 +335,7 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
           status: shiftDraft.status,
           notes: shiftDraft.notes.trim() || undefined,
         })
+        flashSaved(editingShiftId)
       } else {
         await createStaffShift(baseUrl, {
           staffMemberId: shiftDraft.staffMemberId,
@@ -479,7 +483,7 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
                 </thead>
                 <tbody>
                   {members.map((m) => (
-                    <tr key={m.id}>
+                    <tr key={m.id} className={rowClass(m.id)}>
                       <td>
                         <strong>{m.name}</strong>
                         {m.idNumber?.trim() ? (
@@ -562,7 +566,7 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
                 </thead>
                 <tbody>
                   {shifts.map((s) => (
-                    <tr key={s.id}>
+                    <tr key={s.id} className={rowClass(s.id)}>
                       <td>{s.staffMemberName}</td>
                       <td className="small">{formatShiftTime(s.startAt)}</td>
                       <td className="small">{formatShiftTime(s.endAt)}</td>
@@ -626,7 +630,7 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
             if (e.target === e.currentTarget && !memberSaving) setMemberModalOpen(false)
           }}
         >
-          <section className="modal modal--config" role="dialog" aria-modal="true">
+          <section className={panelClass('modal', 'modal--config')} role="dialog" aria-modal="true">
             <header className="modal-head modal-head--config">
               <h2>{editingMemberId ? 'Editar persona' : 'Nueva persona'}</h2>
             </header>
@@ -698,9 +702,11 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
                     void (async () => {
                       setMemberSaving(true)
                       try {
-                        await deleteStaffMember(baseUrl, editingMemberId)
-                        setMemberModalOpen(false)
-                        await load()
+                        await runPanelRemove(async () => {
+                          await deleteStaffMember(baseUrl, editingMemberId)
+                          setMemberModalOpen(false)
+                          await load()
+                        })
                       } catch (e) {
                         setError(e instanceof Error ? e.message : 'No se pudo eliminar')
                       } finally {
@@ -741,7 +747,7 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
             if (e.target === e.currentTarget && !shiftSaving) setShiftModalOpen(false)
           }}
         >
-          <section className="modal modal--config" role="dialog" aria-modal="true">
+          <section className={panelClass('modal', 'modal--config')} role="dialog" aria-modal="true">
             <header className="modal-head modal-head--config">
               <h2>{editingShiftId ? 'Editar turno' : 'Registrar turno'}</h2>
             </header>
@@ -863,9 +869,11 @@ export function StaffManager({ baseUrl }: { baseUrl: string }) {
                     void (async () => {
                       setShiftSaving(true)
                       try {
-                        await deleteStaffShift(baseUrl, editingShiftId)
-                        setShiftModalOpen(false)
-                        await load()
+                        await runPanelRemove(async () => {
+                          await deleteStaffShift(baseUrl, editingShiftId)
+                          setShiftModalOpen(false)
+                          await load()
+                        })
                       } catch (e) {
                         setError(e instanceof Error ? e.message : 'No se pudo eliminar')
                       } finally {

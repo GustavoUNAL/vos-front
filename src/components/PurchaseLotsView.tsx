@@ -32,6 +32,7 @@ import {
   type PurchaseLotsListMeta,
   type UpdateInventoryPayload,
 } from '../api'
+import { useEntityActionAnimation } from '../hooks/useEntityActionAnimation'
 import {
   isCapitalAssetBehavior,
   resolveLotLineInventoryBehavior,
@@ -565,6 +566,8 @@ export function PurchaseLotsView({
   baseUrl: string
   inaugurationDate?: string | null
 }) {
+  const { rowClass, panelClass, runRemove, flashSaved } =
+    useEntityActionAnimation()
   const [list, setList] = useState<PurchaseLotRow[]>([])
   const [meta, setMeta] = useState<PurchaseLotsListMeta | null>(null)
   const [page, setPage] = useState(1)
@@ -1195,6 +1198,7 @@ export function PurchaseLotsView({
         )
         setLotItemUnitCostDraft(String(updated.unitCost ?? ''))
         setLotItemEditUnitCostUnlocked(false)
+        flashSaved(inv.id)
       } catch (e) {
         setLotItemError((e as Error).message)
       } finally {
@@ -1209,6 +1213,7 @@ export function PurchaseLotsView({
       lotItemPurchasedQtyDraft,
       lotItemUnitCostDraft,
       lotItemEditUnitCostUnlocked,
+      flashSaved,
       selectedId,
       selectedLotRow,
     ],
@@ -1293,16 +1298,18 @@ export function PurchaseLotsView({
       setLotItemSavingId(inv.id)
       setLotItemError(null)
       try {
-        await deleteInventoryItem(baseUrl, inv.id)
-        setLotInventory((prev) => prev.filter((x) => x.id !== inv.id))
-        setLotItemEdit((cur) => (cur?.invId === inv.id ? null : cur))
+        await runRemove(inv.id, async () => {
+          await deleteInventoryItem(baseUrl, inv.id)
+          setLotInventory((prev) => prev.filter((x) => x.id !== inv.id))
+          setLotItemEdit((cur) => (cur?.invId === inv.id ? null : cur))
+        })
       } catch (e) {
         setLotItemError((e as Error).message)
       } finally {
         setLotItemSavingId(null)
       }
     },
-    [baseUrl],
+    [baseUrl, runRemove],
   )
 
   const save = useCallback(async () => {
@@ -1361,6 +1368,7 @@ export function PurchaseLotsView({
       })
       setList(res.data)
       setMeta(res.meta)
+      flashSaved(selectedId)
       closePanel()
     } catch (e) {
       setSaveError((e as Error).message)
@@ -1373,6 +1381,7 @@ export function PurchaseLotsView({
     draft,
     filterDateFrom,
     filterDateTo,
+    flashSaved,
     page,
     searchDebounced,
     selectedId,
@@ -2631,7 +2640,7 @@ export function PurchaseLotsView({
     return (
       <div className="purchase-lots-view purchase-lots-view--detail">
         <div className="products-layout">
-          <div className="products-list-pane products-list-pane--purchases purchase-lot-detail-page">
+          <div className={panelClass('products-list-pane', 'products-list-pane--purchases', 'purchase-lot-detail-page')}>
           <header className="purchase-lot-hero">
             <div className="purchase-lot-hero__nav">
               <p className="purchase-lot-hero__crumb muted small">
@@ -3003,7 +3012,11 @@ export function PurchaseLotsView({
                           return (
                             <tr
                               key={`${inv.id}-${idx}`}
-                              className="purchase-lot-row purchase-lot-row--clickable"
+                              className={rowClass(
+                                inv.id,
+                                'purchase-lot-row',
+                                'purchase-lot-row--clickable',
+                              )}
                               role="button"
                               tabIndex={0}
                               title="Tocá para editar"
@@ -3121,7 +3134,11 @@ export function PurchaseLotsView({
                           {lotEditorVisibleRows.map((inv) => (
                               <tr
                                 key={inv.id}
-                                className="purchase-lot-row purchase-lot-row--clickable"
+                                className={rowClass(
+                                  inv.id,
+                                  'purchase-lot-row',
+                                  'purchase-lot-row--clickable',
+                                )}
                                 role="button"
                                 tabIndex={0}
                                 title="Tocá para editar"
@@ -3531,7 +3548,10 @@ export function PurchaseLotsView({
                   return (
                     <tr
                     key={row.id}
-                    className={selectedId === row.id ? 'row-active' : ''}
+                    className={rowClass(
+                      row.id,
+                      selectedId === row.id ? 'row-active' : '',
+                    )}
                   >
                     <td className="num mono muted table-col-index purchases-col-mobile-hide">
                       {lotNum}
