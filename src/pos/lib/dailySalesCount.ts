@@ -1,9 +1,11 @@
 const KEY = 'vos_pos_daily_sales_v1'
 
+export function bogotaDateKey(d = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(d)
+}
+
 function todayKey(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(
-    new Date(),
-  )
+  return bogotaDateKey()
 }
 
 function readStore(): Record<string, number> {

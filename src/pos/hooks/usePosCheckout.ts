@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { invalidateCalendarNamespace } from '../../lib/calendarCache'
-import { incrementDailySalesCount } from '../lib/dailySalesCount'
+import { invalidateDaySales } from '../../lib/entityCache'
+import { bogotaDateKey, incrementDailySalesCount } from '../lib/dailySalesCount'
 import { formatPosOrderCode } from '../lib/orderCode'
 import { hasTransferReceipt } from '../lib/transferReceipt'
 import { fetchPosTables, payPosOrder } from '../services/posApi'
@@ -122,6 +123,7 @@ export function usePosCheckout(baseUrl: string) {
           sale?.code?.trim() || sale?.id || formatPosOrderCode(order)
 
         invalidateCalendarNamespace('sales')
+        invalidateDaySales(bogotaDateKey())
         const dailyCount = incrementDailySalesCount()
         setActiveOrder(null)
         setCheckoutSuccess({ saleId, dailyCount })
