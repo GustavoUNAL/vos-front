@@ -2066,6 +2066,7 @@ export type CreateSalePayload = {
   notes?: string
   userId?: string
   receiptImageDataUrl?: string
+  discountCOP?: number
   lines: SaleLineInputPayload[]
 }
 

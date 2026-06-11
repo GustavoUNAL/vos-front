@@ -3,7 +3,7 @@ import { MOBILE_FILTER_BREAKPOINT } from '../../../components/MobileAwareFilterB
 import { useMatchMedia } from '../../../hooks/useMatchMedia'
 import { DEFAULT_POS_STAFF } from '../../constants'
 import { formatPosOrderCode } from '../../lib/orderCode'
-import { formatCOP } from '../../lib/money'
+import { formatCOP, computeOrderTotals } from '../../lib/money'
 import { isValidColombiaMobile } from '../../lib/phone'
 import { pickOrderMeta, writeCachedOrderMeta } from '../../lib/orderMetaCache'
 import { incrementDailySalesCount } from '../../lib/dailySalesCount'
@@ -15,6 +15,7 @@ import type { PaymentMethod, PaymentSplit, PosStaffMember } from '../../types'
 import { PosErrorBanner } from '../ui/PosErrorBanner'
 import { PosMoney } from '../ui/PosMoney'
 import { PosOrderPaymentPicker } from '../order/PosOrderPaymentPicker'
+import { PosOrderDiscount } from '../order/PosOrderDiscount'
 import { PosStaffPicker } from '../ui/PosStaffPicker'
 import { PosCashSheet } from './PosCashSheet'
 import { PosCashTender } from './PosCashTender'
@@ -76,16 +77,34 @@ export function PaymentView({ baseUrl }: Props) {
     }
   }, [order?.id, order?.paymentMethod, isMobile])
 
-  const totalDue = order?.totalCOP ?? 0
+  const totals = useMemo(() => {
+    if (!order) {
+      return { subtotalCOP: 0, taxCOP: 0, discountCOP: 0, totalCOP: 0, grossTotalCOP: 0 }
+    }
+    const computed = computeOrderTotals(
+      order.lines,
+      order.taxRate,
+      order.discountCOP ?? 0,
+    )
+    return {
+      ...computed,
+      grossTotalCOP: computed.subtotalCOP + computed.taxCOP,
+    }
+  }, [order])
+
+  const totalDue = totals.totalCOP
   const amountDue = totalDue + tipCOP
   const change = isCash ? cashTendered - amountDue : 0
+  const discountValid =
+    totals.discountCOP <= 0 || (order?.discountReason?.trim().length ?? 0) > 0
   const canConfirm = useMemo(() => {
     if (!order) return false
     if (!(attendedBy ?? DEFAULT_POS_STAFF)) return false
+    if (!discountValid) return false
     if (isTransfer && !hasTransferReceipt(order.transferReceiptDataUrl)) return false
     if (isCash) return cashTendered >= amountDue
     return true
-  }, [order, attendedBy, isTransfer, isCash, cashTendered, amountDue])
+  }, [order, attendedBy, discountValid, isTransfer, isCash, cashTendered, amountDue])
 
   if (!order) {
     return (
@@ -129,6 +148,10 @@ export function PaymentView({ baseUrl }: Props) {
       setFieldError('Adjuntá el comprobante de transferencia.')
       return
     }
+    if (totals.discountCOP > 0 && !order.discountReason?.trim()) {
+      setFieldError('Justificá el descuento antes de cobrar.')
+      return
+    }
 
     setBusy(true)
     setError(null)
@@ -146,6 +169,9 @@ export function PaymentView({ baseUrl }: Props) {
         attendedBy: staff,
         cashTenderedCOP: isCash ? cashTendered : undefined,
         transferReceiptDataUrl: order.transferReceiptDataUrl ?? undefined,
+        discountCOP: totals.discountCOP > 0 ? totals.discountCOP : undefined,
+        discountReason:
+          totals.discountCOP > 0 ? order.discountReason?.trim() : undefined,
       }
       const sale = await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
       await payPosOrder(baseUrl, order.id, {
@@ -156,6 +182,8 @@ export function PaymentView({ baseUrl }: Props) {
         attendedBy: staff,
         cashTenderedCOP: payload.cashTenderedCOP,
         transferReceiptDataUrl: payload.transferReceiptDataUrl,
+        discountCOP: payload.discountCOP,
+        discountReason: payload.discountReason,
       })
       setActiveOrder(null)
 
@@ -240,6 +268,18 @@ export function PaymentView({ baseUrl }: Props) {
     setActiveOrder(next)
   }
 
+  const setDiscountCOP = (value: number) => {
+    const next = { ...order, discountCOP: value }
+    writeCachedOrderMeta(next.id, pickOrderMeta(next))
+    setActiveOrder(next)
+  }
+
+  const setDiscountReason = (value: string) => {
+    const next = { ...order, discountReason: value }
+    writeCachedOrderMeta(next.id, pickOrderMeta(next))
+    setActiveOrder(next)
+  }
+
   return (
     <div
       className={`pos-screen pos-screen--payment${paymentMethod === 'transfer' ? ' pos-screen--payment-transfer' : ''}`}
@@ -269,15 +309,46 @@ export function PaymentView({ baseUrl }: Props) {
         <div className="pos-payment-checkout__scroll">
           <div className="pos-payment-layout pos-payment-layout--simple">
             <section className="pos-payment-panel">
-              <p className="pos-payment-due">
-                Total a pagar{' '}
-                <PosMoney value={amountDue} className="pos-payment-due__amount" />
-                {tipCOP > 0 ? (
-                  <span className="pos-payment-due__tip muted small">
-                    Incluye propina {formatCOP(tipCOP)}
-                  </span>
+              <div className="pos-payment-due-breakdown">
+                {totals.discountCOP > 0 ? (
+                  <>
+                    <p className="pos-payment-due pos-payment-due--muted">
+                      Subtotal{' '}
+                      <PosMoney value={totals.grossTotalCOP} className="pos-payment-due__amount" />
+                    </p>
+                    <p className="pos-payment-due pos-payment-due--discount">
+                      Descuento{' '}
+                      <PosMoney
+                        value={-totals.discountCOP}
+                        className="pos-payment-due__amount pos-payment-due__amount--discount"
+                      />
+                    </p>
+                  </>
                 ) : null}
-              </p>
+                <p className="pos-payment-due">
+                  Total a pagar{' '}
+                  <PosMoney value={amountDue} className="pos-payment-due__amount" />
+                  {tipCOP > 0 ? (
+                    <span className="pos-payment-due__tip muted small">
+                      Incluye propina {formatCOP(tipCOP)}
+                    </span>
+                  ) : null}
+                </p>
+                {totals.discountCOP > 0 && order.discountReason?.trim() ? (
+                  <p className="pos-payment-due__discount-reason muted small">
+                    <strong>Motivo:</strong> {order.discountReason.trim()}
+                  </p>
+                ) : null}
+              </div>
+
+              <PosOrderDiscount
+                discountCOP={order.discountCOP ?? 0}
+                discountReason={order.discountReason ?? ''}
+                maxDiscountCOP={totals.grossTotalCOP}
+                disabled={busy}
+                onDiscountCOP={setDiscountCOP}
+                onDiscountReason={setDiscountReason}
+              />
 
               <PosStaffPicker value={attendedBy} onChange={setAttendedBy} compact />
 

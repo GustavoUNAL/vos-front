@@ -20,15 +20,25 @@ export function usePosOrder(baseUrl: string) {
   const order = state.activeOrder
 
   const totals = useMemo(() => {
-    if (!order) return { subtotalCOP: 0, taxCOP: 0, totalCOP: 0 }
-    return computeOrderTotals(order.lines, order.taxRate)
+    if (!order) {
+      return { subtotalCOP: 0, taxCOP: 0, discountCOP: 0, totalCOP: 0, grossTotalCOP: 0 }
+    }
+    const computed = computeOrderTotals(
+      order.lines,
+      order.taxRate,
+      order.discountCOP ?? 0,
+    )
+    return {
+      ...computed,
+      grossTotalCOP: computed.subtotalCOP + computed.taxCOP,
+    }
   }, [order])
 
   const persist = useCallback(
     async (next: NonNullable<typeof order>) => {
       const withTotals = {
         ...next,
-        ...computeOrderTotals(next.lines, next.taxRate),
+        ...computeOrderTotals(next.lines, next.taxRate, next.discountCOP ?? 0),
       }
       writeCachedOrderMeta(withTotals.id, pickOrderMeta(withTotals))
       const saved = await updatePosOrder(baseUrl, withTotals)
@@ -117,6 +127,8 @@ export function usePosOrder(baseUrl: string) {
       notes?: string
       attendedBy?: PosStaffMember | null
       cashTenderedCOP?: number | null
+      discountCOP?: number | null
+      discountReason?: string | null
     }) => {
       if (!order) return
       const next: PosOrder = {
@@ -151,14 +163,21 @@ export function usePosOrder(baseUrl: string) {
             : patch.paymentMethod === 'transfer'
               ? null
               : order.cashTenderedCOP,
+        discountCOP:
+          patch.discountCOP !== undefined ? patch.discountCOP : order.discountCOP ?? null,
+        discountReason:
+          patch.discountReason !== undefined
+            ? patch.discountReason
+            : order.discountReason ?? null,
       }
-      writeCachedOrderMeta(next.id, pickOrderMeta(next))
-      setActiveOrder(next)
+      const withTotals = {
+        ...next,
+        ...computeOrderTotals(next.lines, next.taxRate, next.discountCOP ?? 0),
+      }
+      writeCachedOrderMeta(withTotals.id, pickOrderMeta(withTotals))
+      setActiveOrder(withTotals)
       if (isPosDemoMode()) {
-        localPosApi.updateOrder({
-          ...next,
-          ...computeOrderTotals(next.lines, next.taxRate),
-        })
+        localPosApi.updateOrder(withTotals)
       }
     },
     [order, setActiveOrder],
@@ -176,6 +195,8 @@ export function usePosOrder(baseUrl: string) {
             notes: order.notes ?? '',
             attendedBy: order.attendedBy ?? DEFAULT_POS_STAFF,
             cashTenderedCOP: order.cashTenderedCOP ?? 0,
+            discountCOP: order.discountCOP ?? 0,
+            discountReason: order.discountReason ?? '',
           }
         : null,
     [order],

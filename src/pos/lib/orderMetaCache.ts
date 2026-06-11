@@ -13,6 +13,8 @@ type OrderMeta = Pick<
   | 'notes'
   | 'attendedBy'
   | 'cashTenderedCOP'
+  | 'discountCOP'
+  | 'discountReason'
 >
 
 type Store = Record<string, OrderMeta>
@@ -50,6 +52,8 @@ export function writeCachedOrderMeta(orderId: string, meta: OrderMeta): void {
     notes: meta.notes ?? null,
     attendedBy: meta.attendedBy ?? null,
     cashTenderedCOP: meta.cashTenderedCOP ?? null,
+    discountCOP: meta.discountCOP ?? null,
+    discountReason: meta.discountReason ?? null,
   }
   writeStore(store)
 }
@@ -68,6 +72,8 @@ export function mergeOrderMeta(order: PosOrder): PosOrder {
     notes: order.notes ?? cached.notes ?? null,
     attendedBy: order.attendedBy ?? cached.attendedBy ?? DEFAULT_POS_STAFF,
     cashTenderedCOP: order.cashTenderedCOP ?? cached.cashTenderedCOP ?? null,
+    discountCOP: cached.discountCOP ?? order.discountCOP ?? null,
+    discountReason: cached.discountReason ?? order.discountReason ?? null,
   }
 }
 
@@ -81,5 +87,7 @@ export function pickOrderMeta(order: PosOrder): OrderMeta {
     notes: order.notes ?? null,
     attendedBy: order.attendedBy ?? null,
     cashTenderedCOP: order.cashTenderedCOP ?? null,
+    discountCOP: order.discountCOP ?? null,
+    discountReason: order.discountReason ?? null,
   }
 }

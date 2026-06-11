@@ -73,6 +73,12 @@ export function PosOrderView({ baseUrl }: Props) {
 
   const handleOpenPayment = useCallback(() => {
     if (!order || order.lines.length === 0) return
+    const discount = meta?.discountCOP ?? 0
+    const reason = meta?.discountReason?.trim() ?? ''
+    if (discount > 0 && !reason) {
+      setConfirmError('Justificá el descuento antes de cobrar.')
+      return
+    }
     setConfirmError(null)
     setPaymentOpen(true)
     updateMeta({
@@ -82,7 +88,7 @@ export function PosOrderView({ baseUrl }: Props) {
       transferReference: null,
       cashTenderedCOP: null,
     })
-  }, [meta?.attendedBy, order, updateMeta])
+  }, [meta?.attendedBy, meta?.discountCOP, meta?.discountReason, order, updateMeta])
 
   const handleClosePayment = useCallback(() => {
     if (confirmBusy) return
@@ -107,6 +113,8 @@ export function PosOrderView({ baseUrl }: Props) {
       attendedBy: order.attendedBy ?? meta.attendedBy ?? DEFAULT_POS_STAFF,
       cashTenderedCOP: meta.cashTenderedCOP,
       transferReceiptDataUrl: meta.transferReceiptDataUrl,
+      discountCOP: meta.discountCOP,
+      discountReason: meta.discountReason,
       notes: meta.notes,
     })
 
@@ -157,7 +165,7 @@ export function PosOrderView({ baseUrl }: Props) {
           <div className="pos-order-header__title-wrap">
             <h1 className="pos-order-header__title">{tableLabel}</h1>
             <p className="pos-order-header__sub muted">
-              Agregá productos y tocá forma de pago para cobrar
+              Agregá productos y tocá Cobrar cuando esté listo
             </p>
           </div>
         ) : null}
@@ -182,6 +190,9 @@ export function PosOrderView({ baseUrl }: Props) {
             order={order}
             tableName={tableLabel}
             totalCOP={totals.totalCOP}
+            grossTotalCOP={totals.grossTotalCOP}
+            discountCOP={meta.discountCOP}
+            discountReason={meta.discountReason}
             mesa={meta.mesa}
             catalogProducts={products}
             catalogCategories={categories}
@@ -190,6 +201,8 @@ export function PosOrderView({ baseUrl }: Props) {
             unitsSoldByProductId={unitsSoldByProductId}
             highlightId={addedFlash}
             onMesa={(value) => updateMeta({ mesa: value })}
+            onDiscountCOP={(value) => updateMeta({ discountCOP: value })}
+            onDiscountReason={(value) => updateMeta({ discountReason: value })}
             onOpenPayment={handleOpenPayment}
             onAddProduct={(p) => void handleAdd(p)}
             onQty={(id, q) => void setQuantity(id, q)}
@@ -204,6 +217,9 @@ export function PosOrderView({ baseUrl }: Props) {
         open={paymentOpen}
         tableName={tableLabel}
         orderCode={formatPosOrderCode(order)}
+        grossTotalCOP={totals.grossTotalCOP}
+        discountCOP={meta.discountCOP}
+        discountReason={meta.discountReason}
         totalCOP={totals.totalCOP}
         paymentMethod={meta.paymentMethod ?? order.paymentMethod ?? null}
         transferReceiptDataUrl={meta.transferReceiptDataUrl}
@@ -212,6 +228,8 @@ export function PosOrderView({ baseUrl }: Props) {
         confirmBusy={confirmBusy}
         confirmError={confirmError}
         onClose={handleClosePayment}
+        onDiscountCOP={(value) => updateMeta({ discountCOP: value })}
+        onDiscountReason={(value) => updateMeta({ discountReason: value })}
         onPaymentMethod={(method) => {
           updateMeta({
             paymentMethod: method,

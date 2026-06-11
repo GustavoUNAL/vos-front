@@ -3,6 +3,7 @@ import { formatPosOrderCode } from '../../lib/orderCode'
 import type { CategoryRef, ProductRow } from '../../../api'
 import type { PosOrder } from '../../types'
 import { PosMoney } from '../ui/PosMoney'
+import { PosOrderDiscount } from './PosOrderDiscount'
 import { PosOrderProductsSection } from './PosOrderProductsSection'
 
 function formatOrderTime(iso: string): string {
@@ -20,6 +21,9 @@ type Props = {
   order: PosOrder
   tableName: string
   totalCOP: number
+  grossTotalCOP: number
+  discountCOP: number
+  discountReason: string
   mesa: string
   catalogProducts: ProductRow[]
   catalogCategories: CategoryRef[]
@@ -28,6 +32,8 @@ type Props = {
   unitsSoldByProductId?: Map<string, number>
   highlightId?: string | null
   onMesa: (value: string) => void
+  onDiscountCOP: (value: number) => void
+  onDiscountReason: (value: string) => void
   onOpenPayment: () => void
   onAddProduct: (product: ProductPick) => void
   onQty: (lineId: string, qty: number) => void
@@ -40,6 +46,9 @@ export function PosOrderComanda({
   order,
   tableName,
   totalCOP,
+  grossTotalCOP,
+  discountCOP,
+  discountReason,
   mesa,
   catalogProducts,
   catalogCategories,
@@ -48,6 +57,8 @@ export function PosOrderComanda({
   unitsSoldByProductId,
   highlightId,
   onMesa,
+  onDiscountCOP,
+  onDiscountReason,
   onOpenPayment,
   onAddProduct,
   onQty,
@@ -58,6 +69,7 @@ export function PosOrderComanda({
   const refCode = formatPosOrderCode(order)
   const isEmpty = order.lines.length === 0
   const [pickerActive, setPickerActive] = useState(false)
+  const discountValid = discountCOP <= 0 || discountReason.trim().length > 0
 
   return (
     <article
@@ -109,14 +121,38 @@ export function PosOrderComanda({
       <footer className="pos-order-comanda__footer">
         {!isEmpty && !pickerActive ? (
           <>
-            <div className="pos-order-comanda__total-row">
-              <span>Total</span>
-              <PosMoney value={totalCOP} className="pos-totals__total" />
+            <PosOrderDiscount
+              discountCOP={discountCOP}
+              discountReason={discountReason}
+              maxDiscountCOP={grossTotalCOP}
+              disabled={paymentBusy}
+              onDiscountCOP={onDiscountCOP}
+              onDiscountReason={onDiscountReason}
+            />
+
+            <div className="pos-order-comanda__totals">
+              {discountCOP > 0 ? (
+                <>
+                  <div className="pos-order-comanda__total-row pos-order-comanda__total-row--muted">
+                    <span>Subtotal</span>
+                    <PosMoney value={grossTotalCOP} />
+                  </div>
+                  <div className="pos-order-comanda__total-row pos-order-comanda__total-row--discount">
+                    <span>Descuento</span>
+                    <PosMoney value={-discountCOP} className="pos-order-comanda__discount" />
+                  </div>
+                </>
+              ) : null}
+              <div className="pos-order-comanda__total-row">
+                <span>Total</span>
+                <PosMoney value={totalCOP} className="pos-totals__total" />
+              </div>
             </div>
+
             <button
               type="button"
               className="pos-btn pos-btn--primary pos-btn--block pos-btn--xl"
-              disabled={paymentBusy}
+              disabled={paymentBusy || !discountValid}
               onClick={onOpenPayment}
             >
               Cobrar

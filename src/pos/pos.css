@@ -1786,6 +1786,212 @@
   font-weight: 650;
 }
 
+.pos-order-comanda__totals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.65rem;
+}
+
+.pos-order-comanda__totals .pos-order-comanda__total-row {
+  margin-bottom: 0;
+}
+
+.pos-order-comanda__total-row--muted {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--pos-muted);
+}
+
+.pos-order-comanda__total-row--discount {
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--pos-danger, #c44);
+}
+
+.pos-order-comanda__discount {
+  color: var(--pos-danger, #c44);
+}
+
+.pos-order-discount {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--pos-border) 70%, transparent);
+  border-radius: var(--pos-radius);
+  background: color-mix(in srgb, var(--pos-border) 8%, var(--pos-surface));
+  touch-action: manipulation;
+  position: relative;
+  z-index: 2;
+}
+
+.pos-order-discount--active {
+  border-color: color-mix(in srgb, var(--pos-warn, #f59e0b) 35%, var(--pos-border));
+  background: color-mix(in srgb, var(--pos-warn, #f59e0b) 8%, var(--pos-surface));
+}
+
+.pos-order-discount__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pos-order-discount__label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.pos-order-discount__toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--pos-action) 35%, var(--pos-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pos-action) 8%, var(--pos-surface));
+  color: var(--pos-action);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pos-order-discount__toggle--active {
+  border-color: color-mix(in srgb, var(--pos-danger, #c44) 35%, var(--pos-border));
+  background: color-mix(in srgb, var(--pos-danger, #c44) 8%, var(--pos-surface));
+  color: var(--pos-danger, #c44);
+}
+
+.pos-order-discount__toggle:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.pos-order-discount__toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pos-order-discount__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.pos-order-discount__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pos-order-discount__field-label {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--pos-muted);
+}
+
+.pos-order-discount__amount {
+  width: 100%;
+}
+
+.pos-order-discount__reason {
+  min-height: 3.25rem;
+  resize: vertical;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  width: 100%;
+}
+
+.pos-order-discount__error {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--pos-danger, #c44);
+}
+
+.pos-order-discount__hint {
+  margin: 0;
+}
+
+.pos-modal--payment .pos-order-discount {
+  margin-bottom: 0.15rem;
+}
+
+.pos-modal--payment .pos-order-discount__reason {
+  min-height: 2.75rem;
+}
+
+.pos-payment-due-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.65rem;
+}
+
+.pos-payment-due--muted {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--pos-muted);
+}
+
+.pos-payment-due--discount {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--pos-danger, #c44);
+}
+
+.pos-payment-due__amount--discount {
+  color: var(--pos-danger, #c44);
+}
+
+.pos-payment-due__discount-reason {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.pos-modal--payment__totals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pos-modal--payment__total--muted {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--pos-muted);
+  background: transparent;
+  border: none;
+}
+
+.pos-modal--payment__total--discount {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--pos-danger, #c44);
+  background: color-mix(in srgb, var(--pos-danger, #c44) 8%, var(--pos-surface));
+  border: 1px solid color-mix(in srgb, var(--pos-danger, #c44) 22%, var(--pos-border));
+}
+
+.pos-modal--payment__discount {
+  color: var(--pos-danger, #c44);
+}
+
+.pos-modal--payment__discount-reason {
+  margin: -0.15rem 0 0;
+  line-height: 1.35;
+}
+
 .pos-order-lines__title {
   margin: 0;
   font-size: 0.9375rem;
@@ -2610,9 +2816,60 @@
     flex-shrink: 0;
     margin-top: 0;
     padding-top: 0.55rem;
+    padding-bottom: max(0.65rem, env(safe-area-inset-bottom, 0px));
     border-top: 1px solid color-mix(in srgb, var(--pos-border) 65%, transparent);
     background: color-mix(in srgb, var(--pos-surface) 92%, var(--pos-accent) 8%);
     box-shadow: 0 -4px 16px color-mix(in srgb, var(--pos-text, #000) 5%, transparent);
+    position: relative;
+    z-index: 3;
+    max-height: min(56dvh, 440px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-shell--mobile-dock .pos-screen--order .pos-order-comanda__footer {
+    padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pos-order-discount {
+    margin-bottom: 0.5rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .pos-order-discount__head {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
+  .pos-order-discount__label {
+    font-size: 0.875rem;
+  }
+
+  .pos-order-discount__toggle {
+    min-height: 2.75rem;
+    min-width: 5.5rem;
+    padding: 0.45rem 1rem;
+    font-size: 0.8125rem;
+  }
+
+  .pos-order-discount__amount,
+  .pos-order-discount__reason {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .pos-order-discount__reason {
+    min-height: 4.5rem;
+  }
+
+  .pos-order-comanda__totals {
+    margin-bottom: 0.5rem;
+  }
+
+  .pos-order-comanda__total-row {
+    margin-bottom: 0.35rem;
+    font-size: 0.9375rem;
   }
 
   .pos-order-comanda--transfer .pos-order-lines__table-wrap {
@@ -4571,5 +4828,31 @@ body.pos-payment-modal-open .app-mobile-dock {
 
   .pos-modal--payment__footer {
     padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .pos-modal--payment .pos-order-discount {
+    margin-bottom: 0.35rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .pos-modal--payment .pos-order-discount__toggle {
+    min-height: 2.75rem;
+    min-width: 5.5rem;
+    padding: 0.45rem 1rem;
+    font-size: 0.8125rem;
+  }
+
+  .pos-modal--payment .pos-order-discount__amount,
+  .pos-modal--payment .pos-order-discount__reason {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .pos-modal--payment .pos-order-discount__reason {
+    min-height: 4rem;
+  }
+
+  .pos-modal--payment__body {
+    padding-inline: 0.85rem;
   }
 }

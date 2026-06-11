@@ -20,6 +20,9 @@ export async function registerPlatformSaleFromPosOrder(
 
   const notes = [
     payload.attendedBy ? `Atendió: ${payload.attendedBy}` : null,
+    payload.discountCOP && payload.discountCOP > 0
+      ? `Descuento: ${formatCOP(payload.discountCOP)} — ${payload.discountReason?.trim()}`
+      : null,
     order.transferReceiptDataUrl
       ? 'Comprobante transferencia (foto POS)'
       : order.transferReference?.trim()
@@ -42,6 +45,7 @@ export async function registerPlatformSaleFromPosOrder(
     mesa: order.mesa?.trim() || order.tableName?.trim() || undefined,
     customerPhone: phone || undefined,
     notes: notes || undefined,
+    discountCOP: payload.discountCOP,
     receiptImageDataUrl:
       payload.transferReceiptDataUrl?.trim() ||
       order.transferReceiptDataUrl?.trim() ||

@@ -6,6 +6,7 @@ import { hasTransferReceipt } from '../../lib/transferReceipt'
 import { formatCOP } from '../../lib/money'
 import type { PaymentMethod } from '../../types'
 import { PosMoney } from '../ui/PosMoney'
+import { PosOrderDiscount } from './PosOrderDiscount'
 import { PosOrderPaymentPicker } from './PosOrderPaymentPicker'
 
 type PaymentStep = 'method' | 'confirm'
@@ -19,6 +20,9 @@ type Props = {
   open: boolean
   tableName: string
   orderCode: string
+  grossTotalCOP: number
+  discountCOP: number
+  discountReason: string
   totalCOP: number
   paymentMethod: PaymentMethod | null
   transferReceiptDataUrl: string | null
@@ -27,6 +31,8 @@ type Props = {
   confirmBusy?: boolean
   confirmError?: string | null
   onClose: () => void
+  onDiscountCOP: (value: number) => void
+  onDiscountReason: (value: string) => void
   onPaymentMethod: (method: PaymentMethod) => void
   onTransferReceipt: (dataUrl: string | null) => void
   onCashTendered: (value: number) => void
@@ -38,6 +44,9 @@ export function PosOrderPaymentModal({
   open,
   tableName,
   orderCode,
+  grossTotalCOP,
+  discountCOP,
+  discountReason,
   totalCOP,
   paymentMethod,
   transferReceiptDataUrl,
@@ -46,6 +55,8 @@ export function PosOrderPaymentModal({
   confirmBusy = false,
   confirmError = null,
   onClose,
+  onDiscountCOP,
+  onDiscountReason,
   onPaymentMethod,
   onTransferReceipt,
   onCashTendered,
@@ -75,8 +86,10 @@ export function PosOrderPaymentModal({
   const isTransfer = paymentMethod === 'transfer'
   const isCash = paymentMethod === 'cash'
   const hasReceipt = hasTransferReceipt(transferReceiptDataUrl)
+  const discountValid = discountCOP <= 0 || discountReason.trim().length > 0
   const methodReady =
     paymentMethod != null &&
+    discountValid &&
     (isCash
       ? cashTenderedCOP >= totalCOP
       : isTransfer
@@ -122,13 +135,42 @@ export function PosOrderPaymentModal({
           </header>
 
           <div className="pos-modal--payment__body">
-            <div className="pos-modal--payment__total">
-              <span>Total a pagar</span>
-              <PosMoney value={totalCOP} className="pos-modal--payment__amount" />
+            <div className="pos-modal--payment__totals">
+              {discountCOP > 0 ? (
+                <>
+                  <div className="pos-modal--payment__total pos-modal--payment__total--muted">
+                    <span>Subtotal</span>
+                    <PosMoney value={grossTotalCOP} />
+                  </div>
+                  <div className="pos-modal--payment__total pos-modal--payment__total--discount">
+                    <span>Descuento</span>
+                    <PosMoney value={-discountCOP} className="pos-modal--payment__discount" />
+                  </div>
+                </>
+              ) : null}
+              <div className="pos-modal--payment__total">
+                <span>Total a pagar</span>
+                <PosMoney value={totalCOP} className="pos-modal--payment__amount" />
+              </div>
             </div>
+
+            {discountCOP > 0 && discountReason.trim() ? (
+              <p className="pos-modal--payment__discount-reason muted small">
+                <strong>Motivo:</strong> {discountReason.trim()}
+              </p>
+            ) : null}
 
             {step === 'method' ? (
               <div className="pos-modal--payment__step">
+                <PosOrderDiscount
+                  discountCOP={discountCOP}
+                  discountReason={discountReason}
+                  maxDiscountCOP={grossTotalCOP}
+                  disabled={confirmBusy}
+                  onDiscountCOP={onDiscountCOP}
+                  onDiscountReason={onDiscountReason}
+                />
+
                 <PosOrderPaymentPicker
                   paymentMethod={paymentMethod}
                   transferReceiptDataUrl={transferReceiptDataUrl}
@@ -195,6 +237,22 @@ export function PosOrderPaymentModal({
                           className="pos-order-payment__receipt-thumb"
                         />
                       </span>
+                    </div>
+                  ) : null}
+
+                  {discountCOP > 0 ? (
+                    <div className="pos-modal--payment__summary-row">
+                      <span className="pos-modal--payment__summary-label muted small">
+                        Descuento
+                      </span>
+                      <div className="pos-modal--payment__summary-value">
+                        <strong className="mono">{formatCOP(-discountCOP)}</strong>
+                        {discountReason.trim() ? (
+                          <span className="pos-modal--payment__summary-hint muted small">
+                            {discountReason.trim()}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
                 </div>

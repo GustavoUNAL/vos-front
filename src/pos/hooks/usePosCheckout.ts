@@ -15,24 +15,46 @@ type ConfirmInput = {
   attendedBy: PosStaffMember | null
   cashTenderedCOP: number
   transferReceiptDataUrl: string | null
+  discountCOP?: number
+  discountReason?: string
   notes?: string
 }
 
 type ConfirmResult =
   | { ok: true; saleId: string }
-  | { ok: false; reason: 'staff' | 'cash' | 'transfer' | 'error'; message: string }
+  | {
+      ok: false
+      reason: 'staff' | 'cash' | 'transfer' | 'discount' | 'error'
+      message: string
+    }
 
 export function usePosCheckout(baseUrl: string) {
   const { setActiveOrder, setCheckoutSuccess, setTables, navigate } = usePosStore()
   const [busy, setBusy] = useState(false)
 
   const validate = useCallback((input: ConfirmInput): ConfirmResult | { ok: true; ready: true } => {
-    const { paymentMethod, attendedBy, cashTenderedCOP, transferReceiptDataUrl, totalCOP } =
-      input
+    const {
+      paymentMethod,
+      attendedBy,
+      cashTenderedCOP,
+      transferReceiptDataUrl,
+      totalCOP,
+      discountCOP = 0,
+      discountReason = '',
+    } = input
     const staff = attendedBy ?? DEFAULT_POS_STAFF
+    const discount = Math.max(0, Math.round(discountCOP))
+    const reason = discountReason.trim()
 
     if (!staff) {
       return { ok: false, reason: 'staff', message: 'Elegí quién atendió.' }
+    }
+    if (discount > 0 && !reason) {
+      return {
+        ok: false,
+        reason: 'discount',
+        message: 'Justificá el descuento antes de cobrar.',
+      }
     }
     if (paymentMethod === 'transfer' && !hasTransferReceipt(transferReceiptDataUrl)) {
       return {
@@ -64,6 +86,8 @@ export function usePosCheckout(baseUrl: string) {
         cashTenderedCOP,
         transferReceiptDataUrl,
         notes,
+        discountCOP,
+        discountReason,
       } = input
 
       setBusy(true)
@@ -77,6 +101,9 @@ export function usePosCheckout(baseUrl: string) {
           attendedBy: attendedBy ?? DEFAULT_POS_STAFF,
           cashTenderedCOP: paymentMethod === 'cash' ? cashTenderedCOP : undefined,
           transferReceiptDataUrl: transferReceiptDataUrl ?? undefined,
+          discountCOP: discountCOP && discountCOP > 0 ? discountCOP : undefined,
+          discountReason:
+            discountCOP && discountCOP > 0 ? discountReason?.trim() : undefined,
         }
         const sale = await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
         await payPosOrder(baseUrl, order.id, {
@@ -86,6 +113,8 @@ export function usePosCheckout(baseUrl: string) {
           attendedBy: payload.attendedBy,
           cashTenderedCOP: payload.cashTenderedCOP,
           transferReceiptDataUrl: payload.transferReceiptDataUrl,
+          discountCOP: payload.discountCOP,
+          discountReason: payload.discountReason,
         })
 
         const saleId =

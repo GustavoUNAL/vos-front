@@ -85,6 +85,10 @@ export type PosOrder = {
   attendedBy?: PosStaffMember | null
   /** Efectivo recibido configurado en comanda/cobro. */
   cashTenderedCOP?: number | null
+  /** Descuento aplicado al total (COP). */
+  discountCOP?: number | null
+  /** Motivo obligatorio cuando hay descuento. */
+  discountReason?: string | null
 }
 
 export type PaymentSplit = {
@@ -106,6 +110,10 @@ export type PayOrderPayload = {
   cashTenderedCOP?: number
   /** Comprobante de transferencia (data URL). */
   transferReceiptDataUrl?: string
+  /** Descuento aplicado al cobrar (COP). */
+  discountCOP?: number
+  /** Motivo del descuento. */
+  discountReason?: string
 }
 
 export type PosHistoryOrder = PosOrder & {

@@ -239,6 +239,8 @@ export async function payPosOrder(
             splits: payload.splits,
             tipCOP: payload.tipCOP,
             printReceipt: payload.printReceipt,
+            discountCOP: payload.discountCOP,
+            discountReason: payload.discountReason,
           }),
         },
       )

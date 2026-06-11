@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { writeApiCache } from '../../lib/apiCache'
+import { mergeOrderMeta } from '../lib/orderMetaCache'
 import { fetchPosTables, isPosDemoMode } from '../services/posApi'
 import {
   subscribePosLocalEvents,
@@ -33,7 +34,7 @@ export function usePosRealtime(baseUrl: string) {
       }
       if (ev.type === 'order.updated') {
         if (activeOrderIdRef.current === ev.order.id) {
-          setActiveOrder(ev.order)
+          setActiveOrder(mergeOrderMeta(ev.order))
         }
       }
       if (ev.type === 'order.closed') {

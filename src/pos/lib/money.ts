@@ -26,12 +26,20 @@ export function formatCOP(value: number): string {
 export function computeOrderTotals(
   lines: { quantity: number; unitPrice: number }[],
   taxRate = DEFAULT_TAX_RATE,
-): { subtotalCOP: number; taxCOP: number; totalCOP: number } {
+  discountCOP = 0,
+): {
+  subtotalCOP: number
+  taxCOP: number
+  discountCOP: number
+  totalCOP: number
+} {
   const subtotalCOP = lines.reduce(
     (sum, l) => sum + l.quantity * l.unitPrice,
     0,
   )
   const taxCOP = Math.round(subtotalCOP * taxRate)
-  const totalCOP = subtotalCOP + taxCOP
-  return { subtotalCOP, taxCOP, totalCOP }
+  const grossTotalCOP = subtotalCOP + taxCOP
+  const discount = Math.min(Math.max(0, Math.round(discountCOP)), grossTotalCOP)
+  const totalCOP = Math.max(0, grossTotalCOP - discount)
+  return { subtotalCOP, taxCOP, discountCOP: discount, totalCOP }
 }

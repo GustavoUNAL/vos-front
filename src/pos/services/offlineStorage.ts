@@ -184,7 +184,11 @@ export const localPosApi = {
   },
 
   updateOrder(order: PosOrder): PosOrder {
-    const totals = computeOrderTotals(order.lines, order.taxRate)
+    const totals = computeOrderTotals(
+      order.lines,
+      order.taxRate,
+      order.discountCOP ?? 0,
+    )
     const next: PosOrder = { ...order, ...totals }
     const state = loadLocalState()
     state.orders[next.id] = next
