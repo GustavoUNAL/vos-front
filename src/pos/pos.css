@@ -1950,6 +1950,15 @@
   color: var(--pos-danger, #c44);
 }
 
+.pos-payment-due--discount.pos-payment-due--zero {
+  color: var(--pos-muted);
+  font-weight: 600;
+}
+
+.pos-payment-due--discount.pos-payment-due--zero .pos-payment-due__amount--discount {
+  color: var(--pos-muted);
+}
+
 .pos-payment-due__amount--discount {
   color: var(--pos-danger, #c44);
 }
@@ -1981,6 +1990,17 @@
   color: var(--pos-danger, #c44);
   background: color-mix(in srgb, var(--pos-danger, #c44) 8%, var(--pos-surface));
   border: 1px solid color-mix(in srgb, var(--pos-danger, #c44) 22%, var(--pos-border));
+}
+
+.pos-modal--payment__total--discount.pos-modal--payment__total--zero {
+  color: var(--pos-muted);
+  font-weight: 600;
+  background: transparent;
+  border: none;
+}
+
+.pos-modal--payment__total--discount.pos-modal--payment__total--zero .pos-modal--payment__discount {
+  color: var(--pos-muted);
 }
 
 .pos-modal--payment__discount {

@@ -6,6 +6,8 @@ type Props = {
   discountReason: string
   maxDiscountCOP: number
   disabled?: boolean
+  /** En cobro: campos siempre visibles y monto en 0 por defecto. */
+  variant?: 'collapsible' | 'inline'
   onDiscountCOP: (value: number) => void
   onDiscountReason: (value: string) => void
 }
@@ -15,23 +17,24 @@ export function PosOrderDiscount({
   discountReason,
   maxDiscountCOP,
   disabled = false,
+  variant = 'collapsible',
   onDiscountCOP,
   onDiscountReason,
 }: Props) {
   const hasDiscount = discountCOP > 0 || discountReason.trim().length > 0
-  const [open, setOpen] = useState(hasDiscount)
+  const [open, setOpen] = useState(hasDiscount || variant === 'inline')
   const needsReason = discountCOP > 0 && !discountReason.trim()
   const canAdd = maxDiscountCOP > 0
-  const showFields = open || hasDiscount
+  const showFields = variant === 'inline' ? canAdd : open || hasDiscount
 
   useEffect(() => {
-    if (hasDiscount) setOpen(true)
-  }, [hasDiscount])
+    if (hasDiscount || variant === 'inline') setOpen(true)
+  }, [hasDiscount, variant])
 
   const handleToggle = (e: React.MouseEvent | React.PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (disabled) return
+    if (disabled || variant === 'inline') return
 
     if (showFields) {
       setOpen(false)
@@ -43,9 +46,6 @@ export function PosOrderDiscount({
     if (!canAdd) return
 
     setOpen(true)
-    if (discountCOP <= 0) {
-      onDiscountCOP(Math.min(1_000, maxDiscountCOP))
-    }
   }
 
   return (
@@ -55,15 +55,17 @@ export function PosOrderDiscount({
     >
       <div className="pos-order-discount__head">
         <span className="pos-order-discount__label">Descuento</span>
-        <button
-          type="button"
-          className={`pos-order-discount__toggle${showFields ? ' pos-order-discount__toggle--active' : ''}`}
-          disabled={disabled || (!showFields && !canAdd)}
-          aria-expanded={showFields}
-          onClick={handleToggle}
-        >
-          {showFields ? 'Quitar' : 'Agregar'}
-        </button>
+        {variant === 'inline' ? null : (
+          <button
+            type="button"
+            className={`pos-order-discount__toggle${showFields ? ' pos-order-discount__toggle--active' : ''}`}
+            disabled={disabled || (!showFields && !canAdd)}
+            aria-expanded={showFields}
+            onClick={handleToggle}
+          >
+            {showFields ? 'Quitar' : 'Agregar'}
+          </button>
+        )}
       </div>
 
       {!canAdd && !showFields ? (
@@ -83,7 +85,7 @@ export function PosOrderDiscount({
               max={maxDiscountCOP}
               step={500}
               inputMode="numeric"
-              value={discountCOP || ''}
+              value={discountCOP}
               disabled={disabled || !canAdd}
               onChange={(e) => {
                 const raw = parseMoney(e.target.value)

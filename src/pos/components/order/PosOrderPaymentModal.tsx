@@ -136,18 +136,16 @@ export function PosOrderPaymentModal({
 
           <div className="pos-modal--payment__body">
             <div className="pos-modal--payment__totals">
-              {discountCOP > 0 ? (
-                <>
-                  <div className="pos-modal--payment__total pos-modal--payment__total--muted">
-                    <span>Subtotal</span>
-                    <PosMoney value={grossTotalCOP} />
-                  </div>
-                  <div className="pos-modal--payment__total pos-modal--payment__total--discount">
-                    <span>Descuento</span>
-                    <PosMoney value={-discountCOP} className="pos-modal--payment__discount" />
-                  </div>
-                </>
-              ) : null}
+              <div className="pos-modal--payment__total pos-modal--payment__total--muted">
+                <span>Subtotal</span>
+                <PosMoney value={grossTotalCOP} />
+              </div>
+              <div
+                className={`pos-modal--payment__total pos-modal--payment__total--discount${discountCOP <= 0 ? ' pos-modal--payment__total--zero' : ''}`}
+              >
+                <span>Descuento</span>
+                <PosMoney value={-discountCOP} className="pos-modal--payment__discount" />
+              </div>
               <div className="pos-modal--payment__total">
                 <span>Total a pagar</span>
                 <PosMoney value={totalCOP} className="pos-modal--payment__amount" />
@@ -163,6 +161,7 @@ export function PosOrderPaymentModal({
             {step === 'method' ? (
               <div className="pos-modal--payment__step">
                 <PosOrderDiscount
+                  variant="inline"
                   discountCOP={discountCOP}
                   discountReason={discountReason}
                   maxDiscountCOP={grossTotalCOP}
@@ -240,21 +239,19 @@ export function PosOrderPaymentModal({
                     </div>
                   ) : null}
 
-                  {discountCOP > 0 ? (
-                    <div className="pos-modal--payment__summary-row">
-                      <span className="pos-modal--payment__summary-label muted small">
-                        Descuento
-                      </span>
-                      <div className="pos-modal--payment__summary-value">
-                        <strong className="mono">{formatCOP(-discountCOP)}</strong>
-                        {discountReason.trim() ? (
-                          <span className="pos-modal--payment__summary-hint muted small">
-                            {discountReason.trim()}
-                          </span>
-                        ) : null}
-                      </div>
+                  <div className="pos-modal--payment__summary-row">
+                    <span className="pos-modal--payment__summary-label muted small">
+                      Descuento
+                    </span>
+                    <div className="pos-modal--payment__summary-value">
+                      <strong className="mono">{formatCOP(-discountCOP)}</strong>
+                      {discountCOP > 0 && discountReason.trim() ? (
+                        <span className="pos-modal--payment__summary-hint muted small">
+                          {discountReason.trim()}
+                        </span>
+                      ) : null}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
 
                 {confirmError ? (

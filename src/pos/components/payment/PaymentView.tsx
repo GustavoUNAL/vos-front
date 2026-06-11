@@ -310,21 +310,19 @@ export function PaymentView({ baseUrl }: Props) {
           <div className="pos-payment-layout pos-payment-layout--simple">
             <section className="pos-payment-panel">
               <div className="pos-payment-due-breakdown">
-                {totals.discountCOP > 0 ? (
-                  <>
-                    <p className="pos-payment-due pos-payment-due--muted">
-                      Subtotal{' '}
-                      <PosMoney value={totals.grossTotalCOP} className="pos-payment-due__amount" />
-                    </p>
-                    <p className="pos-payment-due pos-payment-due--discount">
-                      Descuento{' '}
-                      <PosMoney
-                        value={-totals.discountCOP}
-                        className="pos-payment-due__amount pos-payment-due__amount--discount"
-                      />
-                    </p>
-                  </>
-                ) : null}
+                <p className="pos-payment-due pos-payment-due--muted">
+                  Subtotal{' '}
+                  <PosMoney value={totals.grossTotalCOP} className="pos-payment-due__amount" />
+                </p>
+                <p
+                  className={`pos-payment-due pos-payment-due--discount${totals.discountCOP <= 0 ? ' pos-payment-due--zero' : ''}`}
+                >
+                  Descuento{' '}
+                  <PosMoney
+                    value={-totals.discountCOP}
+                    className="pos-payment-due__amount pos-payment-due__amount--discount"
+                  />
+                </p>
                 <p className="pos-payment-due">
                   Total a pagar{' '}
                   <PosMoney value={amountDue} className="pos-payment-due__amount" />
@@ -342,6 +340,7 @@ export function PaymentView({ baseUrl }: Props) {
               </div>
 
               <PosOrderDiscount
+                variant="inline"
                 discountCOP={order.discountCOP ?? 0}
                 discountReason={order.discountReason ?? ''}
                 maxDiscountCOP={totals.grossTotalCOP}
