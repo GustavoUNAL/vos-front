@@ -160,28 +160,31 @@ export function PosOrderPaymentModal({
 
             {step === 'method' ? (
               <div className="pos-modal--payment__step">
-                <PosOrderDiscount
-                  variant="inline"
-                  discountCOP={discountCOP}
-                  discountReason={discountReason}
-                  maxDiscountCOP={grossTotalCOP}
-                  disabled={confirmBusy}
-                  onDiscountCOP={onDiscountCOP}
-                  onDiscountReason={onDiscountReason}
-                />
+                <div className="pos-modal--payment__checkout">
+                  <PosOrderDiscount
+                    active={open}
+                    discountCOP={discountCOP}
+                    discountReason={discountReason}
+                    maxDiscountCOP={grossTotalCOP}
+                    disabled={confirmBusy}
+                    variant="payment"
+                    onDiscountCOP={onDiscountCOP}
+                    onDiscountReason={onDiscountReason}
+                  />
 
-                <PosOrderPaymentPicker
-                  paymentMethod={paymentMethod}
-                  transferReceiptDataUrl={transferReceiptDataUrl}
-                  amountDueCOP={totalCOP}
-                  cashTenderedCOP={cashTenderedCOP}
-                  hideHeading
-                  embedTransfer
-                  orderCode={orderCode}
-                  onTransferReceipt={onTransferReceipt}
-                  onPaymentMethod={onPaymentMethod}
-                  onCashTenderedChange={onCashTendered}
-                />
+                  <PosOrderPaymentPicker
+                    paymentMethod={paymentMethod}
+                    transferReceiptDataUrl={transferReceiptDataUrl}
+                    amountDueCOP={totalCOP}
+                    cashTenderedCOP={cashTenderedCOP}
+                    hideHeading={false}
+                    embedTransfer
+                    orderCode={orderCode}
+                    onTransferReceipt={onTransferReceipt}
+                    onPaymentMethod={onPaymentMethod}
+                    onCashTenderedChange={onCashTendered}
+                  />
+                </div>
               </div>
             ) : (
               <div className="pos-modal--payment__step">

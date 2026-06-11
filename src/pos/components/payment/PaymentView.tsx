@@ -340,11 +340,11 @@ export function PaymentView({ baseUrl }: Props) {
               </div>
 
               <PosOrderDiscount
-                variant="inline"
                 discountCOP={order.discountCOP ?? 0}
                 discountReason={order.discountReason ?? ''}
                 maxDiscountCOP={totals.grossTotalCOP}
                 disabled={busy}
+                variant="payment"
                 onDiscountCOP={setDiscountCOP}
                 onDiscountReason={setDiscountReason}
               />

@@ -73,12 +73,6 @@ export function PosOrderView({ baseUrl }: Props) {
 
   const handleOpenPayment = useCallback(() => {
     if (!order || order.lines.length === 0) return
-    const discount = meta?.discountCOP ?? 0
-    const reason = meta?.discountReason?.trim() ?? ''
-    if (discount > 0 && !reason) {
-      setConfirmError('Justificá el descuento antes de cobrar.')
-      return
-    }
     setConfirmError(null)
     setPaymentOpen(true)
     updateMeta({
@@ -88,7 +82,7 @@ export function PosOrderView({ baseUrl }: Props) {
       transferReference: null,
       cashTenderedCOP: null,
     })
-  }, [meta?.attendedBy, meta?.discountCOP, meta?.discountReason, order, updateMeta])
+  }, [meta?.attendedBy, order, updateMeta])
 
   const handleClosePayment = useCallback(() => {
     if (confirmBusy) return
@@ -192,7 +186,6 @@ export function PosOrderView({ baseUrl }: Props) {
             totalCOP={totals.totalCOP}
             grossTotalCOP={totals.grossTotalCOP}
             discountCOP={meta.discountCOP}
-            discountReason={meta.discountReason}
             mesa={meta.mesa}
             catalogProducts={products}
             catalogCategories={categories}
@@ -201,8 +194,6 @@ export function PosOrderView({ baseUrl }: Props) {
             unitsSoldByProductId={unitsSoldByProductId}
             highlightId={addedFlash}
             onMesa={(value) => updateMeta({ mesa: value })}
-            onDiscountCOP={(value) => updateMeta({ discountCOP: value })}
-            onDiscountReason={(value) => updateMeta({ discountReason: value })}
             onOpenPayment={handleOpenPayment}
             onAddProduct={(p) => void handleAdd(p)}
             onQty={(id, q) => void setQuantity(id, q)}
