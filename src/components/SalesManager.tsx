@@ -62,7 +62,7 @@ import {
 } from '../lib/entityCache'
 
 const LIMIT = 15
-const SALE_SOURCES = ['MANUAL', 'CART', 'AI'] as const
+const SALE_SOURCES = ['MANUAL', 'POS', 'SHOP', 'IMPORT'] as const
 
 function paginationDots(current: number, total: number): number[] {
   if (total <= 1) return []

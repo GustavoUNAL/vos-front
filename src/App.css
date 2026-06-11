@@ -12792,6 +12792,37 @@ html.app--chat-sheet-open body {
   margin: 0.15rem 0 0;
 }
 
+.purchase-receipt-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.purchase-receipt-capture__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.purchase-receipt-capture__preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.purchase-receipt-capture__preview {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: var(--surface-elevated);
+}
+
+.purchase-lot-detail-receipt {
+  margin: 0.75rem 0;
+}
+
 .product-editor-readonly-block--sku {
   padding: 0.5rem 0.55rem;
   border-radius: 10px;

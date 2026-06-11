@@ -171,6 +171,19 @@ export function PurchaseLotDetailModal({ baseUrl, lot, onClose, onEditLot }: Pro
             </div>
           </dl>
 
+          {shown.receiptImageDataUrl?.trim() ? (
+            <div className="purchase-receipt-capture__preview-wrap purchase-lot-detail-receipt">
+              <p className="inventory-filter__label">Comprobante</p>
+              <img
+                src={shown.receiptImageDataUrl}
+                alt="Comprobante de compra"
+                className="purchase-receipt-capture__preview"
+              />
+            </div>
+          ) : shown.hasReceiptImage ? (
+            <p className="muted small">Comprobante adjunto (recargá el detalle para ver la foto).</p>
+          ) : null}
+
           {loadingLines ? (
             <p className="muted small">Cargando productos…</p>
           ) : items.length > 0 ? (

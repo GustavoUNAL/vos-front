@@ -1,22 +1,24 @@
-# vos.ai-front — Frontend VOS AI (React + Vite)
-
-Landing (`#/`), login, panel operativo y tienda pública en una sola app.
+# vos.ai-front — SPA React + Vite
 
 ## Variables de entorno
 
-| Archivo | Uso |
-|---------|-----|
-| `.env.local` | Desarrollo local (`npm run dev`) |
-| `.env.dev` | Build para servidor dev (`npm run build:dev`) |
+| Entorno | Archivo | Comando |
+|---------|---------|---------|
+| **Local** | `.env.local` | `npm run dev` |
+| **Staging** | `.env.dev` | `npm run build:dev` |
+| **Producción** | `.env` | `npm run build` |
 
 ```bash
-cp .env.local.example .env.local
-cp .env.dev.example .env.dev
+cp .env.local.example .env.local       # primera vez local
+cp .env.production.example .env        # primera vez VPS
+cp .env.dev.example .env.dev           # primera vez staging
 ```
 
-## Desarrollo local
+`.env`, `.env.local` y `.env.dev` no se commitean.
 
-Requiere el API en :3000 (`npm run start:dev` en `../vos.ai-api`).
+En el **VPS usá solo `.env`** — `VITE_*` se embebe al compilar (`npm run build`).
+
+## Desarrollo local
 
 ```bash
 npm install
@@ -24,31 +26,22 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-| Ruta | URL |
-|------|-----|
-| Landing | http://localhost:5173/#/ |
-| Login | http://localhost:5173/#/login |
-| Panel | http://localhost:5173/#/home |
-| Tienda demo | http://localhost:5173/#/tienda/arandano |
+El proxy Vite `/dev-api` → `localhost:3000` evita CORS (dejá `VITE_API_URL` vacío en `.env.local`).
 
-El proxy Vite `/dev-api` → `localhost:3000` evita CORS (dejá `VITE_API_URL` vacío).
+## Producción (VPS)
 
-## Build servidor dev
+Ver `../vos.ai-api/docs/DEPLOY-VPS-PM2.md`.
 
 ```bash
-cp .env.dev.example .env.dev    # editar dominio y API
+cp .env.production.example .env
+nano .env    # VITE_API_URL=https://vos-ai.arandano.shop/backend
+npm run build
+```
+
+## Build staging
+
+```bash
+cp .env.dev.example .env.dev
 npm run build:dev
-npm run preview:dev             # probar build localmente
+npm run preview:dev
 ```
-
-## Docker
-
-```bash
-docker build -t vos-front:latest .
-```
-
-En producción, pasá build args `VITE_*` desde `.env.dev` o usá el compose del API (`../vos.ai-api`).
-
-## Login demo
-
-`admin@vos.ai` / `VosAi2026!`

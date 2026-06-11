@@ -1237,6 +1237,10 @@ export type PurchaseLotRow = {
   supplierResolved?: string | null
   notes?: string | null
   itemCount: number
+  /** Indica si hay foto de comprobante guardada (listado). */
+  hasReceiptImage?: boolean
+  /** Data URL de la foto del comprobante (detalle). */
+  receiptImageDataUrl?: string | null
   /** Conteo heredado para compatibilidad (ítems activos enlazados). */
   linkedActiveItemCount?: number
   /**
@@ -1343,6 +1347,7 @@ export type PatchPurchaseLotPayload = {
   consumptionStatus?: 'EMPTY' | 'FRESH' | 'PARTIAL' | 'DEPLETED'
   /** ISO UTC; usar `null` explícito para borrar la marca (no omitir el campo). */
   traceModifiedAt?: string | null
+  receiptImageDataUrl?: string | null
 }
 
 export type PurchaseCalendarDay = {
@@ -1374,6 +1379,7 @@ export type CreatePurchaseLotPayload = {
   notes?: string
   lines?: CreatePurchaseLotLinePayload[]
   totalValue?: number
+  receiptImageDataUrl?: string
 }
 
 export async function fetchPurchaseLotsCalendar(
@@ -2036,6 +2042,9 @@ export type SaleDetail = {
   mesa?: string | null
   customerPhone?: string | null
   notes?: string | null
+  discountCOP?: number | null
+  discountReason?: string | null
+  hasReceiptImage?: boolean
   userId?: string | null
   createdAt?: string | null
   updatedAt?: string | null
@@ -2067,6 +2076,7 @@ export type CreateSalePayload = {
   userId?: string
   receiptImageDataUrl?: string
   discountCOP?: number
+  discountReason?: string
   lines: SaleLineInputPayload[]
 }
 

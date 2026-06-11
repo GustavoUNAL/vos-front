@@ -3,6 +3,8 @@ import {
   createPurchaseLot,
   type CreatePurchaseLotPayload,
 } from '../api'
+import { invalidateCalendarNamespace } from '../lib/calendarCache'
+import { PurchaseReceiptCapture } from './PurchaseReceiptCapture'
 
 type LineDraft = {
   key: string
@@ -55,6 +57,7 @@ export function CreateDailyPurchaseModal({
   )
   const [supplier, setSupplier] = useState('')
   const [notes, setNotes] = useState('')
+  const [receiptImageDataUrl, setReceiptImageDataUrl] = useState<string | null>(null)
   const [lines, setLines] = useState<LineDraft[]>(() => [emptyLine()])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,7 +103,9 @@ export function CreateDailyPurchaseModal({
         notes: notes.trim() || undefined,
         lines: validLines,
         totalValue: lineTotal > 0 ? lineTotal : undefined,
+        receiptImageDataUrl: receiptImageDataUrl?.trim() || undefined,
       })
+      invalidateCalendarNamespace('purchases')
       onCreated(lot.id)
       onClose()
     } catch (e) {
@@ -108,7 +113,7 @@ export function CreateDailyPurchaseModal({
     } finally {
       setSaving(false)
     }
-  }, [baseUrl, lineTotal, lines, notes, onClose, onCreated, purchaseDate, supplier])
+  }, [baseUrl, lineTotal, lines, notes, onClose, onCreated, purchaseDate, receiptImageDataUrl, supplier])
 
   return (
     <div
@@ -173,6 +178,11 @@ export function CreateDailyPurchaseModal({
                 placeholder="Referencia de factura, observaciones…"
               />
             </label>
+
+            <PurchaseReceiptCapture
+              receiptDataUrl={receiptImageDataUrl}
+              onReceiptChange={setReceiptImageDataUrl}
+            />
 
             <div className="daily-purchase-lines">
               <div className="daily-purchase-lines__head">

@@ -46,6 +46,10 @@ export async function registerPlatformSaleFromPosOrder(
     customerPhone: phone || undefined,
     notes: notes || undefined,
     discountCOP: payload.discountCOP,
+    discountReason:
+      payload.discountCOP && payload.discountCOP > 0
+        ? payload.discountReason?.trim()
+        : undefined,
     receiptImageDataUrl:
       payload.transferReceiptDataUrl?.trim() ||
       order.transferReceiptDataUrl?.trim() ||

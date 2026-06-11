@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { invalidateCalendarNamespace } from '../../lib/calendarCache'
 import { incrementDailySalesCount } from '../lib/dailySalesCount'
 import { formatPosOrderCode } from '../lib/orderCode'
 import { hasTransferReceipt } from '../lib/transferReceipt'
@@ -120,6 +121,7 @@ export function usePosCheckout(baseUrl: string) {
         const saleId =
           sale?.code?.trim() || sale?.id || formatPosOrderCode(order)
 
+        invalidateCalendarNamespace('sales')
         const dailyCount = incrementDailySalesCount()
         setActiveOrder(null)
         setCheckoutSuccess({ saleId, dailyCount })
