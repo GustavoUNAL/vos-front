@@ -44,6 +44,7 @@ export function saleDisplayTime(saleDate: string): string {
   return new Intl.DateTimeFormat('es-CO', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Bogota',
   }).format(d)
 }
 

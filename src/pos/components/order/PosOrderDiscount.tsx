@@ -1,4 +1,4 @@
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { formatCOP, parseMoney } from '../../lib/money'
 
@@ -54,6 +54,15 @@ export function PosOrderDiscount({
     setExpanded(true)
   }
 
+  const handleToggle = () => {
+    if (disabled) return
+    if (expanded) {
+      handleClose()
+      return
+    }
+    handleOpen()
+  }
+
   if (variant === 'payment') {
     if (!expanded) {
       return (
@@ -63,7 +72,7 @@ export function PosOrderDiscount({
             className="pos-order-discount__payment-trigger"
             disabled={disabled || !canAdd}
             aria-expanded={false}
-            onClick={handleOpen}
+            onClick={handleToggle}
           >
             <span className="pos-order-discount__payment-trigger-label">Descuento</span>
             <span
@@ -71,10 +80,7 @@ export function PosOrderDiscount({
             >
               {discountCOP > 0 ? formatCOP(-discountCOP) : formatCOP(0)}
             </span>
-            <span className="pos-order-discount__payment-trigger-action muted small">
-              {discountCOP > 0 ? 'Editar' : 'Agregar'}
-            </span>
-            <ChevronDown aria-hidden size={16} className="pos-order-discount__payment-chevron" />
+            <ChevronDown aria-hidden size={18} className="pos-order-discount__payment-chevron" />
           </button>
           {!canAdd ? (
             <p className="pos-order-discount__hint muted small">
@@ -90,31 +96,23 @@ export function PosOrderDiscount({
         className="pos-order-discount pos-order-discount--payment pos-order-discount--active"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="pos-order-discount__payment-head">
+        <button
+          type="button"
+          className="pos-order-discount__payment-head"
+          disabled={disabled || needsReason}
+          aria-expanded
+          aria-label="Contraer descuento"
+          title={needsReason ? 'Completá el motivo o poné el monto en 0' : 'Contraer'}
+          onClick={handleToggle}
+        >
           <span className="pos-order-discount__label">Descuento</span>
-          <div className="pos-order-discount__payment-actions">
-            {discountCOP > 0 ? (
-              <button
-                type="button"
-                className="pos-order-discount__payment-clear"
-                disabled={disabled}
-                onClick={handleRemove}
-              >
-                Quitar
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="pos-order-discount__payment-close"
-              disabled={disabled || needsReason}
-              aria-label="Cerrar descuento"
-              title={needsReason ? 'Completá el motivo o quitá el monto' : 'Cerrar'}
-              onClick={handleClose}
-            >
-              <X aria-hidden size={18} strokeWidth={2} />
-            </button>
-          </div>
-        </div>
+          <span
+            className={`pos-order-discount__payment-head-value mono${discountCOP > 0 ? ' pos-order-discount__payment-trigger-value--set' : ''}`}
+          >
+            {discountCOP > 0 ? formatCOP(-discountCOP) : formatCOP(0)}
+          </span>
+          <ChevronUp aria-hidden size={18} className="pos-order-discount__payment-chevron" />
+        </button>
 
         <div className="pos-order-discount__fields">
           <label className="pos-order-discount__field">

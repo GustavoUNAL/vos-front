@@ -47,7 +47,6 @@ import {
   saleDisplayClient,
   saleDisplayCode,
   saleDisplayExtras,
-  saleDisplayTime,
   saleRowFromListRow,
 } from '../lib/saleListDisplay'
 import {
@@ -106,9 +105,10 @@ function formatSaleDateLong(iso: string): string {
 function formatSaleDateList(iso: string): { date: string; time: string } {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return { date: iso, time: '' }
+  const bogota = { timeZone: 'America/Bogota' as const }
   return {
-    date: new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(d),
-    time: new Intl.DateTimeFormat('es-CO', { timeStyle: 'short' }).format(d),
+    date: new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', ...bogota }).format(d),
+    time: new Intl.DateTimeFormat('es-CO', { timeStyle: 'short', ...bogota }).format(d),
   }
 }
 
@@ -116,7 +116,10 @@ function timeOnlyFromSaleDate(iso: string | null | undefined): string {
   if (!iso?.trim()) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return new Intl.DateTimeFormat('es-CO', { timeStyle: 'short' }).format(d)
+  return new Intl.DateTimeFormat('es-CO', {
+    timeStyle: 'short',
+    timeZone: 'America/Bogota',
+  }).format(d)
 }
 
 /** Fecha de columna: `saleDateOnly` (sin desfase TZ) + hora desde `saleDate`. */
@@ -1352,7 +1355,6 @@ export function SalesManager({
                 <tr>
                   <th className="sales-table-col sales-table-col--id">ID</th>
                   <th className="sales-table-col sales-table-col--client">Cliente</th>
-                  <th className="sales-table-col sales-table-col--time">Hora</th>
                   <th className="sales-table-col sales-table-col--detail">
                     Detalle
                   </th>
@@ -1366,7 +1368,7 @@ export function SalesManager({
               </thead>
               <tbody>
                 {list.map((row) => {
-                  const { date } = saleListRowDateParts(row)
+                  const { date, time } = saleListRowDateParts(row)
                   const display = saleRowFromListRow(row)
                   const extras = saleDisplayExtras({
                     ...display,
@@ -1397,6 +1399,11 @@ export function SalesManager({
                           <span className="sales-table-link__date muted small">
                             {date}
                           </span>
+                          {time ? (
+                            <span className="sales-table-link__time muted small mono">
+                              {time}
+                            </span>
+                          ) : null}
                         </button>
                       </td>
                       <td className="sales-table-cell sales-table-cell--client">
@@ -1409,9 +1416,6 @@ export function SalesManager({
                             {saleDisplayClient(display)}
                           </span>
                         </button>
-                      </td>
-                      <td className="sales-table-cell sales-table-cell--time mono">
-                        {saleDisplayTime(row.saleDate)}
                       </td>
                       <td
                         className="sales-table-cell sales-table-cell--detail muted"

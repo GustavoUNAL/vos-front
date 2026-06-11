@@ -67,13 +67,8 @@ export function DayComandasList({
                 onClick={() => setDetailSale(s)}
               >
                 <span className="cash-close-sale-item__main cash-close-sale-item__main--rich">
-                  <span className="cash-close-sale-item__topline">
-                    <span className="cash-close-sale-item__id mono">
-                      {saleDisplayCode(display)}
-                    </span>
-                    <span className="cash-close-sale-item__time muted">
-                      {saleDisplayTime(s.saleDate)}
-                    </span>
+                  <span className="cash-close-sale-item__id mono">
+                    {saleDisplayCode(display)}
                   </span>
                   <span className="cash-close-sale-item__label">{client}</span>
                   {extras.length > 0 ? (
@@ -82,8 +77,13 @@ export function DayComandasList({
                     </span>
                   ) : null}
                 </span>
-                <span className="cash-close-sale-item__total mono">
-                  {formatCOP(s.total)}
+                <span className="cash-close-sale-item__aside">
+                  <span className="cash-close-sale-item__total mono">
+                    {formatCOP(s.total)}
+                  </span>
+                  <time className="cash-close-sale-item__time muted" dateTime={s.saleDate}>
+                    {saleDisplayTime(s.saleDate)}
+                  </time>
                 </span>
               </button>
             </li>

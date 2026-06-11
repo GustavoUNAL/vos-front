@@ -1837,7 +1837,7 @@
 
 .pos-order-discount__payment-trigger {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: 0.5rem 0.65rem;
   width: 100%;
@@ -1876,9 +1876,38 @@
   font-size: 0.75rem;
 }
 
+.pos-order-discount__payment-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+  width: 100%;
+  margin-bottom: 0.55rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pos-order-discount__payment-head:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pos-order-discount__payment-head-value {
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--pos-muted);
+}
+
 .pos-order-discount__payment-chevron {
   color: var(--pos-muted);
   opacity: 0.85;
+  flex-shrink: 0;
 }
 
 .pos-order-discount--payment.pos-order-discount--active {
@@ -1888,50 +1917,8 @@
   background: color-mix(in srgb, var(--pos-warn, #f59e0b) 8%, var(--pos-surface));
 }
 
-.pos-order-discount__payment-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+.pos-order-discount--payment.pos-order-discount--active .pos-order-discount__payment-head {
   margin-bottom: 0.55rem;
-}
-
-.pos-order-discount__payment-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.pos-order-discount__payment-clear,
-.pos-order-discount__payment-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-  padding: 0 0.55rem;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--pos-muted);
-  font-size: 0.75rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.pos-order-discount__payment-close {
-  padding: 0.35rem;
-  border-radius: 999px;
-}
-
-.pos-order-discount__payment-clear:hover:not(:disabled),
-.pos-order-discount__payment-close:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--pos-border) 35%, transparent);
-  color: inherit;
-}
-
-.pos-order-discount__payment-close:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
 }
 
 .pos-order-discount {

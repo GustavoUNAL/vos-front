@@ -6306,25 +6306,19 @@ table.data-table--sales-list {
 
 .data-table--sales-list .sales-table-col--id,
 .data-table--sales-list .sales-table-cell--id {
-  width: 14%;
+  width: 16%;
   min-width: 0;
 }
 
 .data-table--sales-list .sales-table-col--client,
 .data-table--sales-list .sales-table-cell--client {
-  width: 22%;
+  width: 24%;
   min-width: 0;
-}
-
-.data-table--sales-list .sales-table-col--time,
-.data-table--sales-list .sales-table-cell--time {
-  width: 9%;
-  white-space: nowrap;
 }
 
 .data-table--sales-list .sales-table-col--detail,
 .data-table--sales-list .sales-table-cell--detail {
-  width: 28%;
+  width: 31%;
   min-width: 0;
 }
 
@@ -6398,6 +6392,14 @@ table.data-table--sales-list {
 .sales-table-link--id .sales-table-link__date {
   font-weight: 500;
   font-size: 0.64rem;
+}
+
+.sales-table-link__time {
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-top: 0.08rem;
 }
 
 .sales-table-link__meta {
@@ -6509,8 +6511,6 @@ table.data-table--sales-list {
 }
 
 @media (max-width: 720px) {
-  .data-table--sales-list .sales-table-col--time,
-  .data-table--sales-list .sales-table-cell--time,
   .data-table--sales-list .sales-table-col--detail,
   .data-table--sales-list .sales-table-cell--detail {
     display: none;
@@ -6518,7 +6518,7 @@ table.data-table--sales-list {
 
   .data-table--sales-list .sales-table-col--id,
   .data-table--sales-list .sales-table-cell--id {
-    width: 24%;
+    width: 28%;
   }
 
   .data-table--sales-list .sales-table-col--client,
