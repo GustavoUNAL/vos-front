@@ -426,6 +426,78 @@ export function FinanceAnalyticsView({ baseUrl }: { baseUrl: string }) {
         </article>
       </section>
 
+      <section className="finance-analytics__panel" aria-label="Costo, nómina y hora">
+        <div className="finance-analytics__panel-head">
+          <h2>Costo de lo vendido</h2>
+        </div>
+        <ul className="finance-analytics__flow-list">
+          <li>
+            Costo de recetas y productos{' '}
+            <em>{formatCOP(summary?.cogsCOP ?? 0)}</em>
+          </li>
+          <li>
+            Costo sobre ventas{' '}
+            <em>
+              {summary?.foodCostPct == null ? '—' : `${summary.foodCostPct}%`}
+            </em>
+          </li>
+          <li>
+            Nómina sobre ventas{' '}
+            <em>{summary?.laborPct == null ? '—' : `${summary.laborPct}%`}</em>
+          </li>
+          <li>
+            Después de costo, nómina y servicios{' '}
+            <em>{formatCOP(summary?.contributionCOP ?? 0)}</em>
+          </li>
+        </ul>
+        {(data?.hourly ?? []).some((row) => row.count > 0) ? (
+          <div className="ops-hour-list" aria-label="Ventas por hora">
+            {(data?.hourly ?? [])
+              .filter((row) => row.count > 0 || (row.hour >= 8 && row.hour <= 23))
+              .filter((row) => row.hour >= 8 && row.hour <= 23)
+              .map((row) => {
+                const max = Math.max(
+                  1,
+                  ...(data?.hourly ?? []).map((item) => item.salesCOP),
+                )
+                return (
+                  <div key={row.hour} className="ops-hour-list__row">
+                    <span className="mono">{String(row.hour).padStart(2, '0')}</span>
+                    <span className="ops-hour-list__bar">
+                      <span style={{ width: `${(row.salesCOP / max) * 100}%` }} />
+                    </span>
+                    <span className="mono">{row.count > 0 ? formatCOP(row.salesCOP) : ''}</span>
+                  </div>
+                )
+              })}
+          </div>
+        ) : null}
+        {(data?.byPerson?.length ?? 0) > 0 ? (
+          <div className="data-table-wrap">
+          <table className="data-table finance-analytics__table">
+            <thead>
+              <tr>
+                <th>Quién atendió</th>
+                <th>Tickets</th>
+                <th>Ventas</th>
+                <th>Descuentos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.byPerson?.map((row) => (
+                <tr key={row.name}>
+                  <td>{row.name}</td>
+                  <td className="num mono">{row.count}</td>
+                  <td className="num mono">{formatCOP(row.salesCOP)}</td>
+                  <td className="num mono">{formatCOP(row.discountCOP)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        ) : null}
+      </section>
+
       <section className="finance-analytics__panel finance-analytics__utilities" aria-label="Registrar servicios">
         <div className="finance-analytics__panel-head">
           <h2>Servicios del mes</h2>

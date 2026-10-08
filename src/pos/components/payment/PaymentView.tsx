@@ -174,17 +174,24 @@ export function PaymentView({ baseUrl }: Props) {
           totals.discountCOP > 0 ? order.discountReason?.trim() : undefined,
       }
       const sale = await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
-      await payPosOrder(baseUrl, order.id, {
-        splits: payload.splits,
-        tipCOP: payload.tipCOP,
-        printReceipt: payload.printReceipt,
-        customerPhone: phone || undefined,
-        attendedBy: staff,
-        cashTenderedCOP: payload.cashTenderedCOP,
-        transferReceiptDataUrl: payload.transferReceiptDataUrl,
-        discountCOP: payload.discountCOP,
-        discountReason: payload.discountReason,
-      })
+      if (order.lines.length > 0 && !sale) {
+        throw new Error('La venta no quedó registrada en el servidor.')
+      }
+      try {
+        await payPosOrder(baseUrl, order.id, {
+          splits: payload.splits,
+          tipCOP: payload.tipCOP,
+          printReceipt: payload.printReceipt,
+          customerPhone: phone || undefined,
+          attendedBy: staff,
+          cashTenderedCOP: payload.cashTenderedCOP,
+          transferReceiptDataUrl: payload.transferReceiptDataUrl,
+          discountCOP: payload.discountCOP,
+          discountReason: payload.discountReason,
+        })
+      } catch (payError) {
+        if (!sale) throw payError
+      }
       setActiveOrder(null)
 
       const orderRef = formatPosOrderCode(order)

@@ -1902,6 +1902,62 @@ export async function createInventoryItem(
   return res.json() as Promise<InventoryRow>
 }
 
+export async function recordInventoryWaste(
+  base: string,
+  id: string,
+  payload: { quantity: number; note?: string },
+): Promise<InventoryRow> {
+  const res = await apiFetch(`${base}/inventory/${id}/waste`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<InventoryRow>
+}
+
+export async function recordInventoryCount(
+  base: string,
+  id: string,
+  payload: { quantity: number; note?: string },
+): Promise<InventoryRow> {
+  const res = await apiFetch(`${base}/inventory/${id}/count`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<InventoryRow>
+}
+
+export type OperationsDay = {
+  date: string
+  events: {
+    at: string
+    kind: 'sale' | 'purchase' | 'waste' | 'count' | 'adjustment' | 'shift' | 'cash'
+    title: string
+    detail: string
+    amountCOP: number | null
+    actor: string | null
+  }[]
+  alerts: {
+    code: string
+    severity: 'info' | 'warn'
+    title: string
+    detail: string
+  }[]
+}
+
+export async function fetchOperationsDay(
+  base: string,
+  date?: string,
+): Promise<OperationsDay> {
+  const q = date ? `?date=${encodeURIComponent(date)}` : ''
+  const res = await apiFetch(`${base}/operations/day${q}`)
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  return res.json() as Promise<OperationsDay>
+}
+
 export async function updateInventoryItem(
   base: string,
   id: string,
@@ -2855,6 +2911,7 @@ export type DailyCashClose = {
     autoCloseAt: string
     timezone: string
     isEditable: boolean
+    needsCount?: boolean
   }
 }
 
@@ -2877,7 +2934,7 @@ export type CashCloseCalendarDay = {
   date: string
   count: number
   totalCOP: string
-  closeStatus?: 'DRAFT' | 'CLOSED' | null
+  closeStatus?: 'DRAFT' | 'CLOSED' | 'NEEDS_COUNT' | null
 }
 
 export type CashCloseCalendarResponse = {
@@ -3678,6 +3735,13 @@ export type FinancialAnalyticsOverview = {
     }
   }
   combined: FinancialAnalyticsCombinedRow[]
+  hourly?: { hour: number; count: number; salesCOP: number }[]
+  byPerson?: {
+    name: string
+    count: number
+    salesCOP: number
+    discountCOP: number
+  }[]
   summary: {
     salesCOP: number
     salesProfitCOP: number
@@ -3687,6 +3751,10 @@ export type FinancialAnalyticsOverview = {
     nequiCOP: number
     otherPayCOP: number
     staffPayCOP: number
+    cogsCOP?: number
+    foodCostPct?: number | null
+    laborPct?: number | null
+    contributionCOP?: number
     utilitiesCOP?: number
     aguaCOP?: number
     energiaCOP?: number

@@ -8,6 +8,7 @@ import { AppLauncherIcon, LAUNCHER_GROUP_CLASS } from './AppLauncherIcon'
 import { mobileViewClass } from './mobile/mobileView'
 import { type CSSProperties } from 'react'
 import { useSessionUser } from '../hooks/useSessionUser'
+import { OperationsPulse } from './OperationsPulse'
 
 export function OdooHomeScreen({
   onOpenApp,
@@ -15,12 +16,14 @@ export function OdooHomeScreen({
   canViewFinance = false,
   canViewTasks = false,
   companyName,
+  baseUrl,
 }: {
   onOpenApp: (view: string) => void
   user?: import('../api').AuthUser | null
   canViewFinance?: boolean
   canViewTasks?: boolean
   companyName?: string | null
+  baseUrl?: string
 }) {
   const sessionUser = useSessionUser()
   const who = user ?? sessionUser
@@ -51,6 +54,7 @@ export function OdooHomeScreen({
           )}
         </p>
       </header>
+      {baseUrl ? <OperationsPulse baseUrl={baseUrl} onOpenApp={onOpenApp} /> : null}
       <ul className="odoo-home__grid">
         {apps.map((app, index) => (
           <li

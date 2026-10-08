@@ -11,12 +11,7 @@ import {
 } from '../pos/lib/openTablesSnapshot'
 import { mobileViewClass } from './mobile/mobileView'
 import { formatCOP } from '../lib/money'
-
-function bogotaDateKey(d = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Bogota',
-  }).format(d)
-}
+import { bogotaDateKey } from '../lib/cashCloseTime'
 
 function addDaysKey(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number)

@@ -108,16 +108,23 @@ export function usePosCheckout(baseUrl: string) {
             discountCOP && discountCOP > 0 ? discountReason?.trim() : undefined,
         }
         const sale = await registerPlatformSaleFromPosOrder(baseUrl, order, payload)
-        await payPosOrder(baseUrl, order.id, {
-          splits: payload.splits,
-          tipCOP: payload.tipCOP,
-          printReceipt: payload.printReceipt,
-          attendedBy: payload.attendedBy,
-          cashTenderedCOP: payload.cashTenderedCOP,
-          transferReceiptDataUrl: payload.transferReceiptDataUrl,
-          discountCOP: payload.discountCOP,
-          discountReason: payload.discountReason,
-        })
+        if (order.lines.length > 0 && !sale) {
+          throw new Error('La venta no quedó registrada en el servidor.')
+        }
+        try {
+          await payPosOrder(baseUrl, order.id, {
+            splits: payload.splits,
+            tipCOP: payload.tipCOP,
+            printReceipt: payload.printReceipt,
+            attendedBy: payload.attendedBy,
+            cashTenderedCOP: payload.cashTenderedCOP,
+            transferReceiptDataUrl: payload.transferReceiptDataUrl,
+            discountCOP: payload.discountCOP,
+            discountReason: payload.discountReason,
+          })
+        } catch (payError) {
+          if (!sale) throw payError
+        }
 
         const saleId =
           sale?.code?.trim() || sale?.id || formatPosOrderCode(order)

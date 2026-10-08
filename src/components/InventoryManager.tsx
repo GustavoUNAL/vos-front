@@ -14,6 +14,8 @@ import {
   inventoryResolvedPurchaseLot,
   isoInstantToDatetimeLocalValue,
   updateInventoryItem,
+  recordInventoryWaste,
+  recordInventoryCount,
   type CategoryRef,
   type InventoryMovementStats,
   type InventoryRow,
@@ -227,6 +229,9 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [wasteQty, setWasteQty] = useState('')
+  const [wasteNote, setWasteNote] = useState('')
+  const [countQty, setCountQty] = useState('')
   /** Fila con `includeStats` al editar (agregados de movimientos). */
   const [selectedRowFull, setSelectedRowFull] = useState<InventoryRow | null>(
     null,
@@ -1243,6 +1248,120 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
                 placeholder="Opcional"
               />
             </label>
+
+            {!creating && selectedId ? (
+              <div className="field">
+                <span>Merma y conteo físico</span>
+                <div className="cash-close-arqueo__grid">
+                  <label className="field">
+                    <span>Merma ({draft.unit || 'und'})</span>
+                    <input
+                      inputMode="decimal"
+                      value={wasteQty}
+                      onChange={(e) => setWasteQty(e.target.value)}
+                      placeholder="Cantidad perdida"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Motivo</span>
+                    <input
+                      value={wasteNote}
+                      onChange={(e) => setWasteNote(e.target.value)}
+                      placeholder="Vencido, derrame, error"
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  disabled={saving}
+                  onClick={() => {
+                    void (async () => {
+                      const qty = Number(wasteQty.replace(',', '.'))
+                      if (!selectedId || !Number.isFinite(qty) || qty <= 0) {
+                        setSaveError('Indicá cuánto se perdió.')
+                        return
+                      }
+                      setSaving(true)
+                      setSaveError(null)
+                      try {
+                        const updated = await recordInventoryWaste(baseUrl, selectedId, {
+                          quantity: qty,
+                          note: wasteNote.trim() || undefined,
+                        })
+                        setSelectedRowFull(updated)
+                        setDraft((d) =>
+                          d ? { ...d, quantity: String(updated.quantity) } : d,
+                        )
+                        setWasteQty('')
+                        setWasteNote('')
+                        const res = await fetchInventoryItems(baseUrl, {
+                          page,
+                          limit: LIMIT,
+                          ...inventoryListQuery,
+                        })
+                        setList(res.data)
+                        setMeta(res.meta)
+                      } catch (e) {
+                        setSaveError((e as Error).message)
+                      } finally {
+                        setSaving(false)
+                      }
+                    })()
+                  }}
+                >
+                  Registrar merma
+                </button>
+                <label className="field">
+                  <span>Conteo físico ({draft.unit || 'und'})</span>
+                  <input
+                    inputMode="decimal"
+                    value={countQty}
+                    onChange={(e) => setCountQty(e.target.value)}
+                    placeholder="Lo que hay ahora"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  disabled={saving}
+                  onClick={() => {
+                    void (async () => {
+                      const qty = Number(countQty.replace(',', '.'))
+                      if (!selectedId || !Number.isFinite(qty) || qty < 0) {
+                        setSaveError('Indicá la cantidad contada.')
+                        return
+                      }
+                      setSaving(true)
+                      setSaveError(null)
+                      try {
+                        const updated = await recordInventoryCount(baseUrl, selectedId, {
+                          quantity: qty,
+                        })
+                        setSelectedRowFull(updated)
+                        setDraft((d) =>
+                          d ? { ...d, quantity: String(updated.quantity) } : d,
+                        )
+                        setCountQty('')
+                        const res = await fetchInventoryItems(baseUrl, {
+                          page,
+                          limit: LIMIT,
+                          ...inventoryListQuery,
+                        })
+                        setList(res.data)
+                        setMeta(res.meta)
+                      } catch (e) {
+                        setSaveError((e as Error).message)
+                      } finally {
+                        setSaving(false)
+                      }
+                    })()
+                  }}
+                >
+                  Guardar conteo
+                </button>
+              </div>
+            ) : null}
 
             {!creating ? (
               <>

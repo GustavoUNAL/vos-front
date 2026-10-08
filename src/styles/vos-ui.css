@@ -1772,7 +1772,8 @@ html[data-theme='dark'] .cash-close-panel__status--draft {
   box-shadow: 0 0 0 1px color-mix(in srgb, #3d8b5d 35%, transparent);
 }
 
-.month-calendar__day-close--draft {
+.month-calendar__day-close--draft,
+.month-calendar__day-close--needs_count {
   background: #d4a017;
 }
 

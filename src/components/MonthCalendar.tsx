@@ -4,6 +4,7 @@ import {
   isDateBeforeInauguration,
 } from '../lib/calendarBounds'
 import { InlineLoader } from './InlineLoader'
+import { bogotaDateKey } from '../lib/cashCloseTime'
 
 export type MonthCalendarDay = {
   date: string
@@ -11,7 +12,7 @@ export type MonthCalendarDay = {
   totalCOP?: string
   pendingCount?: number
   completedCount?: number
-  closeStatus?: 'DRAFT' | 'CLOSED' | null
+  closeStatus?: 'DRAFT' | 'CLOSED' | 'NEEDS_COUNT' | null
 }
 
 type MonthCalendarProps = {
@@ -131,12 +132,7 @@ export function MonthCalendar({
   }
   if (error) return <p className="error-text month-calendar-error">{error}</p>
 
-  const today = new Date()
-  const todayKey = padDate(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    today.getDate(),
-  )
+  const todayKey = bogotaDateKey()
 
   const canGoPrev = canNavigateToMonth(year, month - 1, inaugurationDate)
 
@@ -237,7 +233,7 @@ export function MonthCalendar({
                 isSelected ? 'month-calendar__day--selected' : '',
                 closeStatus === 'CLOSED'
                   ? 'month-calendar__day--close-closed'
-                  : closeStatus === 'DRAFT'
+                  : closeStatus === 'DRAFT' || closeStatus === 'NEEDS_COUNT'
                     ? 'month-calendar__day--close-draft'
                     : isPastOrToday && !closeStatus
                       ? 'month-calendar__day--close-open'

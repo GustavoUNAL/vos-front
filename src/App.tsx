@@ -768,6 +768,7 @@ export default function App() {
               user={user}
               canViewFinance={canViewFinance(user)}
               canViewTasks={canViewTasks(user)}
+              baseUrl={baseUrl}
               onOpenApp={(v) => setView(v as View)}
             />
           )}

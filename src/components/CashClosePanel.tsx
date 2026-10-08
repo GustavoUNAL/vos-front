@@ -349,6 +349,11 @@ export function CashClosePanel({
           {showArqueo ? (
             <div className="cash-close-arqueo">
               <h2 className="cash-close-panel__section-label">Arqueo de caja</h2>
+              {data.meta?.needsCount ? (
+                <p className="banner-warn" role="status">
+                  Este día se archivó solo a las 11:59 p. m. El efectivo contado sigue pendiente: anotalo acá.
+                </p>
+              ) : null}
               <p className="muted small cash-close-arqueo__lead">
                 Efectivo esperado según ventas:{' '}
                 <strong className="mono">
