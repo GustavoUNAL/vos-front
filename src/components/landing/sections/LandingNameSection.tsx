@@ -18,7 +18,7 @@ export function LandingNameSection() {
           </p>
           <p>
             <span className="lp-name__mark lp-name__mark--ai">-AI</span>
-            lee esa misma operación y la convierte en indicadores, alertas y automatización.
+            resume el día, avisa si algo falta y deja hechas las tareas que se repiten.
           </p>
         </div>
         <a

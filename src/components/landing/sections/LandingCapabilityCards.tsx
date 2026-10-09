@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { AppLauncherIcon } from '../../AppLauncherIcon'
 import { LandingAppModal } from '../LandingAppModal'
 import { LANDING_CORE_APPS, type LandingApp } from '../landingApps'
 import { LandingSection, LandingSectionHeader } from './shared'
@@ -49,8 +48,8 @@ export function LandingCapabilityCards() {
         className="lp-caps__head"
         titleId="modules-title"
         kicker="Módulos"
-        title="Independientes. Una sola base."
-        subtitle="Abra un módulo para ver cómo se guarda, sus ventajas y un demo."
+        title="Cada cosa en su sitio."
+        subtitle="Abra un módulo para ver qué guarda y cómo se usa en el día."
       />
       <div ref={boardRef} className="lp-apps__board lp-caps__board">
         {LANDING_CORE_APPS.map((card, i) => (
@@ -63,9 +62,6 @@ export function LandingCapabilityCards() {
             aria-label={`${card.name}. ${card.text} Abrir detalle.`}
             onClick={() => setOpen(card)}
           >
-            <span className="lp-apps__icon" aria-hidden>
-              <AppLauncherIcon view={card.view} className="lp-apps__glyph" />
-            </span>
             <span className="lp-apps__copy">
               <span className="lp-apps__label">{card.name}</span>
               <span className="lp-apps__hint">{card.text}</span>

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { cn } from '../../../lib/utils'
-import { AppLauncherIcon } from '../../AppLauncherIcon'
 import { LandingAppModal } from '../LandingAppModal'
 import { LANDING_APPS, type LandingApp } from '../landingApps'
 import { LandingSection, LandingSectionHeader } from './shared'
@@ -142,11 +141,11 @@ export function LandingSectorsSection() {
         kicker="Negocios"
         title={
           <>
-            <span className="lp-sectors__title-full">Una plataforma. Distintos negocios.</span>
-            <span className="lp-sectors__title-short">Se adapta a su negocio.</span>
+            <span className="lp-sectors__title-full">Cada negocio tiene su recorrido.</span>
+            <span className="lp-sectors__title-short">Según el oficio.</span>
           </>
         }
-        subtitle="Elija un sector y abra un módulo del flujo para ver cómo se adapta."
+        subtitle="Elija un sector y mire cómo se mueve un día normal."
       />
       <div className="lp-sectors__tabs" role="tablist" aria-label="Sectores">
         {SECTORS.map((s) => (
@@ -178,9 +177,6 @@ export function LandingSectorsSection() {
                   aria-label={`${app.name}. ${app.text} Abrir detalle.`}
                   onClick={() => setOpen(app)}
                 >
-                  <span className="lp-sectors__step-icon" aria-hidden>
-                    <AppLauncherIcon view={app.view} className="lp-apps__glyph" />
-                  </span>
                   <span>
                     <strong>{i + 1}. {app.name}</strong>
                     <em>{app.from}</em>
@@ -226,9 +222,6 @@ export function LandingSectorsSection() {
             aria-expanded={open?.view === app.view}
             onClick={() => setOpen(app)}
           >
-            <span className="lp-sectors__mod-icon" aria-hidden>
-              <AppLauncherIcon view={app.view} className="lp-apps__glyph" />
-            </span>
             <span>{app.name}</span>
           </button>
         ))}

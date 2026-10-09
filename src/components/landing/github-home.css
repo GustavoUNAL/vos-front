@@ -1034,14 +1034,18 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
 
 .lp-gh .lp-apps__board.lp-caps__board .lp-apps__tile,
 .lp-gh .lp-apps__board.lp-caps__board .lp-apps__tile:nth-child(5) {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
   grid-column: auto;
   flex-direction: row;
   align-items: flex-start;
   gap: 0.75rem;
-  min-height: 4.5rem;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid #21262d;
-  border-radius: 12px;
+  min-height: 0;
+  padding: 0.95rem 0.1rem;
+  border: 0;
+  border-bottom: 1px solid #21262d;
+  border-radius: 0;
   background: transparent;
   text-align: left;
 }
@@ -1079,7 +1083,7 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
 }
 
 .lp-gh .lp-apps__board.lp-caps__board .lp-apps__more {
-  display: inline;
+  display: none;
   flex-shrink: 0;
   margin-top: 0.15rem;
   color: #656d76;
@@ -1103,17 +1107,14 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
 
 @media (min-width: 1024px) {
   .lp-gh .lp-apps__board.lp-caps__board {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 0.6rem;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 2.5rem;
   }
 
   .lp-gh .lp-apps__board.lp-caps__board .lp-apps__tile,
-  .lp-gh .lp-apps__board.lp-caps__board .lp-apps__tile:nth-child(5) {
-    grid-column: span 3;
-  }
-
+  .lp-gh .lp-apps__board.lp-caps__board .lp-apps__tile:nth-child(5),
   .lp-gh .lp-apps__board.lp-caps__board .lp-apps__tile:nth-child(n + 5) {
-    grid-column: span 4;
+    grid-column: auto;
   }
 }
 
@@ -1372,7 +1373,7 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
   overflow: auto;
   padding: 1.15rem 1.1rem 1.2rem;
   border: 1px solid #30363d;
-  border-radius: 14px;
+  border-radius: 2px;
   background: #0d1117;
   color: #f0f6fc;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
@@ -1717,9 +1718,10 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
   align-items: center;
   gap: 0.7rem;
   width: 100%;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid #21262d;
-  border-radius: 12px;
+  padding: 0.7rem 0.1rem;
+  border: 0;
+  border-bottom: 1px solid #21262d;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -1779,7 +1781,7 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
   margin: 0;
   padding: 0.95rem 1rem 1rem;
   border: 1px solid #21262d;
-  border-radius: 12px;
+  border-radius: 2px;
   background: transparent;
   text-align: left;
 }
@@ -1874,15 +1876,16 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.3rem 0.7rem 0.3rem 0.3rem;
-  border: 1px solid #21262d;
-  border-radius: 999px;
+  padding: 0.15rem 0 0.2rem;
+  border: 0;
+  border-bottom: 1px solid #30363d;
+  border-radius: 0;
   background: transparent;
   color: #f0f6fc;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   cursor: pointer;
 }
 
@@ -1913,7 +1916,7 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
   margin-inline: auto;
   padding: 1.5rem 1.4rem 1.4rem;
   border: 1px solid #21262d;
-  border-radius: 14px;
+  border-radius: 2px;
   background: transparent;
   text-align: center;
 }

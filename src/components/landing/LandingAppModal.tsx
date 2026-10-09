@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { AppLauncherIcon } from '../AppLauncherIcon'
 import { LandingAppDemo } from './LandingAppDemo'
 import { LANDING_APP_STATUS, type LandingApp } from './landingApps'
 
@@ -45,9 +44,6 @@ export function LandingAppModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="lp-cap-modal__top">
-          <span className={`lp-cap-modal__icon lp-apps__tile--${app.tone}`} aria-hidden>
-            <AppLauncherIcon view={app.view} />
-          </span>
           <p className={`lp-cap-modal__status lp-cap--${app.status}`}>
             {LANDING_APP_STATUS[app.status]}
           </p>

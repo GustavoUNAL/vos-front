@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
-import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand'
+import { BRAND_NAME } from '../lib/brand'
 import { SiteFooter } from './SiteFooter'
 import { getLoginUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
@@ -50,7 +50,7 @@ export function LandingView({
   const { theme, toggleTheme } = usePublicTheme()
 
   useLayoutEffect(() => {
-    document.title = `${BRAND_NAME} — Todo su negocio. Una sola plataforma.`
+    document.title = `${BRAND_NAME} — Sistema de manejo de datos para empresas`
   }, [])
 
   useEffect(() => {
@@ -139,12 +139,12 @@ export function LandingView({
             <header className="attio-hero lp-gh-hero" id="producto" aria-labelledby="landing-hero-title">
               <div className="attio-hero__copy">
                 <h1 id="landing-hero-title">
-                  Todo su negocio.
+                  Sistema de manejo
                   <br />
-                  Una sola plataforma.
+                  de datos para empresas.
                 </h1>
                 <p className="attio-hero__lead">
-                  Ventas, inventario, clientes y citas en un solo lugar.
+                  Ventas, inventario, citas y clientes. El mismo trabajo de siempre, con los números a la vista.
                 </p>
                 <div className="attio-hero__cta">
                   <a className="attio-btn attio-btn--outline" href={loginUrl} onClick={handleLogin}>
@@ -167,7 +167,7 @@ export function LandingView({
           </div>
         </div>
 
-        <SiteFooter tagline={BRAND_TAGLINE} />
+        <SiteFooter tagline="Hecho para el día a día de un negocio." />
       </div>
     </div>
   )
