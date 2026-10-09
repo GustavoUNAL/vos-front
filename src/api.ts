@@ -483,6 +483,13 @@ export async function apiFetch(
   const token = auth ? getAccessToken() : null
   const companyId = auth ? resolveAuthCompanyId(token) : null
   const headers = new Headers(init?.headers ?? undefined)
+  if (
+    typeof init?.body === 'string' &&
+    init.body.length > 0 &&
+    !headers.has('Content-Type')
+  ) {
+    headers.set('Content-Type', 'application/json')
+  }
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (companyId) headers.set('X-Company-Id', companyId)
   const res = await fetch(url, { ...init, headers })
@@ -561,6 +568,7 @@ export type AuthUser = {
   platformView?: boolean
   permissions?: string[]
   companies: CompanySummary[]
+  avatarUrl?: string | null
   systemSettings?: SystemSettings
   usage?: CompanyUsage | null
 }
@@ -2804,6 +2812,16 @@ export async function updatePlatformShopOrderStatus(
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   return res.json() as Promise<PlatformShopOrder>
+}
+
+export async function deletePlatformShopOrder(
+  base: string,
+  id: string,
+): Promise<void> {
+  const res = await apiFetch(`${base}/shop-orders/${id}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
 }
 
 export async function collectPlatformShopOrderPayment(

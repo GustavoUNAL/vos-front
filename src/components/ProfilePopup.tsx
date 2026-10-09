@@ -12,11 +12,8 @@ import { userNeedsCompanyPicker } from '../lib/companySelect'
 import { canManageAllStaff } from '../lib/permissions'
 import { greetUser } from '../lib/userIdentity'
 import { CompanySwitcher } from './CompanySwitcher'
-import {
-  StaffProfileCard,
-  personInitials,
-  staffRoleLabel,
-} from './StaffProfileCard'
+import { StaffProfileCard, staffRoleLabel } from './StaffProfileCard'
+import { UserAvatar } from './UserAvatar'
 
 type Props = {
   user: AuthUser
@@ -155,9 +152,11 @@ export function ProfilePopup({
         aria-labelledby="profile-popup-title"
       >
         <header className="profile-popup__hero">
-          <div className="profile-popup__avatar" aria-hidden>
-            {personInitials(member?.name || user.name)}
-          </div>
+          <UserAvatar
+            name={member?.name || user.name}
+            url={user.avatarUrl}
+            className="profile-popup__avatar"
+          />
           <div className="profile-popup__hero-copy">
             <p className="profile-popup__kicker">{greetUser(user.name)}</p>
             <h2 id="profile-popup-title" className="profile-popup__title">

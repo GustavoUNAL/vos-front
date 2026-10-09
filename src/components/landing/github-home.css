@@ -393,14 +393,6 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
     text-align: left;
   }
 
-  .lp-cap-modal__dialog {
-    width: min(100%, 46rem);
-  }
-
-  .lp-cap-modal__body {
-    grid-template-columns: minmax(0, 1.05fr) minmax(15rem, 0.95fr);
-    align-items: start;
-  }
 }
 
 .lp-gh .attio-nav__drawer {
@@ -1475,6 +1467,17 @@ html[data-theme] .lp-gh.attio-home .attio-nav__login--mobile,
   display: grid;
   gap: 1rem;
   margin-top: 1.05rem;
+}
+
+@media (min-width: 1024px) {
+  .lp-cap-modal__dialog {
+    width: min(100%, 46rem);
+  }
+
+  .lp-cap-modal__body {
+    grid-template-columns: minmax(0, 1.05fr) minmax(15rem, 0.95fr);
+    align-items: start;
+  }
 }
 
 .lp-cap-modal__info {

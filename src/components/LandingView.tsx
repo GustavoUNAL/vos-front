@@ -15,6 +15,7 @@ import '../public-shell.css'
 import './landing/attio-home.css'
 import './landing/sections/landing-platform.css'
 import './landing/github-home.css'
+import './landing/treinta-home.css'
 
 const NAV_LINKS = [
   { href: '#modulos', label: 'Módulos' },
@@ -75,7 +76,7 @@ export function LandingView({
   }
 
   return (
-    <div ref={shellRef} className="public-shell landing-v2 attio-home lp-platform lp-gh">
+    <div ref={shellRef} className="public-shell landing-v2 attio-home lp-platform lp-gh lp-t30">
       <header className={headerScrolled ? 'attio-header is-scrolled' : 'attio-header'}>
         <div className="attio-container">
           <nav className="attio-nav" aria-label="Principal">
@@ -139,13 +140,14 @@ export function LandingView({
             <header className="attio-hero lp-gh-hero" id="producto" aria-labelledby="landing-hero-title">
               <div className="attio-hero__copy">
                 <h1 id="landing-hero-title">
-                  Sistema de manejo
-                  <br />
-                  de datos para empresas.
+                  <span className="lp-t30-line">Sistema de</span>
+                  <span className="lp-t30-accent">manejo de datos</span>
+                  <span className="lp-t30-line">para empresas.</span>
                 </h1>
-                <p className="attio-hero__lead">
-                  Ventas, inventario, citas y clientes. El mismo trabajo de siempre, con los números a la vista.
-                </p>
+                <ul className="lp-t30-points">
+                  <li>Ventas, inventario, citas y clientes.</li>
+                  <li>El mismo trabajo de siempre, con los números a la vista.</li>
+                </ul>
                 <div className="attio-hero__cta">
                   <a className="attio-btn attio-btn--outline" href={loginUrl} onClick={handleLogin}>
                     Acceder

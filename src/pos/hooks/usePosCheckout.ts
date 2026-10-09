@@ -111,7 +111,7 @@ export function usePosCheckout(baseUrl: string) {
         if (order.lines.length > 0 && !sale) {
           throw new Error('La venta no quedó registrada en el servidor.')
         }
-        try {
+        if (!sale) try {
           await payPosOrder(baseUrl, order.id, {
             splits: payload.splits,
             tipCOP: payload.tipCOP,

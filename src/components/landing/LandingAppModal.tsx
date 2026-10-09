@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { LandingAppDemo } from './LandingAppDemo'
+import { LandingArt } from './LandingArt'
 import { LANDING_APP_STATUS, type LandingApp } from './landingApps'
 
 export function LandingAppModal({
@@ -32,8 +33,10 @@ export function LandingAppModal({
     }
   }, [app, onClose])
 
+  const mount = document.querySelector('.public-shell') ?? document.body
+
   return createPortal(
-    <div className="lp-cap-modal" role="presentation" onClick={onClose}>
+    <div className="lp-cap-modal lp-t30" role="presentation" onClick={onClose}>
       <div
         ref={dialogRef}
         className="lp-cap-modal__dialog"
@@ -57,7 +60,10 @@ export function LandingAppModal({
             <span aria-hidden>×</span>
           </button>
         </div>
-        <h3 id={titleId}>{app.name}</h3>
+        <div className="lp-cap-modal__title">
+          <LandingArt view={app.view} size="modal" />
+          <h3 id={titleId}>{app.name}</h3>
+        </div>
         <p className="lp-cap-modal__text">{app.text}</p>
 
         <div className="lp-cap-modal__body">
@@ -80,6 +86,6 @@ export function LandingAppModal({
         </div>
       </div>
     </div>,
-    document.body,
+    mount,
   )
 }

@@ -77,7 +77,10 @@ export function buildDesktopNavGroups(options: {
       {
         id: 'stock',
         label: 'Inventario',
-        items: [{ view: 'inventory', label: 'Stock' }],
+        items: [
+          { view: 'inventory', label: 'Stock' },
+          { view: 'recipes', label: 'Recetas' },
+        ],
       },
       {
         id: 'sales',

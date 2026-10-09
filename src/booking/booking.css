@@ -32,6 +32,19 @@
   font-weight: 650;
 }
 
+@media (max-width: 720px) {
+  .bk--embedded .bk__tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .bk--embedded .bk__tab {
+    flex: 1 1 calc(50% - 0.35rem);
+    justify-content: center;
+    text-align: center;
+  }
+}
+
 .bk__tab.is-on {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   background: color-mix(in srgb, var(--accent-soft) 70%, transparent);

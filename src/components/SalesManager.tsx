@@ -1290,6 +1290,7 @@ export function SalesManager({
               refreshKey={calendarRefreshKey}
               inaugurationDate={inaugurationDate}
               ariaLabel="Calendario de ventas por mes"
+              emphasizeSummary
               fetchMonth={fetchSalesCalendar}
               onDayClick={(date) => {
                 setFilterDateFrom(date)
@@ -1322,6 +1323,7 @@ export function SalesManager({
               loading={calendarLoading}
               error={calendarError}
               countLabel="venta"
+              emphasizeSummary
               selectedDate={dayModalDate}
               inaugurationDate={inaugurationDate}
               onPrevMonth={() => {

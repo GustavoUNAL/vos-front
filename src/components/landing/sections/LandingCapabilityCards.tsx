@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { LandingAppModal } from '../LandingAppModal'
+import { LandingArt } from '../LandingArt'
 import { LANDING_CORE_APPS, type LandingApp } from '../landingApps'
 import { LandingSection, LandingSectionHeader } from './shared'
 
@@ -62,6 +63,7 @@ export function LandingCapabilityCards() {
             aria-label={`${card.name}. ${card.text} Abrir detalle.`}
             onClick={() => setOpen(card)}
           >
+            <LandingArt view={card.view} />
             <span className="lp-apps__copy">
               <span className="lp-apps__label">{card.name}</span>
               <span className="lp-apps__hint">{card.text}</span>

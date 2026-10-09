@@ -27,19 +27,34 @@ import { RecipeEditor } from './RecipeEditor'
 import { ViewBootSplash } from './DataLoadingSplash'
 import { SectionSummaryDeck } from './SectionSummaryDeck'
 
+function hashParts(): string[] {
+  const raw = (window.location.hash ?? '').replace(/^#/, '').split('?')[0] ?? ''
+  return raw.split('/').filter(Boolean)
+}
+
 function getRecipeIdFromHash(): string | null {
-  const raw = (window.location.hash ?? '').replace(/^#/, '') // "recipes/..."
-  const parts = raw.split('/').filter(Boolean)
-  if (parts[0] !== 'recipes') return null
-  return parts[1] ?? null
+  const parts = hashParts()
+  const idx = parts.lastIndexOf('recipes')
+  if (idx < 0) return null
+  return parts[idx + 1] ?? null
+}
+
+function recipesHash(productId?: string): string {
+  const parts = hashParts()
+  const company = parts[0] === 'e' && parts[1] ? parts[1] : null
+  if (company) {
+    const base = `#/e/${encodeURIComponent(company)}/recipes`
+    return productId ? `${base}/${encodeURIComponent(productId)}` : base
+  }
+  return productId ? `#/recipes/${encodeURIComponent(productId)}` : '#/recipes'
 }
 
 function pushRouteToRecipe(productId: string): void {
-  window.history.pushState({}, '', `#/recipes/${productId}`)
+  window.history.pushState({}, '', recipesHash(productId))
 }
 
 function replaceRouteToRecipesList(): void {
-  window.history.replaceState({}, '', '#/recipes')
+  window.history.replaceState({}, '', recipesHash())
 }
 
 export function RecipesView({ baseUrl }: { baseUrl: string }) {

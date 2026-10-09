@@ -780,7 +780,7 @@ export default function App() {
             />
           )}
           {view === 'products' && <ProductsManager baseUrl={baseUrl} />}
-          {!SALES_FLOOR_ONLY && !PLATFORM_MODE && view === 'recipes' && (
+          {!SALES_FLOOR_ONLY && view === 'recipes' && (
             <RecipesView baseUrl={baseUrl} />
           )}
           {!SALES_FLOOR_ONLY && view === 'inventory' && (

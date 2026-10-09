@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { cn } from '../../../lib/utils'
 import { LandingAppModal } from '../LandingAppModal'
+import { LandingArt } from '../LandingArt'
 import { LANDING_APPS, type LandingApp } from '../landingApps'
 import { LandingSection, LandingSectionHeader } from './shared'
 
@@ -177,6 +178,7 @@ export function LandingSectorsSection() {
                   aria-label={`${app.name}. ${app.text} Abrir detalle.`}
                   onClick={() => setOpen(app)}
                 >
+                  <LandingArt view={app.view} size="step" />
                   <span>
                     <strong>{i + 1}. {app.name}</strong>
                     <em>{app.from}</em>
@@ -222,6 +224,7 @@ export function LandingSectorsSection() {
             aria-expanded={open?.view === app.view}
             onClick={() => setOpen(app)}
           >
+            <LandingArt view={app.view} size="chip" />
             <span>{app.name}</span>
           </button>
         ))}

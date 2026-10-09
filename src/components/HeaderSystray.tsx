@@ -11,16 +11,10 @@ import type { AuthUser } from '../api'
 import { buildHeaderNotifications } from '../lib/headerNotifications'
 import { ThemeSwitch } from './ThemeSwitch'
 import { ProfilePopup } from './ProfilePopup'
+import { UserAvatar } from './UserAvatar'
 import { firstName } from '../lib/userIdentity'
 
 type SystrayPanelId = 'notifications' | 'settings' | 'profile'
-
-function userInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase()
-}
 
 function SystrayPanel({
   id,
@@ -219,9 +213,11 @@ export function HeaderSystray({
           title={hello ? `Perfil de ${hello}` : 'Mi perfil'}
           onClick={() => togglePanel('profile')}
         >
-          <span className="header-systray__avatar" aria-hidden>
-            {userInitials(user.name)}
-          </span>
+          <UserAvatar
+            name={user.name}
+            url={user.avatarUrl}
+            className="header-systray__avatar"
+          />
           {hello ? <span className="header-systray__hello">{hello}</span> : null}
           <User className="header-systray__icon header-systray__icon--profile-fallback" strokeWidth={2} aria-hidden />
           <span className="sr-only">Perfil de {user.name}</span>

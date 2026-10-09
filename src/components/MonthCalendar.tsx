@@ -37,6 +37,8 @@ type MonthCalendarProps = {
   inaugurationDate?: string | null
   /** `tasks`: muestra pendientes en lugar de montos COP. */
   metricMode?: 'currency' | 'tasks'
+  /** El total del mes va arriba, antes de los días. */
+  emphasizeSummary?: boolean
 }
 
 const MONTH_NAMES = [
@@ -86,6 +88,7 @@ export function MonthCalendar({
   hideNav = false,
   inaugurationDate = null,
   metricMode = 'currency',
+  emphasizeSummary = false,
 }: MonthCalendarProps) {
   const isTasks = metricMode === 'tasks'
   const dayMap = useMemo(
@@ -144,6 +147,18 @@ export function MonthCalendar({
       aria-label={`Calendario ${MONTH_NAMES[month - 1]} ${year}`}
     >
       <header className="month-calendar__head">
+        {emphasizeSummary && !isTasks ? (
+          <div className="month-calendar__lead">
+            <p className="month-calendar__lead-label">Consolidado del mes</p>
+            <p className="month-calendar__lead-total">
+              {formatCOP(String(monthSummary.total))}
+            </p>
+            <p className="month-calendar__lead-meta muted small">
+              {monthSummary.count} {countLabel}
+              {monthSummary.count !== 1 ? 's' : ''} · {MONTH_NAMES[month - 1]} {year}
+            </p>
+          </div>
+        ) : null}
         {!hideNav ? (
           <div className="month-calendar__nav">
             <button
@@ -167,6 +182,7 @@ export function MonthCalendar({
         <h3 className="month-calendar__title">
           {MONTH_NAMES[month - 1]} {year}
         </h3>
+        {emphasizeSummary && !isTasks ? null : (
         <p className="month-calendar__summary muted small">
           {monthSummary.count}{' '}
           {countLabel}
@@ -183,6 +199,7 @@ export function MonthCalendar({
             <> · {formatCOP(String(monthSummary.total))}</>
           )}
         </p>
+        )}
       </header>
 
       <div className="month-calendar__weekdays" aria-hidden>

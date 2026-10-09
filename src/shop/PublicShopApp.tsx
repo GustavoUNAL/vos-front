@@ -602,7 +602,9 @@ export function PublicShopApp() {
                     >
                       Todos
                     </button>
-                    {catalog.categories.map((c) => (
+                    {catalog.categories
+                      .filter((c) => !c.name.trim().toUpperCase().startsWith('INVENTORY::'))
+                      .map((c) => (
                       <button
                         key={c.id}
                         type="button"

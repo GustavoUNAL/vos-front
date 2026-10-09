@@ -1,3 +1,4 @@
+import { landingIcon } from './landing/landingIcons'
 import '../platform-admin.css'
 
 type Props = {
@@ -17,7 +18,7 @@ export function PlatformAdminBar({ onReturn, compact = false }: Props) {
       aria-label="Volver al menú principal de plataforma"
     >
       <span className="platform-admin-return__mark" aria-hidden>
-        ←
+        <img src={landingIcon('platform')} alt="" />
       </span>
       <span className="platform-admin-return__label">
         {compact ? 'Panel' : 'Menú plataforma'}

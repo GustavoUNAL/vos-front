@@ -3857,6 +3857,12 @@ html[data-theme='light'] .brand-mark__ia {
   }
 }
 
+@media (max-width: 959px) {
+  .products-catalog-col--desktop {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
   .products-catalog-col--desktop {
     display: none;
@@ -6261,7 +6267,7 @@ table.data-table.purchase-lot-line-items-table--cols3 {
   min-height: 400px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 959px) {
   .explorer-split {
     grid-template-columns: 1fr;
   }
@@ -6700,6 +6706,12 @@ table.data-table.inventory-table:not(.inventory-table--detail) {
     min-width: 0;
   }
 
+  table.data-table.inventory-table:not(.inventory-table--detail) {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+
   .data-table th,
   .data-table td {
     padding: 0.3rem 0.34rem;
@@ -6723,6 +6735,8 @@ table.data-table.inventory-table:not(.inventory-table--detail) {
   .recipe-table th,
   .recipe-table td {
     padding: 0.3rem 0.34rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .explorer-data-table {
@@ -8779,7 +8793,7 @@ html[data-theme='dark'] .editor-panel-backdrop {
 
 @media (max-width: 640px) {
   .modal.modal--sales-editor {
-    width: calc(100vw - 1rem);
+    width: min(100%, calc(100% - 1rem));
     max-height: min(94dvh, 900px);
   }
 
@@ -8834,8 +8848,8 @@ html[data-theme='dark'] .editor-panel-backdrop {
   }
 
   .modal.modal--sales-editor {
-    width: 100vw;
-    max-width: 100vw;
+    width: 100%;
+    max-width: 100%;
     height: 100dvh;
     max-height: 100dvh;
     border-radius: 0;
@@ -12113,15 +12127,16 @@ table.recipe-table {
   }
 
   .app-mobile-dock__label {
-    display: block;
-    font-size: 0.6rem;
+    display: -webkit-box;
+    font-size: 0.58rem;
     font-weight: 650;
     letter-spacing: 0.01em;
     line-height: 1.1;
     max-width: 100%;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     color: inherit;
   }
 
@@ -12652,6 +12667,35 @@ html.app--chat-sheet-open body {
 .month-calendar__summary {
   margin: 0;
   flex: 1 1 100%;
+}
+
+.month-calendar__lead {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.35rem;
+}
+
+.month-calendar__lead-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #6b7280);
+}
+
+.month-calendar__lead-total {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 720;
+  line-height: 1.1;
+  color: var(--heading);
+}
+
+.month-calendar__lead-meta {
+  margin: 0;
 }
 
 .month-calendar__weekdays {
@@ -14598,7 +14642,7 @@ html.app--chat-sheet-open body {
   color: var(--danger, #f87171);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .finance-analytics__head {
     flex-direction: column;
   }

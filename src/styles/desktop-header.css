@@ -339,6 +339,7 @@
   letter-spacing: 0.02em;
   background: color-mix(in srgb, var(--berry) 55%, #fff);
   color: #fff;
+  object-fit: cover;
 }
 
 .header-systray__badge {
@@ -762,6 +763,20 @@ html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
   height: 1.95rem;
 }
 
+.odoo-app-tile__icon--art {
+  overflow: hidden;
+  padding: 0;
+  background: #0d1117;
+  box-shadow: none;
+}
+
+.odoo-app-tile__icon--art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .odoo-app-tile__label {
   font-size: 0.8rem;
   font-weight: 650;
@@ -868,6 +883,36 @@ html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.ops-pulse--min .ops-pulse__head {
+  margin-bottom: 0;
+}
+
+.ops-pulse__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.ops-pulse--closed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ops-pulse__count {
+  color: var(--muted, #8b949e);
+  font-size: 0.82rem;
+  font-weight: 650;
 }
 
 .ops-pulse__head h2 {
