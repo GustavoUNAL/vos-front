@@ -123,6 +123,47 @@ export function usePosOrder(baseUrl: string) {
     [order, persist],
   )
 
+  /** Ítem fuera de carta: siempre una línea nueva, con el nombre y el valor que escriban. */
+  const addOpenProduct = useCallback(
+    async (payload: {
+      productId: string
+      name: string
+      amountCOP: number
+      detail: string
+    }) => {
+      if (!order) return
+      const name = payload.name.trim()
+      const amount = Math.max(0, Math.round(payload.amountCOP))
+      if (!name || amount <= 0) return
+      const detail = payload.detail.trim()
+      const lines: OrderLine[] = [
+        ...order.lines,
+        {
+          id: newLineId(),
+          productId: payload.productId,
+          productName: name,
+          quantity: 1,
+          unitPrice: amount,
+          notes: detail || null,
+        },
+      ]
+      await persist({ ...order, lines })
+    },
+    [order, persist],
+  )
+
+  const setUnitPrice = useCallback(
+    async (lineId: string, unitPrice: number) => {
+      if (!order) return
+      const price = Math.max(0, Math.round(unitPrice))
+      const lines = order.lines.map((l) =>
+        l.id === lineId ? { ...l, unitPrice: price } : l,
+      )
+      await persist({ ...order, lines })
+    },
+    [order, persist],
+  )
+
   const setLineNotes = useCallback(
     async (lineId: string, notes: string) => {
       if (!order) return
@@ -254,7 +295,9 @@ export function usePosOrder(baseUrl: string) {
     error: state.orderError,
     addProduct,
     addExtraCharge,
+    addOpenProduct,
     setQuantity,
+    setUnitPrice,
     setLineNotes,
     removeLine,
     updateMeta,

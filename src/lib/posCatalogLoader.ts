@@ -6,7 +6,7 @@ import {
 } from '../api'
 import { readApiCache, writeApiCache } from './apiCache'
 
-export const POS_ACTIVE_CATALOG_CACHE_KEY = 'pos:active-catalog:v2'
+export const POS_ACTIVE_CATALOG_CACHE_KEY = 'pos:active-catalog:v4'
 export const POS_ACTIVE_CATALOG_TTL_MS = 12 * 60 * 1000
 
 export type PosActiveCatalog = {

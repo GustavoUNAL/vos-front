@@ -8416,6 +8416,15 @@ html[data-theme='dark'] .editor-panel-backdrop {
   font-size: 0.92rem;
 }
 
+.sales-invoice__input--detail {
+  display: block;
+  width: 100%;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 450;
+  color: var(--muted, #8b949e);
+}
+
 .sales-invoice__input--qty,
 .sales-invoice__input--price {
   text-align: right;

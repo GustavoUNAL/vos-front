@@ -1601,6 +1601,28 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                   ),
                 })}
                 {renderProductFieldRow({
+                  fieldKey: 'description',
+                  label: 'Descripción',
+                  canLock: !creating,
+                  disabled: saving,
+                  display: (
+                    <span className="product-editor-field-value-text product-editor-field-value-text--multiline">
+                      {draft.description.trim() || '—'}
+                    </span>
+                  ),
+                  children: (
+                    <textarea
+                      className="input-cell product-editor-description-input"
+                      rows={3}
+                      value={draft.description}
+                      onChange={(e) =>
+                        setDraft({ ...draft, description: e.target.value })
+                      }
+                      placeholder="Qué incluye, cómo se sirve, nota para la carta…"
+                    />
+                  ),
+                })}
+                {renderProductFieldRow({
                   fieldKey: 'price',
                   label: 'Precio (COP)',
                   canLock: !creating,
@@ -1903,29 +1925,6 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
                           </h4>
                         </header>
                         <div className="product-editor-subsection__body">
-                          {renderProductFieldRow({
-                            fieldKey: 'description',
-                            label: 'Descripción',
-                            inAdvancedPopup: true,
-                            canLock: false,
-                            disabled: saving,
-                            display: (
-                              <span className="product-editor-field-value-text product-editor-field-value-text--multiline">
-                                {draft.description.trim() || '—'}
-                              </span>
-                            ),
-                            children: (
-                              <textarea
-                                className="input-cell product-editor-description-input product-editor-description-input--advanced"
-                                rows={5}
-                                value={draft.description}
-                                onChange={(e) =>
-                                  setDraft({ ...draft, description: e.target.value })
-                                }
-                                placeholder="Texto comercial para la carta…"
-                              />
-                            ),
-                          })}
                           {renderProductFieldRow({
                             fieldKey: 'type',
                             label: 'Tipo (API)',

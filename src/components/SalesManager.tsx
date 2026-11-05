@@ -22,6 +22,7 @@ import {
   type SaleListRow,
 } from '../api'
 import { canDeleteSales } from '../lib/permissions'
+import { isPosOpenProduct } from '../pos/lib/openProduct'
 import { displaySaleSource } from '../lib/displayLabels'
 import { namedCopy } from '../lib/userIdentity'
 import { useMatchMedia } from '../hooks/useMatchMedia'
@@ -189,6 +190,14 @@ function catalogDefaultsFromProduct(prod: ProductRow): Pick<
   LineDraft,
   'lineUnit' | 'lineSize' | 'productName' | 'unitPrice'
 > {
+  if (isPosOpenProduct(prod)) {
+    return {
+      productName: '',
+      unitPrice: '',
+      lineUnit: 'und',
+      lineSize: '',
+    }
+  }
   return {
     productName: prod.name,
     unitPrice: String(prod.price),
@@ -307,14 +316,6 @@ function invoiceTicketDate(local: string): string {
     dateStyle: 'long',
     timeStyle: 'short',
   }).format(d)
-}
-
-function invoiceLineMeta(r: LineDraft): string | null {
-  const unit = r.lineUnit.trim() || 'und'
-  const size = r.lineSize.trim()
-  if (size) return `${unit} · ${size}`
-  if (unit !== 'und') return unit
-  return null
 }
 
 export function SalesManager({
@@ -1877,7 +1878,6 @@ export function SalesManager({
                               Number.isFinite(q) && Number.isFinite(p)
                                 ? formatCOP(q * p)
                                 : '—'
-                            const meta = invoiceLineMeta(r)
                             return (
                               <tr key={r.key}>
                                 <td className="sales-invoice__col-desc">
@@ -1891,11 +1891,16 @@ export function SalesManager({
                                     }
                                     placeholder="Nombre del producto"
                                   />
-                                  {meta ? (
-                                    <span className="sales-invoice__line-meta muted small">
-                                      {meta}
-                                    </span>
-                                  ) : null}
+                                  <input
+                                    className="sales-invoice__input sales-invoice__input--detail"
+                                    value={r.lineSize}
+                                    onChange={(e) =>
+                                      updateLine(r.key, {
+                                        lineSize: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Detalle o descripción"
+                                  />
                                 </td>
                                 <td className="sales-invoice__col-qty num">
                                   <input
@@ -2041,7 +2046,7 @@ export function SalesManager({
                           <th>Catálogo</th>
                           <th>Producto</th>
                           <th className="col-unit">Unidad</th>
-                          <th className="col-size">Tamaño</th>
+                          <th className="col-size">Detalle</th>
                           <th className="col-qty">Cant.</th>
                           <th className="col-cost">Precio</th>
                           <th className="col-cost">Subtotal</th>
@@ -2148,7 +2153,7 @@ export function SalesManager({
                                       lineSize: e.target.value,
                                     })
                                   }
-                                  placeholder="6 oz"
+                                  placeholder="Descripción"
                                 />
                               </td>
                               <td className="col-qty">
