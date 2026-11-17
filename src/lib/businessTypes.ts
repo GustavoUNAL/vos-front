@@ -15,7 +15,7 @@ export const BUSINESS_TYPES = [
     id: 'barbershop',
     name: 'Barbería / salón',
     blurb: 'Agenda pública, clientes y cobro en caja.',
-    modules: ['Citas', 'Ventas', 'Clientes', 'Finanzas'],
+    modules: ['Citas', 'Ventas', 'Clientes de la agenda', 'Finanzas'],
   },
   {
     id: 'retail',
@@ -27,7 +27,7 @@ export const BUSINESS_TYPES = [
     id: 'services',
     name: 'Servicios / proyectos',
     blurb: 'Citas, clientes, obras y seguimiento.',
-    modules: ['Citas', 'Proyectos', 'Tareas', 'Clientes', 'Finanzas'],
+    modules: ['Citas', 'Proyectos', 'Tareas', 'Clientes de la agenda', 'Finanzas'],
   },
   {
     id: 'clinic',

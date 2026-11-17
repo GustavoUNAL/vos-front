@@ -73,6 +73,9 @@ export function getApiBase(): string {
   if (fromEnv?.trim()) {
     return normalize(fromEnv)
   }
+  if (import.meta.env.PROD) {
+    return ''
+  }
   if (typeof window !== 'undefined') {
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (stored?.trim()) {
@@ -91,37 +94,32 @@ export function getApiBase(): string {
 }
 
 export function setApiBase(url: string): void {
+  if (import.meta.env.PROD) return
   const trim = (s: string) => s.replace(/\/$/, '')
   let u = trim(url)
   if (u.endsWith('/api')) u = trim(u.slice(0, -4))
   window.localStorage.setItem(STORAGE_KEY, u)
 }
 
+let memoryToken: string | null = null
+
 export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const t = window.localStorage.getItem(TOKEN_KEY)
-    return t?.trim() ? t.trim() : null
-  } catch {
-    return null
-  }
+  return memoryToken
 }
 
 export function setAccessToken(token: string | null): void {
-  if (typeof window === 'undefined') return
-  try {
-    if (!token?.trim()) {
+  memoryToken = token?.trim() ? token.trim() : null
+  if (typeof window !== 'undefined') {
+    try {
       window.localStorage.removeItem(TOKEN_KEY)
-      setCompanyId(null)
-    } else {
-      window.localStorage.setItem(TOKEN_KEY, token.trim())
-      const fromJwt = companyIdFromAccessToken(token.trim())
-      if (fromJwt) setCompanyId(fromJwt)
-      else if (!decodeJwtPayload(token.trim())?.isPlatformAdmin) setCompanyId(null)
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
   }
+  if (!memoryToken) return
+  const fromJwt = companyIdFromAccessToken(memoryToken)
+  if (fromJwt) setCompanyId(fromJwt)
+  else if (!decodeJwtPayload(memoryToken)?.isPlatformAdmin) setCompanyId(null)
 }
 
 type JwtCompanyPayload = {
@@ -150,7 +148,53 @@ export function companyIdFromAccessToken(token: string | null): string | null {
 }
 
 function resolveAuthCompanyId(token: string | null): string | null {
-  return companyIdFromAccessToken(token) ?? getCompanyId()
+  return companyIdFromAccessToken(token)
+}
+
+function hydrateLegacyAccessToken(): void {
+  if (memoryToken || typeof window === 'undefined') return
+  try {
+    const legacy = window.localStorage.getItem(TOKEN_KEY)
+    if (!legacy?.trim()) return
+    memoryToken = legacy.trim()
+    window.localStorage.removeItem(TOKEN_KEY)
+    const fromJwt = companyIdFromAccessToken(memoryToken)
+    if (fromJwt) setCompanyId(fromJwt)
+  } catch {
+    /* ignore */
+  }
+}
+
+hydrateLegacyAccessToken()
+
+export async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${getApiBase()}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Vos-Client': 'web' },
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as { accessToken?: string }
+    if (!body.accessToken?.trim()) return null
+    setAccessToken(body.accessToken)
+    return body.accessToken
+  } catch {
+    return null
+  }
+}
+
+export async function logoutSession(): Promise<void> {
+  try {
+    await fetch(`${getApiBase()}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Vos-Client': 'web' },
+    })
+  } catch {
+    /* ignore */
+  }
+  setAccessToken(null)
 }
 
 export type TableInfo = {
@@ -463,7 +507,7 @@ export async function parseJsonError(res: Response): Promise<string> {
 
 export async function apiFetch(
   url: string,
-  init?: RequestInit & { auth?: boolean },
+  init?: RequestInit & { auth?: boolean; retried?: boolean },
 ): Promise<Response> {
   if (isBackendDown()) {
     // Re-probar: el probe inicial puede haber fallado mientras Nest aún arrancaba.
@@ -485,10 +529,14 @@ export async function apiFetch(
   const headers = new Headers(init?.headers ?? undefined)
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (companyId) headers.set('X-Company-Id', companyId)
-  const res = await fetch(url, { ...init, headers })
-  /** Token rechazado por el API → limpiar sesión y avisar a la app para volver al login. */
+  const res = await fetch(url, { ...init, headers, credentials: 'include' })
+  /** Token rechazado por el API → intentar refresh una vez y, si falla, cerrar sesión. */
   if (auth && token && res.status === 401) {
-    setAccessToken(null)
+    if (!init?.retried) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) return apiFetch(url, { ...init, retried: true })
+    }
+    await logoutSession()
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth:logout'))
     }
@@ -698,11 +746,12 @@ export async function switchCompany(
 export async function enterPlatformCompany(
   base: string,
   companyId: string,
+  reason: string,
 ): Promise<LoginResponse> {
   const res = await apiFetch(`${base}/auth/platform/enter-company`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ companyId }),
+    body: JSON.stringify({ companyId, reason }),
   })
   if (!res.ok) throw new Error(await parseJsonError(res))
   const out = (await res.json()) as LoginResponse

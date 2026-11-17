@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { setAccessToken } from '../api'
+import { refreshAccessToken, setAccessToken } from '../api'
 import {
   consumeGoogleAuthHash,
   notifyGoogleAuthOpener,
@@ -12,8 +12,20 @@ export function GoogleAuthPopupView() {
 
   useEffect(() => {
     const result = consumeGoogleAuthHash()
-    if (result.token) setAccessToken(result.token)
-    notifyGoogleAuthOpener(result)
+    void (async () => {
+      if (result.session) {
+        const token = await refreshAccessToken()
+        if (token) setAccessToken(token)
+        notifyGoogleAuthOpener({
+          token,
+          signupToken: null,
+          error: token ? null : 'oauth_failed',
+        })
+        return
+      }
+      if (result.token) setAccessToken(result.token)
+      notifyGoogleAuthOpener(result)
+    })()
     const closeTimer = window.setTimeout(() => {
       window.close()
       setStuck(true)

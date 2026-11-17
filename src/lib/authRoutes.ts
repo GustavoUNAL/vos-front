@@ -228,21 +228,25 @@ export function consumeGoogleAuthHash(): {
   token: string | null
   signupToken: string | null
   error: string | null
+  session: boolean
 } {
   if (typeof window === 'undefined') {
-    return { token: null, signupToken: null, error: null }
+    return { token: null, signupToken: null, error: null, session: false }
   }
   const hash = window.location.hash ?? ''
   const q = hash.indexOf('?')
-  if (q < 0) return { token: null, signupToken: null, error: null }
+  if (q < 0) return { token: null, signupToken: null, error: null, session: false }
   const path = hash.slice(0, q) || LOGIN_HASH
   const params = new URLSearchParams(hash.slice(q + 1))
   const token = params.get('google_token')
   const signupToken = params.get('google_signup')
   const error = params.get('google_error')
-  if (!token && !signupToken && !error) return { token: null, signupToken: null, error: null }
+  const session = params.get('google_session') === '1'
+  if (!token && !signupToken && !error && !session) {
+    return { token: null, signupToken: null, error: null, session: false }
+  }
   window.history.replaceState({}, '', path)
-  return { token, signupToken, error }
+  return { token, signupToken, error, session }
 }
 
 export type GoogleSignupProfile = {

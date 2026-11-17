@@ -7,24 +7,18 @@ export type PosWsStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error' | 
 
 function wsUrlFromApiBase(base: string): string {
   const trimmed = base.replace(/\/$/, '')
-  const withToken = (raw: string): string => {
-    const token = getAccessToken()
-    if (!token) return raw
-    const sep = raw.includes('?') ? '&' : '?'
-    return `${raw}${sep}token=${encodeURIComponent(token)}`
-  }
   if (trimmed.startsWith('https://')) {
-    return withToken(trimmed.replace(/^https:/, 'wss:') + POS_WS_PATH)
+    return trimmed.replace(/^https:/, 'wss:') + POS_WS_PATH
   }
   if (trimmed.startsWith('http://')) {
-    return withToken(trimmed.replace(/^http:/, 'ws:') + POS_WS_PATH)
+    return trimmed.replace(/^http:/, 'ws:') + POS_WS_PATH
   }
   if (trimmed.includes('/dev-api')) {
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'
-    return withToken(`${origin.replace(/^http/, 'ws')}/dev-api${POS_WS_PATH}`)
+    return `${origin.replace(/^http/, 'ws')}/dev-api${POS_WS_PATH}`
   }
-  return withToken(`ws://localhost:3000${POS_WS_PATH}`)
+  return `ws://localhost:3000${POS_WS_PATH}`
 }
 
 export class PosWebSocketClient {
@@ -84,6 +78,10 @@ export class PosWebSocketClient {
       }
       this.failCount = 0
       this.setStatus('open')
+      const token = getAccessToken()
+      if (token) {
+        ws.send(JSON.stringify({ type: 'auth', token }))
+      }
     }
     ws.onclose = () => {
       this.setStatus('closed')

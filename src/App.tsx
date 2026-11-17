@@ -11,6 +11,7 @@ import { PlatformAdminBar } from './components/PlatformAdminBar'
 import {
   exitToPlatformAdmin,
   fetchMe,
+  refreshAccessToken,
   getAccessToken,
   getApiBase,
   getLastCompanyId,
@@ -132,6 +133,7 @@ let googleAuthBoot: {
   error: string | null
   preferredCompanyId: string | null
   fromGoogle: boolean
+  needsRefresh?: boolean
 } | null = null
 
 function readGoogleAuthBoot(): {
@@ -139,6 +141,7 @@ function readGoogleAuthBoot(): {
   error: string | null
   preferredCompanyId: string | null
   fromGoogle: boolean
+  needsRefresh?: boolean
 } {
   if (googleAuthBoot) return googleAuthBoot
   if (typeof window !== 'undefined' && isGooglePopupHash()) {
@@ -158,7 +161,8 @@ function readGoogleAuthBoot(): {
     hasToken: Boolean(getAccessToken()),
     error: googleAuthErrorMessage(fromHash.error),
     preferredCompanyId,
-    fromGoogle: Boolean(fromHash.token),
+    fromGoogle: Boolean(fromHash.token || fromHash.session),
+    needsRefresh: fromHash.session,
   }
   return googleAuthBoot
 }
@@ -270,43 +274,43 @@ export default function App() {
       setAuthInitializing(false)
       return
     }
-    if (!getAccessToken()) {
-      setAuthInitializing(false)
-      return
-    }
     let cancelled = false
     setAuthInitializing(true)
-    fetchMe(baseUrl)
-      .then(async (u) => {
+    void (async () => {
+      try {
+        if (!getAccessToken()) {
+          await refreshAccessToken()
+        }
+        if (!getAccessToken()) return
+        let u = await fetchMe(baseUrl)
         if (u.isPlatformAdmin) {
           const inCompanyRoute = Boolean(parseCompanyAppHash().companySlug)
-          if (inCompanyRoute) return u
-          if (!u.platformView) {
-            const res = await exitToPlatformAdmin(baseUrl)
-            u = res.user
+          if (!inCompanyRoute) {
+            if (!u.platformView) {
+              const res = await exitToPlatformAdmin(baseUrl)
+              u = res.user
+            }
+            if (!isPlatformHash()) navigateToPlatform(true)
           }
-          if (!isPlatformHash()) navigateToPlatform(true)
-          return u
+        } else {
+          const boot = readGoogleAuthBoot()
+          if (boot.fromGoogle) {
+            u = await restorePreferredCompany(baseUrl, u, boot.preferredCompanyId)
+          }
         }
-        const boot = readGoogleAuthBoot()
-        if (!boot.fromGoogle) return u
-        return restorePreferredCompany(baseUrl, u, boot.preferredCompanyId)
-      })
-      .then((u) => {
         if (!cancelled) {
           setUser(u)
           setAuthError(null)
         }
-      })
-      .catch((e: Error) => {
+      } catch (e) {
         if (!cancelled) {
           setUser(null)
-          setAuthError(e.message)
+          setAuthError(e instanceof Error ? e.message : 'No se pudo restaurar la sesión')
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setAuthInitializing(false)
-      })
+      }
+    })()
     return () => {
       cancelled = true
     }

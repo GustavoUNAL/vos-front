@@ -42,7 +42,7 @@ export async function ensureBackendProbe(base: string): Promise<boolean> {
 }
 
 async function runProbe(base: string): Promise<boolean> {
-  const url = `${base.replace(/\/$/, '')}/navigation`
+  const url = `${base.replace(/\/$/, '')}/health`
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), 4000)
   try {

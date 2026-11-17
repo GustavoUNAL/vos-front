@@ -179,7 +179,7 @@ function UserAvatar({ name }: { name: string }) {
 
 function RichLine({ html, block }: { html: string; block?: boolean }) {
   const Tag = block ? 'p' : 'span'
-  return <Tag className="landing-chat__rich" dangerouslySetInnerHTML={{ __html: html }} />
+  return <Tag className="landing-chat__rich">{html}</Tag>
 }
 
 function MetricTrend({ trend }: { trend?: LandingChatMetric['trend'] }) {

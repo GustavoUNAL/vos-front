@@ -55,6 +55,7 @@ export type ShopOrder = {
   saleCode: string | null
   companyName: string
   whatsappSent?: boolean
+  accessToken?: string
   createdAt: string
   paidAt: string | null
   preparingAt: string | null
@@ -69,9 +70,9 @@ const ROUTE_RESERVED = new Set(['pago', 'pedido', 'exito'])
 
 export type ShopRoute =
   | { screen: 'catalog' }
-  | { screen: 'pedido'; orderId?: string; orderCode?: string }
-  | { screen: 'payment'; orderId?: string; orderCode?: string }
-  | { screen: 'success'; orderId: string }
+  | { screen: 'pedido'; orderCode: string; accessToken: string }
+  | { screen: 'payment'; orderCode: string; accessToken: string }
+  | { screen: 'success'; orderCode: string; accessToken: string }
 
 function shopRouteParts(): string[] {
   const path = window.location.pathname.replace(/^\/+/, '')
@@ -91,23 +92,24 @@ export function isShopEmbedMode(): boolean {
   return false
 }
 
+function shopLookupToken(): string {
+  if (typeof window === 'undefined') return ''
+  const hash = window.location.hash ?? ''
+  const query = hash.includes('?')
+    ? hash.slice(hash.indexOf('?') + 1)
+    : window.location.search.slice(1)
+  return new URLSearchParams(query).get('k') ?? ''
+}
+
 export function parseShopRoute(): ShopRoute {
   const parts = shopRouteParts()
   if (parts[0] !== 'tienda') return { screen: 'catalog' }
-  if (parts[1] === 'pedido') {
-    const token = parts[2] ?? ''
-    if (token.startsWith('SHOP-')) return { screen: 'pedido', orderCode: token }
-    if (token) return { screen: 'pedido', orderId: token }
-    return { screen: 'catalog' }
+  const accessToken = shopLookupToken()
+  if ((parts[1] === 'pedido' || parts[1] === 'pago') && parts[2]?.startsWith('SHOP-') && accessToken) {
+    return { screen: 'pedido', orderCode: parts[2], accessToken }
   }
-  if (parts[1] === 'pago') {
-    const token = parts[2] ?? ''
-    if (token.startsWith('SHOP-')) return { screen: 'pedido', orderCode: token }
-    if (token) return { screen: 'pedido', orderId: token }
-    return { screen: 'catalog' }
-  }
-  if (parts[1] === 'exito' && parts[2]) {
-    return { screen: 'success', orderId: parts[2] }
+  if (parts[1] === 'exito' && parts[2]?.startsWith('SHOP-') && accessToken) {
+    return { screen: 'success', orderCode: parts[2], accessToken }
   }
   return { screen: 'catalog' }
 }
@@ -200,15 +202,13 @@ export function checkoutShop(
   })
 }
 
-export function fetchShopOrder(orderId: string): Promise<ShopOrder> {
-  return publicJson(`/public/shop/orders/${encodeURIComponent(orderId)}`)
-}
-
 export function fetchShopOrderByCode(
   slug: string,
   orderCode: string,
+  token: string,
 ): Promise<ShopOrder> {
+  const q = new URLSearchParams({ token })
   return publicJson(
-    `/public/shop/${encodeURIComponent(slug)}/orders/${encodeURIComponent(orderCode)}`,
+    `/public/shop/${encodeURIComponent(slug)}/orders/${encodeURIComponent(orderCode)}?${q}`,
   )
 }

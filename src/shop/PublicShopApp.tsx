@@ -12,7 +12,6 @@ import '../public-shell.css'
 import {
   checkoutShop,
   fetchShopCatalog,
-  fetchShopOrder,
   fetchShopOrderByCode,
   getShopSlugFromHash,
   isShopEmbedMode,
@@ -191,19 +190,18 @@ export function PublicShopApp() {
     let cancelled = false
     const load = async () => {
       try {
-        let order: ShopOrder
-        if (route.screen === 'success') {
-          order = await fetchShopOrder(route.orderId)
-        } else if (route.orderId) {
-          order = await fetchShopOrder(route.orderId)
-        } else if (route.orderCode) {
-          order = await fetchShopOrderByCode(slug, route.orderCode)
-        } else return
+        if (!route.orderCode || !route.accessToken) return
+        const order = await fetchShopOrderByCode(slug, route.orderCode, route.accessToken)
         if (!cancelled) {
           setActiveOrder(order)
           if (order.status === 'PAID' && route.screen === 'pedido') {
-            navigateShop(`exito/${order.id}`)
-            setRoute({ screen: 'success', orderId: order.id })
+            const next = `exito/${order.orderCode}?k=${encodeURIComponent(route.accessToken)}`
+            navigateShop(next)
+            setRoute({
+              screen: 'success',
+              orderCode: order.orderCode,
+              accessToken: route.accessToken,
+            })
           }
         }
       } catch (e) {
@@ -417,8 +415,9 @@ export function PublicShopApp() {
       setOrderComment('')
       setPaymentMethod(null)
       setActiveOrder(order)
-      navigateShop(`pedido/${order.id}`)
-      setRoute({ screen: 'pedido', orderId: order.id })
+      const token = order.accessToken ?? ''
+      navigateShop(`pedido/${order.orderCode}?k=${encodeURIComponent(token)}`)
+      setRoute({ screen: 'pedido', orderCode: order.orderCode, accessToken: token })
     } catch (e) {
       setError((e as Error).message)
     } finally {

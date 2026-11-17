@@ -19,3 +19,5 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+      - name: Lint de los archivos de sesión y tienda
+        run: npx eslint src/api.ts src/App.tsx src/backendHealth.ts src/lib/presetCredentials.ts src/lib/authRoutes.ts src/pos/services/websocket.ts src/shop/shopApi.ts src/shop/PublicShopApp.tsx src/components/PlatformAdminView.tsx src/components/GoogleAuthPopupView.tsx --max-warnings 0

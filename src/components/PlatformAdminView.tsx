@@ -411,11 +411,18 @@ export function PlatformAdminView({ baseUrl, user, onEnterCompany, onLogout }: P
       companies.find((c) => c.id === companyId) ??
       (detail && detail.id === companyId ? detail : null)
     if (!company || entering) return
+    const reason = window.prompt(
+      'Motivo del acceso de soporte (obligatorio, mínimo 8 caracteres). Entrás en solo lectura.',
+    )
+    if (!reason || reason.trim().length < 8) {
+      setError('El acceso de soporte requiere un motivo de al menos 8 caracteres.')
+      return
+    }
     setEntering(true)
     setExitMenuOpen(false)
     setError(null)
     try {
-      const res = await enterPlatformCompany(baseUrl, companyId)
+      const res = await enterPlatformCompany(baseUrl, companyId, reason.trim())
       onEnterCompany(res.user, view)
       window.location.hash = buildCompanyViewHash(company.slug, view)
     } catch (err) {
