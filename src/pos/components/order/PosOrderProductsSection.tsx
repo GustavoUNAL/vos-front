@@ -4,6 +4,7 @@ import { Plus, Receipt } from 'lucide-react'
 import type { CategoryRef, ProductRow } from '../../../api'
 import { formatCOP, parseMoney } from '../../lib/money'
 import { isPosExtraChargeLine, isPosExtraChargeProduct } from '../../lib/extraCharge'
+import { isPosOpenProduct } from '../../lib/openProduct'
 import {
   filterProductsForPos,
   pinPosFeaturedCombos,
@@ -34,6 +35,7 @@ type Props = {
     reason: string
   }) => boolean | Promise<boolean>
   onQty: (lineId: string, qty: number) => void
+  onPrice: (lineId: string, unitPrice: number) => void
   onNotes: (lineId: string, notes: string) => void
   onRemove: (lineId: string) => void
 }
@@ -53,6 +55,7 @@ export function PosOrderProductsSection({
   onAdd,
   onAddExtraCharge,
   onQty,
+  onPrice,
   onNotes,
   onRemove,
 }: Props) {
@@ -65,6 +68,10 @@ export function PosOrderProductsSection({
 
   const catalogProducts = useMemo(
     () => products.filter((p) => !isPosExtraChargeProduct(p)),
+    [products],
+  )
+  const openProductIds = useMemo(
+    () => new Set(products.filter((p) => isPosOpenProduct(p)).map((p) => p.id)),
     [products],
   )
 
@@ -334,7 +341,23 @@ export function PosOrderProductsSection({
                           </div>
                         )}
                       </td>
-                      <td className="num mono">{formatCOP(line.unitPrice)}</td>
+                      <td className="num mono">
+                        {openProductIds.has(line.productId) ? (
+                          <input
+                            className="pos-input pos-order-lines__price-input mono"
+                            inputMode="numeric"
+                            aria-label={`Valor de ${line.productName}`}
+                            defaultValue={String(line.unitPrice)}
+                            key={`${line.id}-${line.unitPrice}`}
+                            onBlur={(e) => {
+                              const next = parseMoney(e.target.value)
+                              if (next !== line.unitPrice) onPrice(line.id, next)
+                            }}
+                          />
+                        ) : (
+                          formatCOP(line.unitPrice)
+                        )}
+                      </td>
                       <td className="num mono">
                         {formatCOP(line.quantity * line.unitPrice)}
                       </td>

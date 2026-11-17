@@ -15,6 +15,7 @@ export const PLATFORM_NAV_GROUPS = ['catalog', 'stock', 'sales', 'purchases', 't
 export const PLATFORM_VIEWS = [
   'home',
   'products',
+  'recipes',
   'inventory',
   'sales',
   'pos',
@@ -49,6 +50,7 @@ export function isPlatformView(v: string | null | undefined): v is PlatformView 
   return (
     v === 'home' ||
     v === 'products' ||
+    v === 'recipes' ||
     v === 'inventory' ||
     v === 'sales' ||
     v === 'pos' ||

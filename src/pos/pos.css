@@ -3523,6 +3523,13 @@
   background: color-mix(in srgb, var(--pos-border) 18%, transparent);
 }
 
+.pos-order-lines__price-input {
+  width: 5.5rem;
+  min-height: 1.8rem;
+  padding: 0.15rem 0.35rem;
+  text-align: right;
+}
+
 .pos-order-lines__qty-value {
   min-width: 1.15rem;
   text-align: center;

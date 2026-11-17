@@ -7,6 +7,8 @@ import { usePosCheckout } from '../../hooks/usePosCheckout'
 import { usePosSalesRanking } from '../../hooks/usePosSalesRanking'
 import { usePosOrder } from '../../hooks/usePosOrder'
 import { ensurePosExtraChargeProduct } from '../../lib/extraCharge'
+import { isPosOpenProduct } from '../../lib/openProduct'
+import { PosOpenProductModal } from './PosOpenProductModal'
 import { DEFAULT_POS_STAFF } from '../../constants'
 import { formatPosOrderCode } from '../../lib/orderCode'
 import { usePosStore } from '../../store/posStore'
@@ -31,7 +33,9 @@ export function PosOrderView({ baseUrl }: Props) {
     loading: orderSaving,
     addProduct,
     addExtraCharge,
+    addOpenProduct,
     setQuantity,
+    setUnitPrice,
     setLineNotes,
     removeLine,
     updateMeta,
@@ -61,6 +65,9 @@ export function PosOrderView({ baseUrl }: Props) {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [extraBusy, setExtraBusy] = useState(false)
   const [extraError, setExtraError] = useState<string | null>(null)
+  const [openProductId, setOpenProductId] = useState<string | null>(null)
+  const [openBusy, setOpenBusy] = useState(false)
+  const [openError, setOpenError] = useState<string | null>(null)
 
   useEffect(() => {
     setPaymentOpen(false)
@@ -70,11 +77,36 @@ export function PosOrderView({ baseUrl }: Props) {
 
   const handleAdd = useCallback(
     async (p: { id: string; name: string; price: number }) => {
+      const full = products.find((item) => item.id === p.id)
+      if (full && isPosOpenProduct(full)) {
+        setOpenError(null)
+        setOpenProductId(full.id)
+        return
+      }
       await addProduct(p)
       setAddedFlash(p.id)
       window.setTimeout(() => setAddedFlash(null), 400)
     },
-    [addProduct],
+    [addProduct, products],
+  )
+
+  const handleAddOpenProduct = useCallback(
+    async (payload: { name: string; amountCOP: number; detail: string }) => {
+      if (!openProductId) return
+      setOpenBusy(true)
+      setOpenError(null)
+      try {
+        await addOpenProduct({ productId: openProductId, ...payload })
+        setAddedFlash(openProductId)
+        window.setTimeout(() => setAddedFlash(null), 400)
+        setOpenProductId(null)
+      } catch (e) {
+        setOpenError(e instanceof Error ? e.message : 'No se pudo agregar el producto.')
+      } finally {
+        setOpenBusy(false)
+      }
+    },
+    [addOpenProduct, openProductId],
   )
 
   const handleAddExtraCharge = useCallback(
@@ -235,6 +267,7 @@ export function PosOrderView({ baseUrl }: Props) {
             onAddProduct={(p) => void handleAdd(p)}
             onAddExtraCharge={(payload) => handleAddExtraCharge(payload)}
             onQty={(id, q) => void setQuantity(id, q)}
+            onLinePrice={(id, price) => void setUnitPrice(id, price)}
             onLineNotes={(id, n) => void setLineNotes(id, n)}
             onRemove={(id) => void removeLine(id)}
             extraChargeBusy={extraBusy}
@@ -243,6 +276,16 @@ export function PosOrderView({ baseUrl }: Props) {
           />
         </section>
       </div>
+
+      <PosOpenProductModal
+        open={openProductId !== null}
+        busy={openBusy}
+        error={openError}
+        onClose={() => {
+          if (!openBusy) setOpenProductId(null)
+        }}
+        onConfirm={handleAddOpenProduct}
+      />
 
       <PosOrderPaymentModal
         open={paymentOpen}

@@ -4,13 +4,7 @@ import { displayCompanyName, displayUserRole } from '../lib/displayLabels'
 import { greetUser } from '../lib/userIdentity'
 import { userNeedsCompanyPicker } from '../lib/companySelect'
 import { CompanySwitcher } from './CompanySwitcher'
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase()
-}
+import { UserAvatar } from './UserAvatar'
 
 type Props = {
   user: AuthUser
@@ -38,9 +32,11 @@ export function UserProfileCard({
       aria-label="Perfil de usuario"
     >
       <div className="user-profile-card__main">
-        <div className="user-profile-card__avatar" aria-hidden>
-          {initials(user.name)}
-        </div>
+        <UserAvatar
+          name={user.name}
+          url={user.avatarUrl}
+          className="user-profile-card__avatar"
+        />
         <div className="user-profile-card__body">
           <strong className="user-profile-card__name">{greetUser(user.name)}</strong>
           <p className="user-profile-card__legal-name">{user.name}</p>

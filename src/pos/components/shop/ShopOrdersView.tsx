@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react'
+import { useSessionUser } from '../../../hooks/useSessionUser'
+import { hasPermission } from '../../../lib/permissions'
 import { formatCOP } from '../../lib/money'
 import {
   collectPlatformShopOrderPayment,
+  deletePlatformShopOrder,
   updatePlatformShopOrderStatus,
   type PlatformShopOrder,
 } from '../../../api'
@@ -21,6 +24,10 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export function ShopOrdersView({ baseUrl, onBack }: Props) {
+  const user = useSessionUser()
+  const canRemove =
+    !!user &&
+    (hasPermission(user, 'sales.delete') || hasPermission(user, 'sales.update'))
   const {
     orders,
     loading,
@@ -157,20 +164,26 @@ export function ShopOrdersView({ baseUrl, onBack }: Props) {
                   Cobrar y facturar
                 </button>
               ) : null}
-              {o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'DELIVERED' ? (
-                <button
-                  type="button"
-                  className="pos-btn pos-btn--ghost"
-                  disabled={busyId === o.id}
-                  onClick={() => {
-                    if (!window.confirm(`¿Cancelar el pedido ${o.orderCode}?`)) return
-                    void run(o.id, async () => {
-                      await updatePlatformShopOrderStatus(baseUrl, o.id, 'CANCELLED')
-                    })
-                  }}
-                >
-                  Cancelar
-                </button>
+              {canRemove && o.status !== 'PAID' ? (
+              <button
+                type="button"
+                className="pos-btn pos-btn--ghost"
+                disabled={busyId === o.id}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `¿Eliminar el pedido ${o.orderCode}? Esta acción no se puede deshacer.`,
+                    )
+                  ) {
+                    return
+                  }
+                  void run(o.id, async () => {
+                    await deletePlatformShopOrder(baseUrl, o.id)
+                  })
+                }}
+              >
+                Eliminar
+              </button>
               ) : null}
             </div>
           </li>

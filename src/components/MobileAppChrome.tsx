@@ -83,6 +83,7 @@ type SheetLink = {
 const PLATFORM_SHEET_LINKS: SheetLink[] = [
   { view: 'home', label: 'Inicio', icon: 'home' },
   { view: 'products', label: 'Productos a la venta', icon: 'products' },
+  { view: 'recipes', label: 'Recetas', icon: 'recipes' },
   { view: 'pos', label: 'Punto de venta · Mesas', icon: 'pos' },
   { view: 'sales', label: 'Ventas', icon: 'sales' },
   { view: 'cash-close', label: 'Cierre del día', icon: 'cash-close' },
@@ -292,7 +293,9 @@ export function MobileAppChrome({
       >
         <div className="vos-mobile-header__bar vos-mobile-header__bar--actions">
           <div className="vos-mobile-header__leading">
-            {showDock ? (
+            {onReturnToPlatform ? (
+              <PlatformAdminBar compact onReturn={onReturnToPlatform} />
+            ) : showDock ? (
               <span className="vos-mobile-header__spacer" aria-hidden />
             ) : (
               <Button
@@ -337,9 +340,6 @@ export function MobileAppChrome({
           </div>
 
           <div className="vos-mobile-header__trailing">
-            {onReturnToPlatform ? (
-              <PlatformAdminBar compact onReturn={onReturnToPlatform} />
-            ) : null}
             {user ? (
               <HeaderSystray
                 user={user}

@@ -39,6 +39,7 @@ type Props = {
     reason: string
   }) => boolean | Promise<boolean>
   onQty: (lineId: string, qty: number) => void
+  onLinePrice: (lineId: string, unitPrice: number) => void
   onLineNotes: (lineId: string, notes: string) => void
   onRemove: (lineId: string) => void
   paymentBusy?: boolean
@@ -64,6 +65,7 @@ export function PosOrderComanda({
   onAddProduct,
   onAddExtraCharge,
   onQty,
+  onLinePrice,
   onLineNotes,
   onRemove,
   paymentBusy = false,
@@ -117,6 +119,7 @@ export function PosOrderComanda({
           onAdd={onAddProduct}
           onAddExtraCharge={onAddExtraCharge}
           onQty={onQty}
+          onPrice={onLinePrice}
           onNotes={onLineNotes}
           onRemove={onRemove}
         />

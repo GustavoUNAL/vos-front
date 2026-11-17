@@ -63,6 +63,7 @@ export async function registerPlatformSaleFromPosOrder(
       productName: line.productName,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
+      lineSize: line.notes?.trim() || undefined,
     })),
   })
 }

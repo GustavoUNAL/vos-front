@@ -39,6 +39,7 @@ export function buildLauncherApps(options?: {
     }
     const apps: LauncherApp[] = [
       { view: 'products', label: 'Catálogo', group: 'catalog' },
+      { view: 'recipes', label: 'Recetas', group: 'stock' },
       { view: 'inventory', label: 'Stock', group: 'stock' },
       { view: 'sales', label: 'Ventas', group: 'sales' },
       { view: 'pos', label: 'Punto de venta', group: 'sales' },

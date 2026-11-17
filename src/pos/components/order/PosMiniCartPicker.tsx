@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { stripInventoryCategoryPrefix } from '../../../inventorySemantics'
 import type { CategoryRef, ProductRow } from '../../../api'
 import { formatCOP, parseMoney } from '../../lib/money'
+import { isPosOpenProduct, openProductPriceLabel } from '../../lib/openProduct'
 import {
   filterProductsForPos,
   pinPosFeaturedCombos,
@@ -152,7 +153,8 @@ export function PosMiniCartPicker({
           <li className="pos-mini-cart__empty muted small">Sin coincidencias en la carta.</li>
         ) : (
           filtered.map((p) => {
-            const line = lineForProduct(lines, p.id)
+            const openItem = isPosOpenProduct(p)
+            const line = openItem ? undefined : lineForProduct(lines, p.id)
             const price = parseMoney(p.price)
             return (
               <li
@@ -161,7 +163,9 @@ export function PosMiniCartPicker({
               >
                 <div className="pos-mini-cart__row-main">
                   <span className="pos-mini-cart__row-name">{p.name}</span>
-                  <span className="pos-mini-cart__row-price mono">{formatCOP(price)}</span>
+                  <span className="pos-mini-cart__row-price mono">
+                    {openItem ? openProductPriceLabel() : formatCOP(price)}
+                  </span>
                 </div>
                 {line ? (
                   <div className="pos-mini-cart__row-qty">

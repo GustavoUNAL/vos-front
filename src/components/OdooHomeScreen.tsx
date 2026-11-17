@@ -5,6 +5,7 @@ import { isBookingLedCompany } from '../lib/permissions'
 import { greetUser, namedCopy } from '../lib/userIdentity'
 import { buildLauncherApps } from '../lib/appLauncher'
 import { AppLauncherIcon, LAUNCHER_GROUP_CLASS } from './AppLauncherIcon'
+import { landingIcon } from './landing/landingIcons'
 import { mobileViewClass } from './mobile/mobileView'
 import { type CSSProperties } from 'react'
 import { useSessionUser } from '../hooks/useSessionUser'
@@ -54,9 +55,13 @@ export function OdooHomeScreen({
           )}
         </p>
       </header>
-      {baseUrl ? <OperationsPulse baseUrl={baseUrl} onOpenApp={onOpenApp} /> : null}
+      {baseUrl ? (
+        <OperationsPulse baseUrl={baseUrl} onOpenApp={onOpenApp} companyName={company} />
+      ) : null}
       <ul className="odoo-home__grid">
-        {apps.map((app, index) => (
+        {apps.map((app, index) => {
+          const art = landingIcon(app.view)
+          return (
           <li
             key={app.view}
             className="odoo-home__cell"
@@ -67,13 +72,14 @@ export function OdooHomeScreen({
               className={`odoo-app-tile odoo-app-tile--home ${LAUNCHER_GROUP_CLASS[app.group]}`}
               onClick={() => onOpenApp(app.view)}
             >
-              <span className="odoo-app-tile__icon" aria-hidden>
-                <AppLauncherIcon view={app.view} />
+              <span className={`odoo-app-tile__icon${art ? ' odoo-app-tile__icon--art' : ''}`} aria-hidden>
+                {art ? <img src={art} alt="" /> : <AppLauncherIcon view={app.view} />}
               </span>
               <span className="odoo-app-tile__label">{app.label}</span>
             </button>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </div>
   )

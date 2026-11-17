@@ -253,7 +253,7 @@
   }
 
   .vos-mobile-header--dock .vos-mobile-header__bar {
-    grid-template-columns: 2.65rem 1fr auto;
+    grid-template-columns: auto 1fr auto;
     gap: 0.35rem;
     min-height: 3.05rem;
     padding: 0.42rem max(0.85rem, env(safe-area-inset-left, 0px)) 0.48rem
@@ -268,8 +268,8 @@
     @apply flex items-center justify-end gap-1;
   }
 
-  .vos-mobile-header__trailing .platform-admin-return {
-    max-width: 4.85rem;
+  .vos-mobile-header__leading .platform-admin-return {
+    max-width: none;
   }
 
   .vos-mobile-header__home,
@@ -602,6 +602,7 @@
     background: linear-gradient(145deg, var(--berry-light), var(--berry-dark));
     color: #fff;
     box-shadow: 0 4px 12px var(--berry-glow);
+    object-fit: cover;
   }
 
   .user-profile-card--compact .user-profile-card__avatar {
@@ -1404,6 +1405,7 @@
   letter-spacing: 0.04em;
   color: #fff;
   background: linear-gradient(145deg, #38bdf8, #0ea5e9);
+  object-fit: cover;
 }
 
 .profile-popup__hero-copy {

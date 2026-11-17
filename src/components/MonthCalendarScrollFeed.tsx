@@ -61,6 +61,7 @@ type MonthCalendarScrollFeedProps = {
   refreshKey?: number
   inaugurationDate?: string | null
   ariaLabel?: string
+  emphasizeSummary?: boolean
   fetchMonth: (
     baseUrl: string,
     year: number,
@@ -87,6 +88,7 @@ export function MonthCalendarScrollFeed({
   refreshKey = 0,
   inaugurationDate = null,
   ariaLabel = 'Calendario por mes',
+  emphasizeSummary = false,
   metricMode = 'currency',
   fetchMonth,
 }: MonthCalendarScrollFeedProps) {
@@ -289,6 +291,7 @@ export function MonthCalendarScrollFeed({
                 inaugurationDate={inaugurationDate}
                 metricMode={metricMode}
                 hideNav
+                emphasizeSummary={emphasizeSummary}
                 onDayClick={onDayClick}
               />
             )}

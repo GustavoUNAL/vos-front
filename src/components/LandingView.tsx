@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
-import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand'
+import { BRAND_NAME } from '../lib/brand'
 import { SiteFooter } from './SiteFooter'
 import { getLoginUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
@@ -15,6 +15,7 @@ import '../public-shell.css'
 import './landing/attio-home.css'
 import './landing/sections/landing-platform.css'
 import './landing/github-home.css'
+import './landing/treinta-home.css'
 
 const NAV_LINKS = [
   { href: '#modulos', label: 'Módulos' },
@@ -50,7 +51,7 @@ export function LandingView({
   const { theme, toggleTheme } = usePublicTheme()
 
   useLayoutEffect(() => {
-    document.title = `${BRAND_NAME} — Todo su negocio. Una sola plataforma.`
+    document.title = `${BRAND_NAME} — Sistema de manejo de datos para empresas`
   }, [])
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export function LandingView({
   }
 
   return (
-    <div ref={shellRef} className="public-shell landing-v2 attio-home lp-platform lp-gh">
+    <div ref={shellRef} className="public-shell landing-v2 attio-home lp-platform lp-gh lp-t30">
       <header className={headerScrolled ? 'attio-header is-scrolled' : 'attio-header'}>
         <div className="attio-container">
           <nav className="attio-nav" aria-label="Principal">
@@ -139,13 +140,14 @@ export function LandingView({
             <header className="attio-hero lp-gh-hero" id="producto" aria-labelledby="landing-hero-title">
               <div className="attio-hero__copy">
                 <h1 id="landing-hero-title">
-                  Todo su negocio.
-                  <br />
-                  Una sola plataforma.
+                  <span className="lp-t30-line">Sistema de</span>
+                  <span className="lp-t30-accent">manejo de datos</span>
+                  <span className="lp-t30-line">para empresas.</span>
                 </h1>
-                <p className="attio-hero__lead">
-                  Ventas, inventario, clientes y citas en un solo lugar.
-                </p>
+                <ul className="lp-t30-points">
+                  <li>Ventas, inventario, citas y clientes.</li>
+                  <li>El mismo trabajo de siempre, con los números a la vista.</li>
+                </ul>
                 <div className="attio-hero__cta">
                   <a className="attio-btn attio-btn--outline" href={loginUrl} onClick={handleLogin}>
                     Acceder
@@ -167,7 +169,7 @@ export function LandingView({
           </div>
         </div>
 
-        <SiteFooter tagline={BRAND_TAGLINE} />
+        <SiteFooter tagline="Hecho para el día a día de un negocio." />
       </div>
     </div>
   )
