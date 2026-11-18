@@ -1,7 +1,7 @@
 import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
 import type { AuthUser } from '../api'
 import type { NavGroupId } from '../navTypes'
-import { canAccessView, canViewFinance, canViewProjects, canViewTasks, hasBookingModule, isBookingLedCompany } from './permissions'
+import { canAccessView, canViewFinance, canViewProjects, canViewTasks, companyToolLabel, hasBookingModule, isBookingLedCompany } from './permissions'
 
 export type DesktopNavLink = {
   view: string
@@ -143,7 +143,12 @@ export function buildDesktopNavGroups(options: {
     return groups
       .map((g) => ({
         ...g,
-        items: g.items.filter((item) => canAccessView(user, item.view)),
+        items: g.items
+          .filter((item) => canAccessView(user, item.view))
+          .map((item) => ({
+            ...item,
+            label: companyToolLabel(user, item.view, item.label),
+          })),
       }))
       .filter((g) => g.items.length > 0)
   }

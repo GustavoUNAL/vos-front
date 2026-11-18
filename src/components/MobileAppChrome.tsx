@@ -2,7 +2,12 @@ import { Home, Menu, X } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import type { AuthUser } from '../api'
 import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
-import { canAccessView, isBookingLedCompany } from '../lib/permissions'
+import {
+  activeBusinessType,
+  canAccessView,
+  companyToolLabel,
+  isBookingLedCompany,
+} from '../lib/permissions'
 import { BRAND_NAME } from '../lib/brand'
 import { displayCompanyName } from '../lib/displayLabels'
 import { greetUser, namedCopy } from '../lib/userIdentity'
@@ -188,10 +193,28 @@ export function MobileAppChrome({
       { id: 'cash-close', label: 'Cierre', view: 'cash-close', icon: 'cash-close' },
       { id: 'analytics', label: 'Finanzas', view: 'analytics', icon: 'analytics' },
     ]
+    const personalDock: DockTab[] = [
+      { id: 'home', label: 'Inicio', view: 'home', icon: 'home' },
+      { id: 'tasks', label: 'Pendientes', view: 'tasks', icon: 'tasks' },
+      { id: 'booking', label: 'Agenda', view: 'booking', icon: 'booking' },
+      { id: 'projects', label: 'Proyectos', view: 'projects', icon: 'projects' },
+      { id: 'analytics', label: 'Dinero', view: 'analytics', icon: 'analytics' },
+    ]
+    const energyDock: DockTab[] = [
+      { id: 'home', label: 'Inicio', view: 'home', icon: 'home' },
+      { id: 'projects', label: 'Obras', view: 'projects', icon: 'projects' },
+      { id: 'tasks', label: 'Seguimiento', view: 'tasks', icon: 'tasks' },
+      { id: 'booking', label: 'Visitas', view: 'booking', icon: 'booking' },
+      { id: 'sales', label: 'Cobros', view: 'sales', icon: 'sales' },
+    ]
     const base = PLATFORM_MODE
       ? isBookingLedCompany(user)
         ? bookingDock
-        : DOCK_TABS_PLATFORM
+        : activeBusinessType(user) === 'personal'
+          ? personalDock
+          : activeBusinessType(user) === 'energy'
+            ? energyDock
+            : DOCK_TABS_PLATFORM
       : SALES_FLOOR_ONLY
         ? DOCK_TABS_SALES
         : DOCK_TABS_FULL
@@ -235,13 +258,19 @@ export function MobileAppChrome({
             { view: 'sales' as const, label: 'Ventas', icon: 'sales' as const },
           ]
         : FULL_SHEET_LINKS
-    return base.filter((link) => {
-      if (link.view === 'assistant' || link.view === 'home' || link.view === 'menu') {
-        return true
-      }
-      if (!user) return false
-      return canAccessView(user, link.view)
-    })
+    return base
+      .filter((link) => {
+        if (link.view === 'assistant' || link.view === 'home' || link.view === 'menu') {
+          return true
+        }
+        if (!user) return false
+        return canAccessView(user, link.view)
+      })
+      .map((link) =>
+        link.view === 'assistant'
+          ? link
+          : { ...link, label: companyToolLabel(user, link.view, link.label) },
+      )
   }, [user])
 
   const companyLabel = displayCompanyName(user?.companyName)

@@ -633,6 +633,32 @@ function syncCompanyFromUser(user: AuthUser): void {
   else setCompanyId(null)
 }
 
+export async function loginWithGoogleIdToken(
+  base: string,
+  idToken: string,
+): Promise<
+  | { kind: 'session'; accessToken: string; user: AuthUser }
+  | { kind: 'signup'; signupToken: string }
+> {
+  const res = await apiFetch(`${base}/auth/google`, {
+    method: 'POST',
+    auth: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  })
+  if (!res.ok) throw new Error(await parseJsonError(res))
+  const body = (await res.json()) as LoginResponse & {
+    needsSignup?: boolean
+    signupToken?: string
+  }
+  if (body.needsSignup && body.signupToken) {
+    return { kind: 'signup', signupToken: body.signupToken }
+  }
+  setAccessToken(body.accessToken)
+  syncCompanyFromUser(body.user)
+  return { kind: 'session', accessToken: body.accessToken, user: body.user }
+}
+
 export async function login(
   base: string,
   payload: LoginPayload,

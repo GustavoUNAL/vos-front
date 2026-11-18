@@ -2,7 +2,7 @@ import { PLATFORM_MODE, SALES_FLOOR_ONLY } from '../appScope'
 import type { AuthUser } from '../api'
 import type { LauncherIconView } from '../components/AppLauncherIcon'
 import type { NavGroupId } from '../navTypes'
-import { canAccessView, canViewFinance, canViewProjects, canViewTasks, hasBookingModule, isBookingLedCompany } from './permissions'
+import { canAccessView, canViewFinance, canViewProjects, canViewTasks, companyToolLabel, hasBookingModule, isBookingLedCompany } from './permissions'
 
 export type LauncherApp = {
   view: LauncherIconView
@@ -61,7 +61,9 @@ export function buildLauncherApps(options?: {
       apps.push({ view: 'analytics', label: 'Finanzas', group: 'finance' })
     }
     if (user) {
-      return apps.filter((app) => canAccessView(user, app.view))
+      return apps
+        .filter((app) => canAccessView(user, app.view))
+        .map((app) => ({ ...app, label: companyToolLabel(user, app.view, app.label) }))
     }
     return apps
   }

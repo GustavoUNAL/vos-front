@@ -30,6 +30,26 @@ export const BUSINESS_TYPES = [
     modules: ['Citas', 'Proyectos', 'Tareas', 'Clientes de la agenda', 'Finanzas'],
   },
   {
+    id: 'personal',
+    name: 'Vida personal',
+    blurb: 'Agenda, pendientes, proyectos y dinero.',
+    modules: ['Agenda', 'Pendientes', 'Proyectos', 'Dinero'],
+  },
+  {
+    id: 'energy',
+    name: 'Energía y obras',
+    blurb: 'Consultoría, remodelación, instalación y materiales.',
+    modules: [
+      'Obras',
+      'Visitas',
+      'Materiales',
+      'Compras',
+      'Cobros',
+      'Cuadrilla',
+      'Finanzas',
+    ],
+  },
+  {
     id: 'clinic',
     name: 'Clínica / salud',
     blurb: 'Pacientes, agenda clínica e inventario básico.',

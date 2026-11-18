@@ -959,6 +959,22 @@ html[data-shell='public'] #root {
   cursor: default;
 }
 
+.public-auth__google-host {
+  width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  justify-content: center;
+}
+
+.public-auth__google-host.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.public-auth__google-host > div {
+  width: 100% !important;
+}
+
 .public-auth__google-wait {
   margin: 0;
   text-align: center;

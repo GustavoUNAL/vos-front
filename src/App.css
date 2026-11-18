@@ -13130,18 +13130,54 @@ html.app--chat-sheet-open body {
   font-variant-numeric: tabular-nums;
 }
 
+@media (min-width: 721px) {
+  .month-calendar__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.75rem 1rem;
+  }
+
+  .month-calendar__lead {
+    margin-bottom: 0;
+  }
+
+  .month-calendar__nav {
+    justify-self: end;
+    align-self: end;
+  }
+
+  .month-calendar__title,
+  .month-calendar__summary {
+    grid-column: 1 / -1;
+  }
+
+  .month-calendar__day-count,
+  .month-calendar__day-total {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 @media (min-width: 960px) {
   .month-calendar {
-    padding: 1rem 1.1rem 1.1rem;
+    padding: 1rem 1.1rem 1.15rem;
   }
 
   .month-calendar__day {
-    min-height: 5.4rem;
-    padding: 0.42rem 0.45rem 0.48rem;
+    min-height: 4.6rem;
+    padding: 0.45rem 0.5rem 0.5rem;
+    justify-content: space-between;
+  }
+
+  .month-calendar__day-num {
+    font-size: 0.95rem;
   }
 
   .month-calendar__day-total {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
   }
 }
 
@@ -13409,9 +13445,9 @@ html.app--chat-sheet-open body {
   gap: 0.85rem;
 }
 
-@media (min-width: 960px) {
+@media (min-width: 1280px) {
   .home-dashboard__calendars {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 

@@ -74,6 +74,12 @@ export function canAccessView(
   if (isBookingLedCompany(user) && BOOKING_LED_HIDDEN_VIEWS.has(view)) {
     return false
   }
+  if (
+    (view === 'recipes' || view === 'pos' || view === 'shop') &&
+    !showsHospitalityTools(user)
+  ) {
+    return false
+  }
   if (hasCompanyModule(user, 'booking')) {
     if (
       view === 'home' ||
@@ -144,11 +150,36 @@ export function hasBookingModule(user: AuthUser | null | undefined): boolean {
 }
 
 /**
- * Empresa que opera por agenda (barbería, etc.): reservas públicas,
- * atención y cierre. No usa catálogo, POS, tienda ni personal de café.
+ * Empresa que opera solo por agenda (barbería): reservas, atención y cierre.
+ * Si además tiene obras, materiales, tareas o personal, la agenda convive con esos módulos.
  */
+const BOOKING_LED_BLOCKERS = [
+  'products',
+  'inventory',
+  'purchases',
+  'tasks',
+  'projects',
+  'staff',
+  'dental',
+] as const
+
 export function isBookingLedCompany(user: AuthUser | null | undefined): boolean {
-  return hasBookingModule(user)
+  if (!hasBookingModule(user)) return false
+  const mods = getCompanyModules(user)
+  return !mods.some((slug) =>
+    (BOOKING_LED_BLOCKERS as readonly string[]).includes(slug),
+  )
+}
+
+/** Recetas, mesas y tienda web son del mostrador. No aplican a vida personal ni a obras. */
+export function activeBusinessType(user: AuthUser | null | undefined): string | null {
+  if (!user?.companyId) return null
+  return user.companies?.find((company) => company.id === user.companyId)?.businessType ?? null
+}
+
+export function showsHospitalityTools(user: AuthUser | null | undefined): boolean {
+  const type = activeBusinessType(user)
+  return type !== 'personal' && type !== 'energy' && type !== 'services'
 }
 
 /** Empresa cuyo único módulo habilitado es la agenda (p. ej. Ricky). */
@@ -208,6 +239,39 @@ export function canViewProjects(user: AuthUser | null | undefined): boolean {
   if (hasPermission(user, 'projects.view')) return true
   if (user.role === 'owner' || user.role === 'manager') return true
   return false
+}
+
+const PERSONAL_LABELS: Record<string, string> = {
+  tasks: 'Pendientes',
+  projects: 'Proyectos',
+  booking: 'Agenda',
+  customers: 'Personas',
+  analytics: 'Dinero',
+}
+
+const ENERGY_LABELS: Record<string, string> = {
+  products: 'Servicios y materiales',
+  inventory: 'Materiales',
+  purchases: 'Compras de obra',
+  sales: 'Cobros',
+  staff: 'Cuadrilla',
+  projects: 'Obras y remodelaciones',
+  tasks: 'Seguimiento',
+  booking: 'Visitas',
+  customers: 'Clientes',
+  services: 'Servicios',
+  analytics: 'Finanzas',
+}
+
+export function companyToolLabel(
+  user: AuthUser | null | undefined,
+  view: string,
+  fallback: string,
+): string {
+  const type = activeBusinessType(user)
+  const table =
+    type === 'personal' ? PERSONAL_LABELS : type === 'energy' ? ENERGY_LABELS : null
+  return table?.[view] ?? fallback
 }
 
 export function canViewTasks(user: AuthUser | null | undefined): boolean {

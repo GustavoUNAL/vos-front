@@ -41,16 +41,7 @@ type Tab = 'overview' | 'companies' | 'users' | 'requests'
 type AdminScreen = 'hub' | 'panel'
 type RequestFilter = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
 
-const HUB_TILE_ACCENTS = [
-  'odoo-app-tile--sales',
-  'odoo-app-tile--catalog',
-  'odoo-app-tile--stock',
-  'odoo-app-tile--purchases',
-  'odoo-app-tile--staff',
-  'odoo-app-tile--booking',
-  'odoo-app-tile--tasks',
-  'odoo-app-tile--finance',
-] as const
+const SUPPORT_NAV_REASON = 'Navegación de soporte desde el menú de la plataforma'
 
 function platformScreenFromHash(): AdminScreen {
   const raw = (window.location.hash ?? '').replace(/^#/, '').split('?')[0] ?? ''
@@ -263,20 +254,25 @@ const MODULE_VIEW: Record<string, AppView> = {
 }
 
 /** Accesos rápidos organizados para operar una empresa desde el admin. */
-const COMPANY_QUICK_LINKS: Array<{ view: AppView; label: string; group: 'operar' | 'gestionar' | 'control' }> = [
-  { view: 'home', label: 'Inicio', group: 'operar' },
-  { view: 'pos', label: 'Punto de venta', group: 'operar' },
-  { view: 'sales', label: 'Ventas', group: 'operar' },
-  { view: 'shop', label: 'Tienda', group: 'operar' },
-  { view: 'products', label: 'Productos', group: 'gestionar' },
-  { view: 'inventory', label: 'Inventario', group: 'gestionar' },
-  { view: 'purchases', label: 'Compras', group: 'gestionar' },
-  { view: 'staff', label: 'Personal', group: 'gestionar' },
-  { view: 'booking', label: 'Agenda', group: 'gestionar' },
-  { view: 'analytics', label: 'Finanzas', group: 'control' },
-  { view: 'cash-close', label: 'Cierre de caja', group: 'control' },
-  { view: 'tasks', label: 'Tareas', group: 'control' },
-  { view: 'settings', label: 'Ajustes', group: 'control' },
+const COMPANY_QUICK_LINKS: Array<{
+  view: AppView
+  label: string
+  hint: string
+  group: 'operar' | 'gestionar' | 'control'
+}> = [
+  { view: 'home', label: 'Inicio', hint: 'Panel del negocio', group: 'operar' },
+  { view: 'pos', label: 'Punto de venta', hint: 'Cobrar y comandas', group: 'operar' },
+  { view: 'sales', label: 'Ventas', hint: 'Historial de ventas', group: 'operar' },
+  { view: 'shop', label: 'Tienda', hint: 'Pedidos web', group: 'operar' },
+  { view: 'products', label: 'Productos', hint: 'Catálogo', group: 'gestionar' },
+  { view: 'inventory', label: 'Inventario', hint: 'Existencias', group: 'gestionar' },
+  { view: 'purchases', label: 'Compras', hint: 'Lotes y proveedores', group: 'gestionar' },
+  { view: 'staff', label: 'Personal', hint: 'Equipo', group: 'gestionar' },
+  { view: 'booking', label: 'Agenda', hint: 'Citas y horarios', group: 'gestionar' },
+  { view: 'analytics', label: 'Finanzas', hint: 'Ventas y utilidad', group: 'control' },
+  { view: 'cash-close', label: 'Cierre de caja', hint: 'Totales del día', group: 'control' },
+  { view: 'tasks', label: 'Tareas', hint: 'Pendientes', group: 'control' },
+  { view: 'settings', label: 'Ajustes', hint: 'Configuración', group: 'control' },
 ]
 
 type Props = {
@@ -411,18 +407,11 @@ export function PlatformAdminView({ baseUrl, user, onEnterCompany, onLogout }: P
       companies.find((c) => c.id === companyId) ??
       (detail && detail.id === companyId ? detail : null)
     if (!company || entering) return
-    const reason = window.prompt(
-      'Motivo del acceso de soporte (obligatorio, mínimo 8 caracteres). Entrás en solo lectura.',
-    )
-    if (!reason || reason.trim().length < 8) {
-      setError('El acceso de soporte requiere un motivo de al menos 8 caracteres.')
-      return
-    }
     setEntering(true)
     setExitMenuOpen(false)
     setError(null)
     try {
-      const res = await enterPlatformCompany(baseUrl, companyId, reason.trim())
+      const res = await enterPlatformCompany(baseUrl, companyId, SUPPORT_NAV_REASON)
       onEnterCompany(res.user, view)
       window.location.hash = buildCompanyViewHash(company.slug, view)
     } catch (err) {
@@ -845,46 +834,64 @@ export function PlatformAdminView({ baseUrl, user, onEnterCompany, onLogout }: P
                   <p className="odoo-home__brand muted small">{BRAND_NAME}</p>
                   <h1 className="odoo-home__title">Hola, {firstNameOf(user.name)}</h1>
                   <p className="odoo-home__lead muted">
-                    Elija una empresa para operar, o abra el panel admin para gestionar la
-                    plataforma.
+                    Entrá a una empresa o abrí el panel para gestionar la plataforma.
                   </p>
                 </header>
 
-                <ul className="odoo-home__grid platform-hub__grid">
-                  {hubCompanies.map((c, index) => {
-                    return (
-                      <li
-                        key={c.id}
-                        className="odoo-home__cell"
-                        style={{ '--launcher-i': index } as CSSProperties}
+                <ul className="platform-hub__list">
+                  {hubCompanies.map((c, index) => (
+                    <li
+                      key={c.id}
+                      className="platform-hub__item"
+                      style={{ '--launcher-i': index } as CSSProperties}
+                    >
+                      <button
+                        type="button"
+                        className="platform-hub__card"
+                        disabled={entering}
+                        onClick={() => void enterCompany(c.id, 'home')}
                       >
-                        <button
-                          type="button"
-                          className={`odoo-app-tile odoo-app-tile--home ${HUB_TILE_ACCENTS[index % HUB_TILE_ACCENTS.length]}`}
-                          disabled={entering}
-                          onClick={() => void enterCompany(c.id, 'home')}
-                        >
-                          <span className="odoo-app-tile__icon platform-hub__company-icon" aria-hidden>
-                            {companyInitials(c.name)}
+                        <span className="platform-hub__mark" aria-hidden>
+                          {companyInitials(c.name)}
+                        </span>
+                        <span className="platform-hub__copy">
+                          <strong>{c.name}</strong>
+                          <span>
+                            {c.membersCount} personas · {c.salesCount} ventas
                           </span>
-                          <span className="odoo-app-tile__label">{c.name}</span>
-                        </button>
-                      </li>
-                    )
-                  })}
+                        </span>
+                        <span
+                          className={`platform-hub__plan${
+                            c.plan === 'PRO' || c.plan === 'BUSINESS' ? ' is-paid' : ' is-trial'
+                          }`}
+                        >
+                          {companyPlanLabel(c.plan)}
+                        </span>
+                        <span className="platform-hub__go" aria-hidden>
+                          →
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                   <li
-                    className="odoo-home__cell"
+                    className="platform-hub__item"
                     style={{ '--launcher-i': hubCompanies.length } as CSSProperties}
                   >
                     <button
                       type="button"
-                      className="odoo-app-tile odoo-app-tile--home odoo-app-tile--finance"
+                      className="platform-hub__card platform-hub__card--admin"
                       onClick={openAdminPanel}
                     >
-                      <span className="odoo-app-tile__icon" aria-hidden>
+                      <span className="platform-hub__mark" aria-hidden>
                         <AppLauncherIcon view="settings" />
                       </span>
-                      <span className="odoo-app-tile__label">Panel admin</span>
+                      <span className="platform-hub__copy">
+                        <strong>Panel admin</strong>
+                        <span>Empresas, cuentas y solicitudes</span>
+                      </span>
+                      <span className="platform-hub__go" aria-hidden>
+                        →
+                      </span>
                     </button>
                   </li>
                 </ul>
@@ -1414,8 +1421,7 @@ export function PlatformAdminView({ baseUrl, user, onEnterCompany, onLogout }: P
 
                     <h3>Entrar y operar</h3>
                     <p className="platform-admin__hint">
-                      Abra directamente el área que necesita. Seguirá siendo administrador de
-                      plataforma y podrá volver con la barra superior.
+                      Elegí el área y entrás directo. Podés volver al panel desde la barra superior.
                     </p>
                     <div className="platform-admin__hub">
                       {(
@@ -1437,7 +1443,7 @@ export function PlatformAdminView({ baseUrl, user, onEnterCompany, onLogout }: P
                                 onClick={() => openModule(link.view)}
                               >
                                 <strong>{link.label}</strong>
-                                <span>Abrir {link.view}</span>
+                                <span>{link.hint}</span>
                               </button>
                             ))}
                           </div>
