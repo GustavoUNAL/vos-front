@@ -1,9 +1,22 @@
 import { useEffect, useRef } from 'react'
 import { getApiBase, loginWithGoogleIdToken } from '../api'
 
-const GOOGLE_CLIENT_ID =
-  (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ||
+/** Identificador público de VOS. No es un secreto. */
+const VOS_GOOGLE_CLIENT_ID =
   '9205255049-3gtmvp6m0k9hr8repro9gd0d9ad23qsi.apps.googleusercontent.com'
+
+/**
+ * Un .env sin comillas puede perder el primer 9: bash expande `$9` dentro de
+ * `9205255049-…` y deja `205255049-…`, un cliente que Google no reconoce.
+ */
+function resolveGoogleClientId(): string {
+  const fromEnv = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? ''
+  if (!fromEnv || VOS_GOOGLE_CLIENT_ID.endsWith(fromEnv)) return VOS_GOOGLE_CLIENT_ID
+  if (/^\d{8,}-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(fromEnv)) return fromEnv
+  return VOS_GOOGLE_CLIENT_ID
+}
+
+const GOOGLE_CLIENT_ID = resolveGoogleClientId()
 
 type GoogleId = {
   initialize: (config: {
