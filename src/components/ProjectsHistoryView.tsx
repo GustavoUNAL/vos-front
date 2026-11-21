@@ -150,7 +150,7 @@ export function ProjectsHistoryView({ baseUrl }: Props) {
     <div className={mobileViewClass('projects', 'page-pane projects-history')}>
       <header className="projects-history__head">
         <div>
-          <h1>Historial de proyectos</h1>
+          <h1>Proyectos</h1>
           <p className="muted">Obras y servicios de El electricista.</p>
         </div>
         <Button type="button" onClick={startCreate}>

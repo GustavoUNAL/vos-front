@@ -2503,7 +2503,7 @@ export function PurchaseLotsView({
                   value={draft.lotName}
                   onChange={(e) => setDraft({ ...draft, lotName: e.target.value })}
                   placeholder={purchaseLotDisplayName(selectedLotRow)}
-                  title="Título en listados y cabecera. Si lo dejás vacío y guardás, el API puede dejar el nombre en blanco (se verá el código u otra etiqueta)."
+                  title="Título en listados y cabecera. Si lo deja vacío y guarda, el nombre puede quedar en blanco y se verá el código."
                   aria-label="Nombre del lote"
                 />
                 <p className="muted small purchase-lot-aside-hint">

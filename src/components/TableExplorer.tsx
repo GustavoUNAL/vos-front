@@ -184,20 +184,16 @@ export function TableExplorer({ baseUrl }: { baseUrl: string }) {
 
       <div className="explorer-main">
         <div className="page-intro">
-          <h2 className="page-title">DB</h2>
+          <h2 className="page-title">Base de datos</h2>
           <p className="muted page-subtitle">
-            Vista de solo lectura de tablas expuestas por la API.
+            Vista de solo lectura de las tablas del negocio.
           </p>
         </div>
 
         {!selected && (
           <>
             <div className="empty-hint">
-              <p>Elige una tabla en la columna izquierda (solo lectura).</p>
-              <p className="muted">
-                <code>GET /explorer/tables</code>,{' '}
-                <code>GET /explorer/tables/:slug</code>
-              </p>
+              <p>Seleccione una tabla en la columna izquierda. La vista es de solo lectura.</p>
             </div>
             <SectionSummaryBar section="explorer" items={explorerSummaryItems} />
           </>

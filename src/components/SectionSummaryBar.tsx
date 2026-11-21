@@ -17,7 +17,7 @@ export type SectionSummarySection =
   | 'explorer'
 
 const SECTION_HEADINGS: Record<SectionSummarySection, string> = {
-  products: 'Resumen · Productos a la venta',
+  products: 'Resumen · Catálogo',
   recipes: 'Resumen · Recetas',
   inventory: 'Resumen · Productos',
   sales: 'Resumen · Ventas',

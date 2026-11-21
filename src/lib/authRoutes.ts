@@ -209,11 +209,11 @@ export function getTermsUrl(appBase?: string): string {
 
 const GOOGLE_AUTH_MESSAGES: Record<string, string> = {
   no_account:
-    'No hay una cuenta VOS IA con este email de Google. Registrate o solicitá acceso.',
+    'No hay una cuenta con este correo de Google. Cree una cuenta o solicite acceso.',
   inactive: 'Esta cuenta está inactiva.',
-  no_company: 'Tu usuario no tiene empresas activas.',
-  access_denied: 'Cancelaste el acceso con Google.',
-  not_configured: 'Inicio con Google no está configurado en el servidor.',
+  no_company: 'Su usuario no tiene empresas activas.',
+  access_denied: 'No se completó el acceso con Google. Puede intentarlo de nuevo.',
+  not_configured: 'El inicio con Google no está configurado en el servidor.',
   invalid_state: 'La sesión con Google expiró. Vuelva a intentar.',
   oauth_failed: 'No se pudo iniciar sesión con Google.',
 }

@@ -273,7 +273,7 @@ export function CostsView({ baseUrl }: { baseUrl: string }) {
     <div className="products-layout">
       <div className="products-list-pane page-pane--floating-gear-dock">
         <div className="page-intro page-intro--tight">
-          <h2 className="page-title">Costos por producto</h2>
+          <h2 className="page-title">Costos</h2>
           <p className="muted page-subtitle">
             Costos FIJO y VARIABLE por receta. Categorías de menú alineadas con Bar,
             Cafetería, Cócteles, Comida y Shots.

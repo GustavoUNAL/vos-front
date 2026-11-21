@@ -236,7 +236,7 @@ export function FinanceAnalyticsView({ baseUrl }: { baseUrl: string }) {
     <div className={mobileViewClass('finance', 'finance-analytics page-pane')}>
       <header className="finance-analytics__head">
         <div>
-          <h1 className="finance-analytics__title">Análisis financiero</h1>
+          <h1 className="finance-analytics__title">Finanzas</h1>
           <p className="muted finance-analytics__lead">
             {namedCopy(
               first,

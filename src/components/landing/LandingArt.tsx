@@ -9,5 +9,9 @@ export function LandingArt({
 }) {
   const src = landingIcon(view)
   if (!src) return null
-  return <img className={`lp-art lp-art--${size}`} src={src} alt="" />
+  return (
+    <span className={`lp-art-frame lp-art-frame--${size}`}>
+      <img className={`lp-art lp-art--${size}`} src={src} alt="" />
+    </span>
+  )
 }

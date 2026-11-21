@@ -36,7 +36,11 @@
 }
 
 .lp-t30 .lp-t30-accent {
-  color: var(--lp-gh-blue);
+  background: linear-gradient(100deg, #b6f3ff 0%, #58a6ff 46%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 16px rgba(88, 166, 255, 0.55));
 }
 
 .lp-t30 .lp-t30-points {
@@ -61,11 +65,13 @@
 
 .lp-t30 .lp-t30-points li::before {
   content: '';
-  width: 0.55rem;
-  height: 0.55rem;
-  margin-top: 0.4rem;
-  border-radius: 999px;
-  background: var(--lp-gh-blue);
+  width: 0.48rem;
+  height: 0.48rem;
+  margin-top: 0.42rem;
+  border-radius: 2px;
+  background: #7ee0ff;
+  box-shadow: 0 0 10px #7ee0ff;
+  transform: rotate(45deg);
   flex-shrink: 0;
 }
 
@@ -133,16 +139,24 @@
 
 .lp-t30 .lp-gh-hero .attio-btn--outline {
   min-height: 3rem;
-  padding: 0 1.45rem;
+  padding: 0 1.55rem;
   border-radius: 999px;
-  background: var(--lp-gh-blue) !important;
-  border-color: var(--lp-gh-blue) !important;
-  color: #010409 !important;
+  background: linear-gradient(180deg, #d8f7ff 0%, #5ad4ff 42%, #2f9dff 100%) !important;
+  border-color: rgba(214, 247, 255, 0.9) !important;
+  color: #031018 !important;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow:
+    0 0 0 1px rgba(126, 224, 255, 0.45),
+    0 0 28px rgba(56, 189, 248, 0.55);
 }
 
 .lp-t30 .lp-gh-hero .attio-btn--outline:hover {
   filter: brightness(1.08);
+  box-shadow:
+    0 0 0 1px rgba(214, 247, 255, 0.8),
+    0 0 36px rgba(56, 189, 248, 0.75);
 }
 
 .lp-t30 .lp-caps__head,
@@ -356,4 +370,156 @@ html[data-theme='light'] .lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile:h
 html[data-theme='light'] .lp-t30 .lp-sectors__step:hover {
   background: #f6f8fa;
   border-color: #0969da;
+}
+
+/* El mismo lenguaje del panel, en iconos, módulos y recorrido. */
+.lp-art-frame {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.38);
+}
+
+.lp-art-frame::before {
+  content: '';
+  position: absolute;
+  left: -45%;
+  top: -45%;
+  width: 190%;
+  height: 190%;
+  background: conic-gradient(from 0deg, #7ee0ff, #6d5efc 28%, transparent 46%, #7ee0ff 72%, #c4b5fd);
+  animation: lp-art-spin 6s linear infinite;
+}
+
+.lp-art-frame .lp-art {
+  position: relative;
+  z-index: 1;
+}
+
+.lp-art-frame--step {
+  border-radius: 12px;
+}
+
+.lp-art-frame--chip,
+.lp-art-frame--chip .lp-art {
+  border-radius: 999px;
+}
+
+@keyframes lp-art-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lp-t30 .landing-section__kicker,
+.lp-t30 .lp-name__kicker,
+.lp-t30 .lp-sectors__scene header p {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  letter-spacing: 0.16em;
+  color: #9bd7ff !important;
+}
+
+.lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile,
+.lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile:nth-child(5),
+.lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile:nth-child(n + 5) {
+  border: 1px solid rgba(126, 224, 255, 0.32);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(88, 166, 255, 0.18), transparent 58%),
+    linear-gradient(180deg, rgba(14, 26, 42, 0.96), rgba(7, 11, 18, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(190, 242, 255, 0.16),
+    0 16px 36px rgba(0, 0, 0, 0.28);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile:hover,
+.lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile:focus-visible {
+  border-color: rgba(190, 242, 255, 0.8);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(88, 166, 255, 0.28), transparent 58%),
+    linear-gradient(180deg, rgba(16, 34, 54, 0.98), rgba(7, 11, 18, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(190, 242, 255, 0.28),
+    0 0 28px rgba(56, 189, 248, 0.32);
+  transform: translateY(-3px);
+}
+
+.lp-t30 .lp-sectors__step,
+.lp-t30 .lp-sectors__mod,
+.lp-t30 .lp-sectors__scene,
+.lp-t30 .lp-name__card {
+  border: 1px solid rgba(126, 224, 255, 0.32);
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(88, 166, 255, 0.16), transparent 50%),
+    linear-gradient(165deg, rgba(14, 26, 42, 0.96), rgba(7, 11, 18, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(190, 242, 255, 0.12),
+    0 0 28px rgba(56, 189, 248, 0.1);
+}
+
+.lp-t30 .lp-sectors__step:hover,
+.lp-t30 .lp-sectors__step:focus-visible,
+.lp-t30 .lp-sectors__mod:hover,
+.lp-t30 .lp-sectors__mod:focus-visible {
+  border-color: rgba(190, 242, 255, 0.75);
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.28);
+}
+
+.lp-t30 .lp-sectors__tab.is-on {
+  color: #031018;
+  background: linear-gradient(180deg, #d8f7ff, #5ad4ff 48%, #2f9dff);
+  border-color: rgba(214, 247, 255, 0.9);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.45);
+}
+
+.lp-t30 .lp-name__logo {
+  text-shadow: 0 0 22px rgba(126, 224, 255, 0.35);
+}
+
+.lp-t30 .lp-cap-modal__dialog,
+.lp-cap-modal.lp-t30 .lp-cap-modal__dialog {
+  border: 1px solid rgba(126, 224, 255, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(126, 224, 255, 0.12),
+    0 0 48px rgba(56, 189, 248, 0.22),
+    0 32px 80px rgba(0, 0, 0, 0.45);
+}
+
+.lp-t30 .lp-sectors__scene header strong,
+.lp-t30 .lp-sectors__scene dd {
+  text-shadow: 0 0 14px rgba(126, 224, 255, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-art-frame::before,
+  .lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile {
+    animation: none;
+    transition: none;
+  }
+}
+
+html[data-theme='light'] .lp-t30 .lp-apps__board.lp-caps__board .lp-apps__tile,
+html[data-theme='light'] .lp-t30 .lp-sectors__step,
+html[data-theme='light'] .lp-t30 .lp-sectors__mod,
+html[data-theme='light'] .lp-t30 .lp-sectors__scene,
+html[data-theme='light'] .lp-t30 .lp-name__card {
+  background: linear-gradient(180deg, #ffffff, #f4f8fc);
+  border-color: rgba(9, 105, 218, 0.28);
+  box-shadow: 0 12px 28px rgba(31, 35, 40, 0.06);
+}
+
+html[data-theme='light'] .lp-t30 .landing-section__kicker,
+html[data-theme='light'] .lp-t30 .lp-name__kicker,
+html[data-theme='light'] .lp-t30 .lp-sectors__scene header p {
+  color: #0969da !important;
+}
+
+html[data-theme='light'] .lp-t30 .lp-name__mark--ai {
+  background: linear-gradient(100deg, #0550ae, #6e40c9);
 }

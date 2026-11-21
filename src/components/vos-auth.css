@@ -1,0 +1,544 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html:has(.vos-auth),
+html:has(.vos-auth) body {
+  background: #f4f5f7;
+  color: #121316;
+  color-scheme: light;
+}
+
+.vos-auth.public-shell {
+  --va-ink: #121316;
+  --va-muted: #5c6570;
+  --va-line: rgba(18, 19, 22, 0.1);
+  --va-paper: #f4f5f7;
+  --va-white: #ffffff;
+  --va-accent: #1d4ed8;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 100%;
+  padding: 0;
+  background: var(--va-paper);
+  color: var(--va-ink);
+  font-family: Inter, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+
+.vos-auth.public-shell::before,
+.vos-auth .public-shell__grid-bg,
+.vos-auth .public-shell__orbs {
+  display: none !important;
+}
+
+.vos-auth a {
+  color: inherit;
+}
+
+.vos-auth .brand-mark__vos,
+.vos-auth .brand-mark__name {
+  color: var(--va-ink) !important;
+}
+
+.vos-auth .brand-mark__ia {
+  color: var(--va-accent) !important;
+}
+
+.va-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(244, 245, 247, 0.92);
+  border-bottom: 1px solid var(--va-line);
+  backdrop-filter: blur(16px);
+}
+
+.va-nav__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(1120px, calc(100% - 2.5rem));
+  min-height: 4rem;
+  margin-inline: auto;
+}
+
+.va-nav__brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.va-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.va-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.4rem;
+  padding: 0 0.95rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.vos-auth .va-btn--ghost {
+  color: var(--va-ink);
+  background: transparent;
+}
+
+.vos-auth .va-btn--solid {
+  color: #fff;
+  background: var(--va-ink);
+}
+
+.va-main {
+  width: min(1040px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  padding: 3.25rem 0 4rem;
+  flex: 1;
+}
+
+.va-main--center {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.va-split {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+
+.va-aside {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+}
+
+.va-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+}
+
+.va-aside h2 {
+  margin: 0;
+  max-width: 14em;
+  font-size: clamp(1.85rem, 3.2vw, 2.55rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  color: var(--va-ink);
+}
+
+.va-aside p,
+.va-aside li {
+  margin: 0;
+  color: var(--va-muted);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.va-aside p {
+  max-width: 34rem;
+}
+
+.va-points {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.va-points li {
+  color: var(--va-ink);
+}
+
+.va-aside a {
+  color: var(--va-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.va-card {
+  width: min(100%, 26.5rem);
+  padding: 1.7rem 1.45rem 1.45rem;
+  border: 1px solid var(--va-line);
+  border-radius: 20px;
+  background: var(--va-white);
+  box-shadow: 0 1px 2px rgba(18, 19, 22, 0.04);
+}
+
+.vos-auth .public-auth__form,
+.vos-auth .va-card > .public-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.vos-auth .public-auth__head,
+.vos-auth .va-card .public-auth__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  text-align: center;
+}
+
+.vos-auth .public-auth__title {
+  width: 100%;
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  text-align: center;
+  color: var(--va-ink);
+}
+
+.vos-auth .public-auth__subtitle,
+.vos-auth .public-auth__legal-note,
+.vos-auth .public-auth__google-wait,
+.vos-auth .public-auth__footer-link,
+.vos-auth .public-auth__or,
+.vos-auth .public-auth__error-hint {
+  color: var(--va-muted);
+}
+
+.vos-auth .public-auth__subtitle,
+.vos-auth .public-auth__legal-note,
+.vos-auth .public-auth__footer-link,
+.vos-auth .public-auth__error-hint {
+  width: 100%;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.vos-auth .public-auth__legal-note {
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.vos-auth .public-auth__footer-link {
+  text-align: center;
+}
+
+.vos-auth .public-auth__footer-link a,
+.vos-auth .public-auth__error-hint a {
+  color: var(--va-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.vos-auth .public-auth__or {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.1rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vos-auth .public-auth__or::before,
+.vos-auth .public-auth__or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--va-line);
+}
+
+.vos-auth .vos-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--va-ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.vos-auth .vos-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--va-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--va-ink);
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.vos-auth .vos-input::placeholder {
+  color: #8b939e;
+}
+
+.vos-auth .vos-input:focus {
+  outline: none;
+  border-color: var(--va-accent);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.16);
+}
+
+.vos-auth .vos-btn--primary,
+.vos-auth button.vos-btn--lg.vos-btn--block {
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--va-ink);
+  color: #fff;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.vos-auth .vos-btn--primary:hover:not(:disabled) {
+  filter: none;
+  background: #000;
+  box-shadow: none;
+}
+
+.vos-auth a.vos-btn--secondary.vos-btn--block {
+  min-height: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--va-line);
+  background: #fff;
+  color: var(--va-ink);
+  box-shadow: none;
+}
+
+.vos-auth .public-auth__google-btn {
+  width: 100%;
+  min-height: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--va-line);
+  background: #fff;
+  color: var(--va-ink);
+  box-shadow: none;
+}
+
+.vos-auth .public-auth__google-btn:hover {
+  transform: none;
+  border-color: rgba(18, 19, 22, 0.22);
+  box-shadow: none;
+}
+
+.vos-auth .public-auth__password-toggle {
+  color: var(--va-muted);
+  background: transparent;
+}
+
+.vos-auth .public-auth__password-toggle:hover {
+  color: var(--va-ink);
+  background: var(--va-paper);
+}
+
+.vos-auth .vos-alert--error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.vos-auth .vos-alert--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+
+.vos-auth .google-signup__kicker {
+  margin: 0;
+  color: var(--va-accent);
+  letter-spacing: 0.14em;
+}
+
+.vos-auth .google-signup__identity,
+.vos-auth .google-signup__legal {
+  border: 1px solid var(--va-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--va-ink);
+}
+
+.vos-auth .google-signup__identity span,
+.vos-auth .google-signup__legal-meta,
+.vos-auth .google-signup__legal p,
+.vos-auth .google-signup__legal li {
+  color: var(--va-muted);
+}
+
+.vos-auth .google-signup__avatar {
+  color: var(--va-ink);
+  background: var(--va-paper);
+  border: 1px solid var(--va-line);
+}
+
+.vos-auth .google-signup__check a,
+.vos-auth .google-signup__legal a {
+  color: var(--va-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.vos-auth.google-auth-popup {
+  align-items: center;
+  justify-content: center;
+}
+
+.vos-auth .google-auth-popup__card {
+  width: min(100% - 2rem, 22rem);
+  padding: 2rem 1.5rem;
+  border: 1px solid var(--va-line);
+  border-radius: 20px;
+  background: #fff;
+  text-align: center;
+}
+
+.vos-auth .google-auth-popup__text {
+  margin: 0.75rem 0 0;
+  color: var(--va-muted);
+}
+
+.vos-auth.legal-page {
+  --text: #121316;
+  --heading: #121316;
+  --muted: #5c6570;
+  --surface: #f4f5f7;
+  --surface-elevated: #ffffff;
+  --border: rgba(18, 19, 22, 0.1);
+  --accent: #1d4ed8;
+  background: #f4f5f7;
+  color: #121316;
+}
+
+.vos-auth .legal-page__wrap {
+  width: min(760px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 3rem;
+}
+
+.vos-auth .legal-page__card {
+  max-width: none;
+  margin: 0 0 2rem;
+  padding: 2rem 1.6rem 1.5rem;
+  border: 1px solid var(--va-line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: none;
+  color: var(--va-ink);
+}
+
+.vos-auth .legal-page__kicker {
+  color: var(--va-accent);
+}
+
+.vos-auth .legal-page__head h1,
+.vos-auth .legal-page__section h2 {
+  color: var(--va-ink);
+  letter-spacing: -0.03em;
+}
+
+.vos-auth .legal-page__intro,
+.vos-auth .legal-page__section p,
+.vos-auth .legal-page__updated {
+  color: var(--va-muted);
+}
+
+.vos-auth .legal-page__actions {
+  border-top-color: var(--va-line);
+}
+
+.vos-auth .legal-page__actions a {
+  color: var(--va-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.vos-auth .landing-site-footer {
+  margin-top: 0;
+  background: #fff !important;
+  border-top: 1px solid var(--va-line) !important;
+  color: var(--va-muted) !important;
+}
+
+.vos-auth .landing-site-footer a,
+.vos-auth .public-footer__tagline,
+.vos-auth .landing-footer__fine {
+  color: var(--va-muted) !important;
+}
+
+.vos-auth .landing-site-footer__icon {
+  color: var(--va-ink) !important;
+  background: var(--va-paper);
+  border-color: var(--va-line);
+}
+
+.va-note {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: var(--va-paper);
+  color: var(--va-ink);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.va-note a {
+  color: var(--va-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.va-note--warn {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.va-note--warn a {
+  color: #991b1b;
+}
+
+@media (min-width: 880px) {
+  .va-split {
+    grid-template-columns: minmax(0, 1fr) 26.5rem;
+    gap: 4rem;
+    align-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .va-nav__bar,
+  .va-main,
+  .vos-auth .legal-page__wrap {
+    width: min(100% - 1.5rem, 1040px);
+  }
+
+  .va-card {
+    width: 100%;
+  }
+
+  .va-aside h2 {
+    font-size: 1.7rem;
+  }
+}

@@ -3,10 +3,9 @@ import { BRAND_NAME } from '../lib/brand'
 import { getLegalPage, type LegalPageId } from '../lib/legalContent'
 import { getLandingUrl } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
-import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { SiteFooter } from './SiteFooter'
-import { usePublicTheme } from '../hooks/usePublicTheme'
 import '../public-shell.css'
+import './vos-auth.css'
 
 type Props = {
   page: LegalPageId
@@ -14,7 +13,6 @@ type Props = {
 
 export function LegalPageView({ page }: Props) {
   const content = getLegalPage(page)
-  const { theme, toggleTheme } = usePublicTheme()
   const landingUrl = getLandingUrl()
 
   useEffect(() => {
@@ -22,13 +20,16 @@ export function LegalPageView({ page }: Props) {
   }, [content.title])
 
   return (
-    <div className="public-shell landing-v2 legal-page">
-      <div className="public-shell__grid-bg" aria-hidden />
-      <header className="public-topbar public-topbar--minimal legal-page__topbar">
-        <a href={landingUrl} className="legal-page__brand" aria-label="Volver al inicio">
-          <BrandMark size="sm" />
-        </a>
-        <PublicThemeSwitch theme={theme} onToggle={toggleTheme} compact />
+    <div className="public-shell vos-auth legal-page">
+      <header className="va-nav">
+        <div className="va-nav__bar">
+          <a className="va-nav__brand" href={landingUrl} aria-label={`${BRAND_NAME} inicio`}>
+            <BrandMark size="sm" />
+          </a>
+          <a className="va-btn va-btn--ghost" href={landingUrl}>
+            Inicio
+          </a>
+        </div>
       </header>
 
       <div className="public-wrap legal-page__wrap">
@@ -52,13 +53,11 @@ export function LegalPageView({ page }: Props) {
           </div>
 
           <footer className="legal-page__actions">
-            <a className="public-btn public-btn--ghost" href={landingUrl}>
-              ← Volver al inicio
-            </a>
+            <a href={landingUrl}>Volver al inicio</a>
           </footer>
         </article>
 
-        <SiteFooter />
+        <SiteFooter tagline="Una plataforma. Múltiples soluciones. Inteligencia integrada." />
       </div>
     </div>
   )

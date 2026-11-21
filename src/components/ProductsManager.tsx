@@ -1218,6 +1218,7 @@ export function ProductsManager({ baseUrl }: { baseUrl: string }) {
         {!isMobile ? (
           <div className="products-page-head">
             <div className="products-page-intro">
+              <h2 className="page-title">Catálogo</h2>
               <p className="products-dashboard-lead muted">
                 {namedCopy(
                   first,

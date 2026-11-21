@@ -6,6 +6,7 @@ import {
 } from '../lib/authRoutes'
 import { BrandMark } from './BrandMark'
 import '../public-shell.css'
+import './vos-auth.css'
 
 export function GoogleAuthPopupView() {
   const [stuck, setStuck] = useState(false)
@@ -38,7 +39,7 @@ export function GoogleAuthPopupView() {
   }, [])
 
   return (
-    <div className="public-shell public-auth google-auth-popup">
+    <div className="public-shell vos-auth google-auth-popup">
       <div className="google-auth-popup__card">
         <BrandMark size="sm" />
         <p className="google-auth-popup__text">

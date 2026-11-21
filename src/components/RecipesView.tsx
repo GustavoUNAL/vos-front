@@ -342,7 +342,7 @@ export function RecipesView({ baseUrl }: { baseUrl: string }) {
           <h2 className="page-title">Recetas</h2>
           <p className="muted page-subtitle">
             Cinco familias de menú (Bar, Cafetería, Cócteles, Comida, Shots). Lista
-            completa por categoría; usá buscar para acotar.
+            completa por categoría; use buscar para acotar.
           </p>
         </div>
 

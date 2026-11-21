@@ -58,7 +58,7 @@ export function buildDesktopNavGroups(options: {
         groups.push({
           id: 'finance',
           label: 'Finanzas',
-          items: [{ view: 'analytics', label: 'Análisis financiero' }],
+          items: [{ view: 'analytics', label: 'Finanzas' }],
         })
       }
       return groups
@@ -87,8 +87,8 @@ export function buildDesktopNavGroups(options: {
         label: 'Ventas',
         items: [
           { view: 'sales', label: 'Ventas' },
-          { view: 'pos', label: 'Punto de venta · Mesas' },
-          { view: 'shop', label: 'Tienda en línea' },
+          { view: 'pos', label: 'Punto de venta' },
+          { view: 'shop', label: 'Tienda' },
           { view: 'cash-close', label: 'Cierre del día' },
         ],
       },
@@ -100,21 +100,21 @@ export function buildDesktopNavGroups(options: {
       {
         id: 'staff',
         label: 'Personal',
-        items: [{ view: 'staff', label: 'Turnos y nómina' }],
+        items: [{ view: 'staff', label: 'Personal' }],
       },
     ]
     if (options.canViewTasks ?? canViewTasks(user)) {
       groups.push({
         id: 'tasks',
         label: 'Tareas',
-        items: [{ view: 'tasks', label: 'Calendario' }],
+        items: [{ view: 'tasks', label: 'Tareas' }],
       })
     }
     if (canViewProjects(user)) {
       groups.push({
         id: 'projects',
         label: 'Proyectos',
-        items: [{ view: 'projects', label: 'Historial de proyectos' }],
+        items: [{ view: 'projects', label: 'Proyectos' }],
       })
     }
     if (hasBookingModule(user) || canAccessView(user, 'booking')) {
@@ -136,7 +136,7 @@ export function buildDesktopNavGroups(options: {
       groups.push({
         id: 'finance',
         label: 'Finanzas',
-        items: [{ view: 'analytics', label: 'Análisis financiero' }],
+        items: [{ view: 'analytics', label: 'Finanzas' }],
       })
     }
     if (!user) return groups

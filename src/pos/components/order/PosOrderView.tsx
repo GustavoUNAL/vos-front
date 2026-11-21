@@ -228,7 +228,7 @@ export function PosOrderView({ baseUrl }: Props) {
           <div className="pos-order-header__title-wrap">
             <h1 className="pos-order-header__title">{tableLabel}</h1>
             <p className="pos-order-header__sub muted">
-              Agregá productos y tocá Cobrar cuando esté listo
+              Agregue productos y toque Cobrar cuando esté listo
             </p>
           </div>
         ) : null}

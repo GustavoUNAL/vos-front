@@ -511,7 +511,7 @@ html[data-shell='public'] #root {
   border-radius: 999px;
   border: 1px solid var(--accent-border);
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft, var(--accent));
   font-weight: 800;
   font-size: 0.78rem;
 }

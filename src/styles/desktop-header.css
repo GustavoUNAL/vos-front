@@ -20,14 +20,14 @@
 .odoo-navbar {
   flex-shrink: 0;
   z-index: 120;
-  color: #f6eef1;
-  background: #1c1418;
+  color: #f4f6f8;
+  background: #0e1014;
   border-bottom: 1px solid color-mix(in srgb, var(--berry-dark) 42%, transparent);
   box-shadow: 0 2px 12px color-mix(in srgb, #000 32%, transparent);
 }
 
 .odoo-navbar--home {
-  background: linear-gradient(180deg, #261a1f 0%, #1c1418 100%);
+  background: #0e1014;
 }
 
 .odoo-navbar__inner {
@@ -354,9 +354,9 @@
   font-weight: 700;
   line-height: 0.95rem;
   text-align: center;
-  background: #0ea5e9;
+  background: #1d4ed8;
   color: #fff;
-  box-shadow: 0 0 0 1.5px #1c1418;
+  box-shadow: 0 0 0 1.5px #0e1014;
 }
 
 .header-systray__panel {
@@ -573,13 +573,13 @@
 html[data-theme='light'] .odoo-navbar .brand-mark__vos,
 html[data-theme='dark'] .odoo-navbar .brand-mark__vos,
 .odoo-navbar .brand-mark__vos {
-  color: #f6f6f4;
+  color: #f4f6f8;
 }
 
 html[data-theme='light'] .odoo-navbar .brand-mark__ia,
 html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
 .odoo-navbar .brand-mark__ia {
-  color: #8be9fd;
+  color: #93c5fd;
 }
 
 .odoo-navbar .brand-mark__dot {
@@ -587,7 +587,7 @@ html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
 }
 
 .odoo-navbar .company-brand__name {
-  color: #f6f6f4;
+  color: #f4f6f8;
 }
 
 .odoo-navbar .header-systray__hello {
@@ -796,7 +796,7 @@ html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
 
 .odoo-app-tile--stock,
 .app-launcher-tile--stock {
-  --odoo-accent: #0ea5e9;
+  --odoo-accent: #1d4ed8;
 }
 
 .odoo-app-tile--sales,
@@ -836,7 +836,7 @@ html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
 
 .odoo-app-tile--booking,
 .app-launcher-tile--booking {
-  --odoo-accent: #0ea5e9;
+  --odoo-accent: #1d4ed8;
 }
 
 /* ——— Pantalla de inicio (homemenu) ——— */
@@ -941,7 +941,7 @@ html[data-theme='dark'] .odoo-navbar .brand-mark__ia,
 }
 
 .ops-pulse__alert--info {
-  background: color-mix(in srgb, var(--odoo-accent, #0ea5e9) 14%, transparent);
+  background: color-mix(in srgb, var(--odoo-accent, #1d4ed8) 14%, transparent);
 }
 
 .ops-pulse__events li {

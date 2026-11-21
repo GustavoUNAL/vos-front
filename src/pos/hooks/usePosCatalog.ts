@@ -51,7 +51,7 @@ export function usePosCatalog(baseUrl: string) {
   const catalogError = useMemo(() => {
     if (error) return error
     if (!loading && !refreshing && products.length === 0 && !usingDemoCatalog) {
-      return 'No hay productos activos en la carta. Activá productos en «Productos a la venta».'
+      return 'No hay productos activos en la carta. Active productos en Catálogo.'
     }
     return null
   }, [error, loading, refreshing, products.length, usingDemoCatalog])

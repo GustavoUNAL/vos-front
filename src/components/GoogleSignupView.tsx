@@ -3,20 +3,16 @@ import { completeGoogleSignup, type AuthUser } from '../api'
 import { BRAND_NAME } from '../lib/brand'
 import {
   decodeGoogleSignupToken,
-  getLandingUrl,
   getLoginUrl,
   navigateToRegister,
   readGoogleSignupToken,
   storeGoogleSignupToken,
 } from '../lib/authRoutes'
-import { BrandMark } from './BrandMark'
+import { AuthNotice, AuthShell } from './AuthShell'
 import { PublicLegalConsent } from './PublicLegalConsent'
-import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { usePublicTheme } from '../hooks/usePublicTheme'
-import '../public-shell.css'
 
 type Props = {
   baseUrl: string
@@ -29,7 +25,6 @@ export function GoogleSignupView({ baseUrl, onCreated }: Props) {
   const [acceptPrivacy, setAcceptPrivacy] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { theme, toggleTheme } = usePublicTheme()
   const token = readGoogleSignupToken()
   const profile = token ? decodeGoogleSignupToken(token) : null
 
@@ -45,11 +40,11 @@ export function GoogleSignupView({ baseUrl, onCreated }: Props) {
     e.preventDefault()
     if (!token || submitting) return
     if (!companyName.trim()) {
-      setError('Ingresá el nombre de tu empresa o negocio.')
+      setError('Ingrese el nombre de su empresa.')
       return
     }
     if (!acceptTerms || !acceptPrivacy) {
-      setError('Para continuar, aceptá los términos y el tratamiento de datos.')
+      setError('Para continuar, acepte los términos y el tratamiento de datos.')
       return
     }
     setError(null)
@@ -73,38 +68,28 @@ export function GoogleSignupView({ baseUrl, onCreated }: Props) {
   if (!profile) return null
 
   return (
-    <div className="public-shell public-auth google-signup">
-      <div className="public-shell__grid-bg" aria-hidden />
-      <a className="public-btn public-btn--ghost public-auth__back" href={getLandingUrl()}>
-        ← Volver
-      </a>
-      <PublicThemeSwitch
-        theme={theme}
-        onToggle={toggleTheme}
-        compact
-        className="public-auth__theme"
-      />
-
-      <div className="public-auth__layout">
-        <aside className="public-auth__visual">
-          <BrandMark size="md" showTagline />
-          <div>
-            <h2>Su cuenta de Google es nueva en {BRAND_NAME}</h2>
-            <p>
-              Antes de crear el espacio, confirmamos su identidad y el tratamiento de los datos
-              de su negocio. Esto queda registrado para operar de forma segura y conforme a la ley.
-            </p>
-          </div>
-          <ul className="public-auth__bullets">
-            <li>Datos aislados por empresa</li>
-            <li>Tratamiento según Ley 1581 de 2012</li>
-            <li>Sin vender información a terceros</li>
-            <li>Puede pedir corrección o eliminación</li>
+    <AuthShell
+      aside={
+        <aside className="va-aside">
+          <p className="va-kicker">Registro con Google</p>
+          <h2>Su cuenta es nueva en {BRAND_NAME}.</h2>
+          <p>
+            Antes de abrir el espacio confirmamos la empresa y el tratamiento de sus datos.
+          </p>
+          <ul className="va-points">
+            <li>Los datos de cada empresa quedan aparte.</li>
+            <li>El tratamiento sigue la Ley 1581 de 2012.</li>
+            <li>Puede pedir corrección o eliminación.</li>
           </ul>
         </aside>
-
-        <div className="public-auth__form-wrap">
-          <form className="public-auth__form google-signup__form" onSubmit={handleSubmit}>
+      }
+      navAction={
+        <a className="va-btn va-btn--solid" href={getLoginUrl()}>
+          Iniciar sesión
+        </a>
+      }
+    >
+          <form className="public-auth__form va-card google-signup__form" onSubmit={handleSubmit}>
             <header className="public-auth__head">
               <p className="google-signup__kicker">Registro con Google</p>
               <h1 className="public-auth__title">Crear su espacio</h1>
@@ -132,7 +117,7 @@ export function GoogleSignupView({ baseUrl, onCreated }: Props) {
                 required
                 autoFocus
                 disabled={submitting}
-                placeholder="Ej. Café Central"
+                placeholder="Nombre de la empresa"
               />
             </Label>
 
@@ -145,22 +130,16 @@ export function GoogleSignupView({ baseUrl, onCreated }: Props) {
               onAcceptPrivacy={setAcceptPrivacy}
             />
 
-            {error ? (
-              <div className="vos-alert vos-alert--error" role="alert">
-                {error}
-              </div>
-            ) : null}
+            {error ? <AuthNotice tone="warn">{error}</AuthNotice> : null}
 
             <Button type="submit" size="lg" block disabled={submitting}>
               {submitting ? 'Creando cuenta…' : 'Crear mi cuenta'}
             </Button>
 
             <p className="public-auth__footer-link">
-              ¿Ya tenés acceso? <a href={getLoginUrl()}>Iniciar sesión</a>
+              ¿Ya tiene acceso? <a href={getLoginUrl()}>Iniciar sesión</a>
             </p>
           </form>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   )
 }

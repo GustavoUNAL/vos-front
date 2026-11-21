@@ -98,7 +98,7 @@ export function ShopAdminView({ baseUrl, onOpenProducts, onOpenPos }: Props) {
   return (
     <div className={mobileViewClass('shop', 'shop-admin')}>
       <header className="shop-admin__hero">
-        <p className="shop-admin__eyebrow muted small">{BRAND_NAME} · Tienda en línea</p>
+        <p className="shop-admin__eyebrow muted small">{BRAND_NAME} · Tienda</p>
         <h1 className="shop-admin__title">
           {namedCopy(first, 'Su tienda, {name}', 'Tienda por empresa')}
         </h1>

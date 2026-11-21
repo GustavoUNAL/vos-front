@@ -1,6 +1,6 @@
 .dental-app {
   /* Paleta alineada a la landing (tema claro vos.ai) */
-  --dental-accent: #0ea5e9;
+  --dental-accent: #1d4ed8;
   --dental-accent-soft: rgba(14, 165, 233, 0.14);
   --dental-accent-hover: #0284c7;
   --dental-ink: #075985;
@@ -38,7 +38,7 @@
 }
 
 html[data-theme='dark'] .dental-app {
-  --dental-accent: #8be9fd;
+  --dental-accent: #93c5fd;
   --dental-accent-soft: rgba(139, 233, 253, 0.16);
   --dental-accent-hover: #a8f0ff;
   --dental-ink: #a8f0ff;
@@ -87,7 +87,7 @@ html[data-theme='dark'] .dental-table tr:hover td {
 }
 
 html[data-theme='dark'] .dental-hero {
-  background: linear-gradient(135deg, #44475a 0%, #6272a4 45%, #8be9fd 130%) !important;
+  background: linear-gradient(135deg, #0e1014 0%, #1e3a8a 55%, #60a5fa 130%) !important;
   box-shadow: 0 8px 28px var(--dental-berry-glow);
 }
 
@@ -1035,7 +1035,7 @@ html[data-theme='dark'] .dental-table th {
 }
 
 .dental-hero {
-  background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 48%, #38bdf8 100%) !important;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #3b82f6 100%) !important;
   color: #fff !important;
   border-radius: var(--dental-radius);
   padding: 1.5rem 1.55rem;

@@ -91,7 +91,7 @@ export function ProductSummaryCard({
             >
               <header className="modal-head">
                 <div className="modal-head-title">
-                  <h2 id={detailTitleId}>Productos a la venta</h2>
+                  <h2 id={detailTitleId}>Catálogo</h2>
                   <p className="muted small modal-subtitle">
                     Vista global sin filtros de búsqueda.
                   </p>
@@ -108,7 +108,7 @@ export function ProductSummaryCard({
               <div className="modal-body">
                 <dl className="product-summary-detail-stats">
                   <div>
-                    <dt>Productos a la venta</dt>
+                    <dt>Catálogo</dt>
                     <dd>{summary.total}</dd>
                   </div>
                   <div>

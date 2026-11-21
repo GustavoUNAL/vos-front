@@ -1,7 +1,7 @@
 export const THEME_STORAGE_KEY = 'vos_theme_v2'
 export const DEFAULT_THEME: 'dark' | 'light' = 'light'
-export const DEFAULT_DARK = '#111213'
-export const DEFAULT_LIGHT = '#f6f6f4'
+export const DEFAULT_DARK = '#0e1014'
+export const DEFAULT_LIGHT = '#f4f5f7'
 
 export function readStoredTheme(): 'dark' | 'light' {
   try {

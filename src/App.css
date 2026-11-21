@@ -37,7 +37,7 @@
   padding: 0.45rem 0.85rem;
   border-radius: 8px;
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
   border: 1px solid var(--accent-border);
   font-size: 0.82rem;
   font-weight: 650;
@@ -363,7 +363,7 @@
 
 .app-sidebar__icon-btn--active {
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
   border-color: var(--accent-border);
   box-shadow:
     inset -3px 0 0 0 var(--rail-accent, var(--berry)),
@@ -375,7 +375,7 @@
 }
 
 .app-sidebar__icon-btn--stock {
-  --rail-accent: #0ea5e9;
+  --rail-accent: #1d4ed8;
 }
 
 .app-sidebar__icon-btn--sales {
@@ -656,7 +656,7 @@
 }
 
 .app-nav-group--stock {
-  --nav-accent: #0ea5e9;
+  --nav-accent: #1d4ed8;
 }
 
 .app-nav-group--sales {
@@ -684,7 +684,7 @@
 }
 
 .app-nav-group--booking {
-  --nav-accent: #0ea5e9;
+  --nav-accent: #1d4ed8;
 }
 
 .app-nav-group--active {
@@ -946,7 +946,7 @@
 }
 
 .app-launcher-tile--stock {
-  --launcher-accent: #0ea5e9;
+  --launcher-accent: #1d4ed8;
 }
 
 .app-launcher-tile--sales {
@@ -978,7 +978,7 @@
 }
 
 .app-launcher-tile--booking {
-  --launcher-accent: #0ea5e9;
+  --launcher-accent: #1d4ed8;
 }
 
 .home-dashboard .app-launcher {
@@ -1087,7 +1087,7 @@
 
 .app-nav-list button.active {
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
   border-color: var(--accent-border);
   font-weight: 650;
   box-shadow:
@@ -1217,7 +1217,7 @@
 }
 
 .nav-hub__section--stock {
-  --hub-accent: #0ea5e9;
+  --hub-accent: #1d4ed8;
 }
 
 .nav-hub__section--sales {
@@ -1721,7 +1721,7 @@
 }
 
 .brand-mark__ia {
-  color: #0ea5e9;
+  color: #1d4ed8;
   font-weight: 800;
   background: none;
   -webkit-background-clip: unset;
@@ -1729,19 +1729,19 @@
 }
 
 html[data-theme='dark'] .brand-mark__vos {
-  color: #f6f6f4;
+  color: #f4f6f8;
 }
 
 html[data-theme='dark'] .brand-mark__ia {
-  color: #8be9fd;
+  color: #93c5fd;
 }
 
 html[data-theme='light'] .brand-mark__vos {
-  color: #1c1d1f;
+  color: #121316;
 }
 
 html[data-theme='light'] .brand-mark__ia {
-  color: #0ea5e9;
+  color: #1d4ed8;
 }
 
 .brand-mark__tagline {
@@ -1923,8 +1923,8 @@ html[data-theme='light'] .brand-mark__ia {
   max-width: 420px;
   padding: 1rem 1.15rem;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--berry, #0ea5e9) 25%, var(--border));
-  background: color-mix(in srgb, var(--surface-elevated) 92%, var(--berry, #0ea5e9) 4%);
+  border: 1px solid color-mix(in srgb, var(--berry, #1d4ed8) 25%, var(--border));
+  background: color-mix(in srgb, var(--surface-elevated) 92%, var(--berry, #1d4ed8) 4%);
 }
 
 .login-tenant-demo__eyebrow {
@@ -2831,7 +2831,7 @@ html[data-theme='light'] .brand-mark__ia {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface-elevated);
-  border-left: 4px solid #0ea5e9;
+  border-left: 4px solid #1d4ed8;
   box-shadow: 0 1px 12px var(--shadow-soft);
 }
 
@@ -4177,7 +4177,7 @@ body:has(.modal-backdrop) .floating-gear-fab {
 .btn-filters-toggle--active:not(.btn-filters-toggle--open) {
   border-color: var(--accent-border);
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
 }
 
 .btn-filters-toggle--open {
@@ -4526,7 +4526,7 @@ body:has(.modal-backdrop) .floating-gear-fab {
 
 .view-toggle button.active {
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
 }
 
 .btn-compact {
@@ -6202,7 +6202,7 @@ table.data-table.purchase-lot-line-items-table--cols3 {
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -6334,7 +6334,7 @@ table.data-table.purchase-lot-line-items-table--cols3 {
 
 .explorer-nav button.active {
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
   font-weight: 500;
 }
 
@@ -6982,7 +6982,7 @@ table.data-table--sales-list {
 .sales-source-pill--manual {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
   background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
 }
 
 .sales-source-pill--cart {
@@ -11297,7 +11297,7 @@ table.recipe-table {
 .btn-mobile-filters--active:not(.btn-mobile-filters--open) {
   border-color: var(--accent-border);
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--on-accent-soft);
 }
 
 /* Lupa: misma forma que .search-icon, en color sólido para el botón móvil */

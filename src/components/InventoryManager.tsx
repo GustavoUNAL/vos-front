@@ -674,7 +674,7 @@ export function InventoryManager({ baseUrl }: { baseUrl: string }) {
     <div className="products-layout">
       <div className="products-list-pane page-pane--floating-gear-dock">
         <div className="page-intro">
-          <h2 className="page-title">Inventario</h2>
+          <h2 className="page-title">Stock</h2>
             <p className="muted page-subtitle">
               {inventorySubtitle
                 ? namedCopy(first, `{name}, ${inventorySubtitle}`, inventorySubtitle)

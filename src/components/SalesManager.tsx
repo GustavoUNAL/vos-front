@@ -1800,7 +1800,7 @@ export function SalesManager({
                             <span className="muted small">
                               {creating
                                 ? 'Al guardar se envía el comprobante por WhatsApp.'
-                                : 'Guardá la venta y usá «Enviar WhatsApp» para reenviar el comprobante.'}
+                                : 'Guarde la venta y use «Enviar WhatsApp» para reenviar el comprobante.'}
                             </span>
                           </label>
                           <label className="field sales-invoice-comment">

@@ -281,9 +281,8 @@ export function GastosView({ baseUrl }: { baseUrl: string }) {
         <div className="page-intro page-intro--tight">
           <h2 className="page-title">Gastos</h2>
           <p className="muted page-subtitle">
-            <span className="mono">GET /gastos</span> · Gastos generales FIJO y VARIABLE
-            del negocio (distintos del costo por receta en Costos). Listado completo;
-            usá buscar para acotar.
+            Gastos fijos y variables del negocio, distintos del costo de cada receta.
+            El listado está completo; use buscar para acotar.
           </p>
         </div>
 

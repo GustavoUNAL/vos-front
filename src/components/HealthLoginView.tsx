@@ -1,15 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { fetchMe, login, setAccessToken, type AuthUser } from '../api'
-import { getAccessRequestUrl, getLandingUrl, getLoginUrl } from '../lib/authRoutes'
-import { PublicAuthMobileIntro } from './PublicAuthMobileIntro'
+import { getAccessRequestUrl, getLoginUrl } from '../lib/authRoutes'
+import { AuthNotice, AuthShell } from './AuthShell'
 import { GoogleSignInButton } from './GoogleSignInButton'
-import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { usePublicTheme } from '../hooks/usePublicTheme'
-import '../public-shell.css'
-import './HealthLoginView.css'
 
 type Props = {
   baseUrl: string
@@ -23,7 +19,6 @@ export function HealthLoginView({ baseUrl, onLogin, initialMessage }: Props) {
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
     document.title = 'Iniciar sesión · VOS IA HEALTH'
@@ -39,7 +34,7 @@ export function HealthLoginView({ baseUrl, onLogin, initialMessage }: Props) {
     if (submitting) return
     const trimmedEmail = email.trim()
     if (!trimmedEmail || !password) {
-      setError('Ingresá email y contraseña de tu clínica.')
+      setError('Ingrese el correo y la contraseña del consultorio.')
       return
     }
     setError(null)
@@ -69,68 +64,35 @@ export function HealthLoginView({ baseUrl, onLogin, initialMessage }: Props) {
   }
 
   return (
-    <div className="public-shell public-auth health-login">
-      <div className="public-shell__grid-bg" aria-hidden />
-      <a className="public-btn public-btn--ghost public-auth__back" href={getLandingUrl()}>
-        ← Volver
-      </a>
-      <PublicThemeSwitch
-        theme={theme}
-        onToggle={toggleTheme}
-        compact
-        className="public-auth__theme"
-      />
-
-      <PublicAuthMobileIntro chips={['Pacientes', 'Agenda', 'HC', 'Odontograma']} />
-
-      <div className="public-auth__layout health-login__card">
-        <aside className="public-auth__visual health-login__visual">
-          <p className="health-login__eyebrow">Producto VOS IA</p>
-          <h1 className="health-login__brand">VOS IA HEALTH</h1>
-          <p className="health-login__lead">
-            Plataforma clínica para odontología y salud: pacientes, agenda, historia
-            clínica y costos en un solo lugar.
-          </p>
-          <ul className="public-auth__bullets">
-            <li>Historia clínica y odontograma</li>
-            <li>Agenda e ingresos del consultorio</li>
-            <li>Inventario y bioseguridad</li>
-            <li>Asistente IA para tu clínica</li>
+    <AuthShell
+      aside={
+        <aside className="va-aside">
+          <p className="va-kicker">VOS Health</p>
+          <h2>El consultorio, sobre la misma plataforma.</h2>
+          <p>Agenda, pacientes, historia clínica y odontograma. Los datos quedan en la empresa del consultorio.</p>
+          <ul className="va-points">
+            <li>Agenda y ficha de pacientes.</li>
+            <li>Historia clínica y odontograma.</li>
+            <li>El asistente consulta esos registros.</li>
           </ul>
-          <div className="public-auth__visual-stats" aria-hidden>
-            <div>
-              <strong>12</strong>
-              <span>citas hoy</span>
-            </div>
-            <div>
-              <strong>HC</strong>
-              <span>digital</span>
-            </div>
-            <div>
-              <strong>1</strong>
-              <span>consultorio</span>
-            </div>
-          </div>
-          <p className="public-auth__aside-note">
-            ¿Negocio, no clínica?{' '}
-            <a href={getLoginUrl()}>Entrar a VOS IA</a>
+          <p>
+            ¿No es un consultorio? <a href={getLoginUrl()}>Iniciar sesión en VOS IA</a>
           </p>
         </aside>
-
-        <div className="public-auth__form-wrap">
-          <form className="public-auth__form" onSubmit={handleSubmit}>
+      }
+      navAction={
+        <a className="va-btn va-btn--solid" href={getLoginUrl()}>
+          Plataforma
+        </a>
+      }
+    >
+          <form className="public-auth__form va-card" onSubmit={handleSubmit}>
             <header className="public-auth__head">
-              <h2 className="public-auth__title">Acceso a tu clínica</h2>
-              <p className="public-auth__subtitle">
-                Credenciales del consultorio en VOS IA HEALTH.
-              </p>
+              <h1 className="public-auth__title">Iniciar sesión</h1>
+              <p className="public-auth__subtitle">Entre con el correo del consultorio.</p>
             </header>
 
-            {initialMessage ? (
-              <div className="vos-alert vos-alert--error" role="alert">
-                {initialMessage}
-              </div>
-            ) : null}
+            {initialMessage ? <AuthNotice>{initialMessage}</AuthNotice> : null}
 
             <GoogleSignInButton
               returnTo="health"
@@ -140,7 +102,7 @@ export function HealthLoginView({ baseUrl, onLogin, initialMessage }: Props) {
               onError={(msg) => setError(msg)}
             />
 
-            <p className="public-auth__or">o con tu email profesional</p>
+            <p className="public-auth__or">o con su correo</p>
 
             <Label>
               <span>Email profesional</span>
@@ -180,23 +142,16 @@ export function HealthLoginView({ baseUrl, onLogin, initialMessage }: Props) {
               </div>
             </Label>
 
-            {error ? (
-              <div className="vos-alert vos-alert--error" role="alert">
-                {error}
-              </div>
-            ) : null}
+            {error ? <AuthNotice tone={/google/i.test(error) ? 'info' : 'warn'}>{error}</AuthNotice> : null}
 
             <Button type="submit" size="lg" block disabled={submitting}>
-              {submitting ? 'Ingresando…' : 'Entrar a VOS IA HEALTH'}
+              {submitting ? 'Ingresando…' : 'Iniciar sesión'}
             </Button>
 
             <p className="public-auth__footer-link">
-              ¿Aún no tenés acceso?{' '}
-              <a href={getAccessRequestUrl()}>Solicitá VOS IA HEALTH</a>
+              ¿Aún no tiene acceso? <a href={getAccessRequestUrl()}>Solicitar acceso</a>
             </p>
           </form>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const
-const CHART = { w: 360, h: 112, padX: 8, padY: 12 }
+const CHART = { w: 360, h: 132, padX: 6, padY: 14 }
 const HOLD_MS = 4800
 
 type MixItem = { label: string; pct: number; color: string }
@@ -103,15 +103,42 @@ function coords(values: number[]) {
   }))
 }
 
-function linePath(pts: { x: number; y: number }[]) {
-  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+function smoothPath(pts: { x: number; y: number }[]) {
+  const first = pts[0]
+  if (!first) return ''
+  let d = `M${first.x.toFixed(1)} ${first.y.toFixed(1)}`
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const p0 = pts[i]
+    const p1 = pts[i + 1]
+    if (!p0 || !p1) continue
+    const mx = (p0.x + p1.x) / 2
+    d += ` C${mx.toFixed(1)} ${p0.y.toFixed(1)}, ${mx.toFixed(1)} ${p1.y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`
+  }
+  return d
 }
 
 function areaPath(pts: { x: number; y: number }[]) {
   const first = pts[0]
   const last = pts[pts.length - 1]
   if (!first || !last) return ''
-  return `${linePath(pts)} L${last.x.toFixed(1)} ${CHART.h} L${first.x.toFixed(1)} ${CHART.h} Z`
+  const base = CHART.h - CHART.padY
+  return `${smoothPath(pts)} L${last.x.toFixed(1)} ${base} L${first.x.toFixed(1)} ${base} Z`
+}
+
+function ChartGrid() {
+  const { w, h, padX, padY } = CHART
+  const top = padY
+  const plot = h - padY * 2
+  return (
+    <g className="lp-dash__grid" aria-hidden>
+      {[0.28, 0.56, 0.84].map((t) => {
+        const y = top + plot * t
+        return (
+          <line key={t} x1={padX} x2={w - padX} y1={y} y2={y} />
+        )
+      })}
+    </g>
+  )
 }
 
 function prefersReducedMotion() {
@@ -121,26 +148,33 @@ function prefersReducedMotion() {
 function LineChart({ values, color, label }: { values: number[]; color: string; label: string }) {
   const pts = coords(values)
   const last = pts[pts.length - 1]
-  const gid = 'lp-dash-fill'
   if (!last) return null
+  const curve = smoothPath(pts)
   return (
     <svg className="lp-dash__chart" viewBox={`0 0 ${CHART.w} ${CHART.h}`} role="img" aria-label={label}>
       <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+        <linearGradient id="lp-dash-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.55" />
+          <stop offset="72%" stopColor={color} stopOpacity="0.08" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
+        <filter id="lp-dash-glow" x="-15%" y="-40%" width="130%" height="180%">
+          <feGaussianBlur stdDeviation="2.6" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
-      <path className="lp-dash__area" d={areaPath(pts)} fill={`url(#${gid})`} />
-      <path
-        className="lp-dash__line"
-        d={linePath(pts)}
-        fill="none"
-        stroke={color}
-        strokeWidth="2.4"
-      />
-      <circle cx={last.x} cy={last.y} r="4.2" fill={color} />
-      <circle cx={last.x} cy={last.y} r="7.5" fill="none" stroke={color} strokeOpacity="0.35" />
+      <ChartGrid />
+      <path className="lp-dash__area" d={areaPath(pts)} fill="url(#lp-dash-fill)" />
+      <path className="lp-dash__line lp-dash__line--glow" d={curve} fill="none" stroke={color} strokeWidth="5" />
+      <path className="lp-dash__line" d={curve} fill="none" stroke={color} strokeWidth="2.2" filter="url(#lp-dash-glow)" />
+      {pts.slice(0, -1).map((p) => (
+        <circle key={`${p.x}-${p.y}`} className="lp-dash__node" cx={p.x} cy={p.y} r="2.4" fill={color} />
+      ))}
+      <circle className="lp-dash__pulse" cx={last.x} cy={last.y} r="8" fill="none" stroke={color} strokeWidth="1.4" />
+      <circle cx={last.x} cy={last.y} r="3.4" fill="#f0f6fc" stroke={color} strokeWidth="2" />
     </svg>
   )
 }
@@ -153,23 +187,32 @@ function BarChart({ values, color, label }: { values: number[]; color: string; l
   const bw = (inner - gap * (values.length - 1)) / values.length
   return (
     <svg className="lp-dash__chart" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label}>
+      <defs>
+        <linearGradient id="lp-dash-bar" gradientUnits="userSpaceOnUse" x1="0" y1={padY} x2="0" y2={h - padY}>
+          <stop offset="0%" stopColor={color} stopOpacity="1" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.42" />
+        </linearGradient>
+      </defs>
+      <ChartGrid />
       {values.map((v, i) => {
-        const bh = Math.max((v / max) * (h - padY * 2), 4)
+        const bh = Math.max((v / max) * (h - padY * 2), 6)
         const x = padX + i * (bw + gap)
         const y = h - padY - bh
+        const peak = v === max
         return (
-          <rect
-            key={DAYS[i]}
-            className="lp-dash__col"
-            x={x}
-            y={y}
-            width={bw}
-            height={bh}
-            rx="3.5"
-            fill={color}
-            opacity={i === values.length - 1 ? 1 : 0.45}
-            style={{ animationDelay: `${i * 45}ms` }}
-          />
+          <g key={DAYS[i]}>
+            <rect
+              className={`lp-dash__col${peak ? ' lp-dash__col--peak' : ''}`}
+              x={x}
+              y={y}
+              width={bw}
+              height={bh}
+              rx="5"
+              fill="url(#lp-dash-bar)"
+              style={{ animationDelay: `${i * 55}ms` }}
+            />
+            <rect className="lp-dash__cap" x={x + 1.5} y={y} width={bw - 3} height="2.2" rx="1" fill="#e7f6ff" opacity={peak ? 0.95 : 0.38} />
+          </g>
         )
       })}
     </svg>
@@ -196,10 +239,20 @@ export function LandingProductPreview() {
       }}
       onPointerLeave={() => setPaused(false)}
     >
+      <span className="lp-dash__frame" aria-hidden>
+        <i />
+        <i />
+        <i />
+        <i />
+      </span>
+      <span className="lp-dash__scan" aria-hidden />
       <div key={view.id} className="lp-dash__swap">
         <header className="lp-dash__head">
           <div>
-            <p className="lp-dash__kicker">{view.kicker}</p>
+            <p className="lp-dash__kicker">
+              <span className="lp-dash__live" />
+              {view.kicker}
+            </p>
             <p className="lp-dash__total">{view.total}</p>
           </div>
           <p className={`lp-dash__delta lp-dash__delta--${view.deltaTone}`}>{view.delta}</p>

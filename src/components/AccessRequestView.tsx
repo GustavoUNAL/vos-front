@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { submitAccessRequest } from '../api'
-import { BRAND_NAME, BRAND_TAGLINE } from '../lib/brand'
-import { getLandingUrl, getLoginUrl, getRegisterUrl } from '../lib/authRoutes'
-import { BrandMark } from './BrandMark'
-import { PublicAuthMobileIntro } from './PublicAuthMobileIntro'
-import { LandingSalesChat } from './landing/LandingSalesChat'
-import { PublicThemeSwitch } from './PublicThemeSwitch'
+import { BRAND_NAME } from '../lib/brand'
+import { getLoginUrl, getRegisterUrl } from '../lib/authRoutes'
+import { AuthNotice, AuthShell } from './AuthShell'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { usePublicTheme } from '../hooks/usePublicTheme'
-import '../public-shell.css'
 
 type Props = {
   baseUrl: string
@@ -40,7 +35,6 @@ export function AccessRequestView({ baseUrl }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [submittedEmail, setSubmittedEmail] = useState('')
-  const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
     document.title = `${planTitle} · ${BRAND_NAME}`
@@ -78,76 +72,65 @@ export function AccessRequestView({ baseUrl }: Props) {
     }
   }
 
+  const aside = (
+    <>
+      <p className="va-kicker">Solicitar acceso</p>
+      <h2>{plan === 'TRIAL' ? 'Abra el espacio de su empresa.' : `Plan ${plan === 'PRO' ? 'Pro' : 'Empresa'}`}</h2>
+      <p>
+        {plan === 'TRIAL'
+          ? `Cuéntenos quién es. Activamos la empresa en ${BRAND_NAME} sobre la misma plataforma: permisos, datos y aplicaciones.`
+          : 'Deje sus datos. Revisamos la solicitud y le contactamos para activar el plan.'}
+      </p>
+      <ul className="va-points">
+        <li>Cada empresa tiene sus datos aparte.</li>
+        <li>Ventas, inventario, agenda y proyectos en el mismo registro.</li>
+        <li>El asistente responde con lo que ya está guardado.</li>
+      </ul>
+    </>
+  )
+
   return (
-    <div className="public-shell public-auth">
-      <div className="public-shell__grid-bg" aria-hidden />
-      <a className="public-btn public-btn--ghost public-auth__back" href={getLandingUrl()}>
-        ← Volver
-      </a>
-      <PublicThemeSwitch
-        theme={theme}
-        onToggle={toggleTheme}
-        compact
-        className="public-auth__theme"
-      />
-
-      <PublicAuthMobileIntro chips={['Sin costo inicial', 'Punto de venta incluido', 'Tienda web', 'Datos aislados']} />
-
-      <div className="public-auth__layout">
-        <aside className="public-auth__visual">
-          <BrandMark size="md" showTagline />
-          <div>
-            <h2>{plan === 'TRIAL' ? 'Registre su empresa' : `Plan ${plan === 'PRO' ? 'Pro' : 'Empresa'}`}</h2>
-            <p>
-              {plan === 'TRIAL'
-                ? `Complete el formulario y activamos su espacio en ${BRAND_NAME} para empezar a operar.`
-                : 'Déjenos sus datos. Gustavo recibe la alerta en el panel de administración y le contacta para activar el plan.'}
-            </p>
-          </div>
-          <ul className="public-auth__bullets">
-            <li>Activación guiada en pocos días</li>
-            <li>URL y datos aislados por empresa</li>
-            <li>Punto de venta, tienda web y panel incluidos</li>
-            <li>Soporte durante el onboarding</li>
-          </ul>
-        </aside>
-
-        <div className="public-auth__form-wrap">
+    <AuthShell
+      aside={<aside className="va-aside">{aside}</aside>}
+      navAction={
+        <a className="va-btn va-btn--solid" href={getLoginUrl()}>
+          Iniciar sesión
+        </a>
+      }
+    >
           {success ? (
-            <div className="public-auth__form vos-card">
+            <div className="public-auth__form va-card">
               <header className="public-auth__head">
-                <h1 className="public-auth__title">¡Solicitud enviada!</h1>
+                <h1 className="public-auth__title">Solicitud enviada</h1>
               </header>
-              <div className="vos-alert vos-alert--info" role="status">
-                {success}
-              </div>
+              <AuthNotice>{success}</AuthNotice>
               <p className="public-auth__subtitle">
-                Te escribiremos a <strong>{submittedEmail}</strong> con usuario y contraseña.
+                Le escribiremos a <strong>{submittedEmail}</strong> con el acceso.
               </p>
-              <a className="public-btn public-btn--ghost" href={getLandingUrl()}>
-                Volver al inicio
+              <a className="va-btn va-btn--solid" href={getLoginUrl()}>
+                Iniciar sesión
               </a>
             </div>
           ) : (
-            <form className="public-auth__form vos-card" onSubmit={handleSubmit}>
+            <form className="public-auth__form va-card" onSubmit={handleSubmit}>
               <header className="public-auth__head">
                 <h1 className="public-auth__title">{planTitle}</h1>
-                <p className="public-auth__subtitle">{BRAND_TAGLINE}</p>
+                <p className="public-auth__subtitle">Empresa, nombre y correo. El resto puede quedar para después.</p>
               </header>
 
               <Label>
-                <span>Nombre de tu empresa</span>
+                <span>Nombre de la empresa</span>
                 <Input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   required
                   disabled={submitting}
-                  placeholder="Mi Restaurante SAS"
+                  placeholder="Grupo Andino"
                 />
               </Label>
 
               <Label>
-                <span>Tu nombre</span>
+                <span>Su nombre</span>
                 <Input
                   value={contactName}
                   onChange={(e) => setContactName(e.target.value)}
@@ -185,35 +168,27 @@ export function AccessRequestView({ baseUrl }: Props) {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   disabled={submitting}
-                  placeholder="Ej. bar con 4 mesas y pedidos web"
+                  placeholder="Cómo quiere usar la plataforma"
                 />
               </Label>
 
-              {error ? (
-                <div className="vos-alert vos-alert--error" role="alert">
-                  {error}
-                </div>
-              ) : null}
+              {error ? <AuthNotice tone="warn">{error}</AuthNotice> : null}
 
               <Button type="submit" size="lg" block disabled={submitting}>
                 {submitting ? 'Enviando…' : 'Registrarme'}
               </Button>
 
-              <div className="public-auth__alt-action">
+              <p className="public-auth__footer-link">
                 {plan === 'TRIAL' ? (
-                  <a className="public-btn public-btn--ghost" href={getRegisterUrl()}>
-                    Crear cuenta ahora · Google
-                  </a>
+                  <>
+                    <a href={getRegisterUrl()}>Crear cuenta con Google</a>
+                    {' · '}
+                  </>
                 ) : null}
-                <a className="public-btn public-btn--ghost" href={getLoginUrl()}>
-                  Ya tengo cuenta · Iniciar sesión
-                </a>
-              </div>
+                <a href={getLoginUrl()}>Ya tengo acceso</a>
+              </p>
             </form>
           )}
-        </div>
-      </div>
-      <LandingSalesChat />
-    </div>
+    </AuthShell>
   )
 }

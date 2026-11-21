@@ -1,17 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { fetchMe, login, setAccessToken, type AuthUser } from '../api'
-import { getLandingUrl, getRegisterUrl, navigateToGoogleSignup, storeGoogleSignupToken } from '../lib/authRoutes'
-import { BrandMark } from './BrandMark'
+import { getRegisterUrl, navigateToGoogleSignup, storeGoogleSignupToken } from '../lib/authRoutes'
 import { BRAND_LOGIN_TITLE } from '../lib/brand'
 import { readRememberedFirstName } from '../lib/userIdentity'
+import { AuthNotice, AuthShell } from './AuthShell'
 import { GoogleSignInButton } from './GoogleSignInButton'
-import { LandingSalesChat } from './landing/LandingSalesChat'
-import { PublicThemeSwitch } from './PublicThemeSwitch'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { usePublicTheme } from '../hooks/usePublicTheme'
-import '../public-shell.css'
 
 type Props = {
   baseUrl: string
@@ -26,7 +22,6 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const rememberedName = readRememberedFirstName()
-  const { theme, toggleTheme } = usePublicTheme()
 
   useEffect(() => {
     document.title = BRAND_LOGIN_TITLE
@@ -42,7 +37,7 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
     if (submitting) return
     const trimmedEmail = email.trim()
     if (!trimmedEmail || !password) {
-      setError('Ingresá email y contraseña.')
+      setError('Ingrese el correo y la contraseña.')
       return
     }
     setError(null)
@@ -72,38 +67,20 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
   }
 
   return (
-    <div className="public-shell public-auth public-auth--simple">
-      <div className="public-shell__grid-bg" aria-hidden />
-      <a className="public-btn public-btn--ghost public-auth__back" href={getLandingUrl()}>
-        ← Volver
-      </a>
-      <PublicThemeSwitch
-        theme={theme}
-        onToggle={toggleTheme}
-        compact
-        className="public-auth__theme"
-      />
-
-      <div className="public-auth__layout">
-        <div className="public-auth__form-wrap">
-          <form className="public-auth__form" onSubmit={handleSubmit}>
+    <AuthShell
+      navAction={
+        <a className="va-btn va-btn--solid" href={getRegisterUrl()}>
+          Crear cuenta
+        </a>
+      }
+    >
+          <form className="public-auth__form va-card" onSubmit={handleSubmit}>
             <header className="public-auth__head">
-              <BrandMark size="sm" />
               <h1 className="public-auth__title">
                 {rememberedName ? `Hola de nuevo, ${rememberedName}` : 'Iniciar sesión'}
               </h1>
-              <p className="public-auth__subtitle">
-                {rememberedName
-                  ? 'Ingrese de nuevo al panel de su negocio.'
-                  : 'Ingrese al panel de su negocio.'}
-              </p>
+              <p className="public-auth__subtitle">Entre a su espacio en la plataforma.</p>
             </header>
-
-            {initialMessage ? (
-              <div className="vos-alert vos-alert--error" role="alert">
-                {initialMessage}
-              </div>
-            ) : null}
 
             <GoogleSignInButton
               returnTo="login"
@@ -115,12 +92,13 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
               }}
               onError={(msg) => setError(msg)}
             />
+            {initialMessage ? <AuthNotice>{initialMessage}</AuthNotice> : null}
+            {error && /google/i.test(error) ? <AuthNotice>{error}</AuthNotice> : null}
             <p className="public-auth__legal-note">
-              Si es la primera vez con Google, te vamos a pedir el nombre de tu empresa y la
-              autorización del tratamiento de datos.
+              La primera vez con Google pedimos el nombre de la empresa y la autorización de los datos.
             </p>
 
-            <p className="public-auth__or">o con tu email</p>
+            <p className="public-auth__or">o con su correo</p>
 
             <Label>
               <span>Email</span>
@@ -160,17 +138,18 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
               </div>
             </Label>
 
-            {error ? (
-              <div className="vos-alert vos-alert--error" role="alert">
+            {error && !/google/i.test(error) ? (
+              <AuthNotice tone="warn">
                 {error}
                 {error.includes('no está configurado') ||
                 error.includes('API no disponible') ||
                 error.includes('no responde') ? null : (
-                  <p className="public-auth__error-hint">
-                    Si aún no tiene cuenta, <a href={getRegisterUrl()}>regístrese aquí</a>.
-                  </p>
+                  <>
+                    {' '}
+                    Si aún no tiene cuenta, <a href={getRegisterUrl()}>créela aquí</a>.
+                  </>
                 )}
-              </div>
+              </AuthNotice>
             ) : null}
 
             <Button type="submit" size="lg" block disabled={submitting}>
@@ -178,13 +157,9 @@ export function LoginView({ baseUrl, onLogin, initialMessage }: Props) {
             </Button>
 
             <p className="public-auth__footer-link">
-              ¿Todavía no tenés acceso?{' '}
-              <a href={getRegisterUrl()}>Registrarme</a>
+              ¿Todavía no tiene acceso? <a href={getRegisterUrl()}>Crear cuenta</a>
             </p>
           </form>
-        </div>
-      </div>
-      <LandingSalesChat />
-    </div>
+    </AuthShell>
   )
 }
